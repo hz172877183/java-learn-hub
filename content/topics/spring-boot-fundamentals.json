@@ -1,0 +1,46 @@
+{
+  "slug": "spring-boot-fundamentals",
+  "title": "Spring Boot 3 应用结构",
+  "category": "spring-core",
+  "summary": "约定优于配置：起步依赖、自动配置、可执行 Jar 与分层目录。",
+  "difficulty": "beginner",
+  "estimatedHours": 6,
+  "tags": ["spring-boot", "maven", "java21"],
+  "status": "published",
+  "integrationStatus": "runtime",
+  "officialDocsUrl": "https://docs.spring.io/spring-boot/docs/current/reference/html/",
+  "prerequisites": [],
+  "nextTopics": ["spring-web-rest"],
+  "relatedTopics": ["actuator"],
+  "overviewMd": "Spring Boot 把 Spring 生态的样板工作收成起步依赖和自动配置。你声明「我要 Web」，它带上嵌入式 Tomcat、Jackson 和合理的默认值。\n\n**该用时：** 新的后端服务、教学项目、大多数中小业务系统。\n\n**不该神话：** Boot 不是新语言，底层仍是 Spring 容器、Bean 生命周期和条件注解。出问题时要会读自动配置报告，而不是只搜「报错复制」。",
+  "concepts": [
+    { "term": "起步依赖", "explanation": "如 spring-boot-starter-web，把一组兼容版本的库打成套餐，避免自己对齐 Jackson、Tomcat、校验 API。" },
+    { "term": "自动配置", "explanation": "@SpringBootApplication 会导入 AutoConfiguration。classpath 上有某类且你没覆盖时，Boot 才创建对应 Bean。" },
+    { "term": "应用入口", "explanation": "带 main 的 @SpringBootApplication 类负责创建 ApplicationContext 并启动嵌入式服务器。" },
+    { "term": "application.yml", "explanation": "外部化配置。同一套代码用 profile（dev/prod）切换数据源、端口、日志级别。" },
+    { "term": "可执行 Jar", "explanation": "spring-boot-maven-plugin 打出的 fat jar 内嵌依赖，java -jar 即可启动。" }
+  ],
+  "pathSteps": [
+    { "title": "跑起来", "goal": "用本仓库 backend 模块启动，访问健康或学习项接口。", "hours": 1, "resources": ["本仓库 README", "本页示例"] },
+    { "title": "认目录", "goal": "分清 api / content / config 包，知道内容 JSON 从哪加载。", "hours": 1, "resources": ["backend/src/main/java"] },
+    { "title": "改一处配置", "goal": "改 server.port 或日志级别并观察生效。", "hours": 1, "resources": ["application.yml"] },
+    { "title": "读自动配置", "goal": "启动加 --debug 或看 ConditionEvaluationReport，理解为何某个 Bean 出现。", "hours": 3, "resources": ["官方文档 Auto-configuration"] }
+  ],
+  "samples": [
+    {
+      "title": "最小启动类",
+      "language": "java",
+      "description": "本项目入口。扫描 com.learn.hub 下的控制器与内容加载器。",
+      "code": "package com.learn.hub;\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n\n@SpringBootApplication\npublic class JavaLearnHubApplication {\n    public static void main(String[] args) {\n        SpringApplication.run(JavaLearnHubApplication.class, args);\n    }\n}"
+    }
+  ],
+  "pitfalls": [
+    { "title": "默认 JDK 仍是 8", "detail": "本机 java -version 可能是 1.8。Spring Boot 3 需要 17+。本仓库用 IntelliJ JBR 21 或自行安装 JDK 21 再编译。" },
+    { "title": "组件扫不到", "detail": "启动类若放在过深或过浅的包，@Component/@RestController 不会被扫描。保持启动类在根包。" },
+    { "title": "配置优先级混乱", "detail": "命令行参数 > 环境变量 > application-{profile}.yml > application.yml。改了文件不生效时先查是否被环境变量盖住。" }
+  ],
+  "repoPointers": [
+    { "label": "启动类", "path": "backend/src/main/java/com/learn/hub/JavaLearnHubApplication.java" },
+    { "label": "配置", "path": "backend/src/main/resources/application.yml" }
+  ]
+}

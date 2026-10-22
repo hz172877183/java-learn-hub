@@ -1,0 +1,101 @@
+:root {
+  --ink: #1c2430;
+  --muted: #5c6b7a;
+  --paper: #f4efe6;
+  --card: #fffdf8;
+  --line: #d9cfc0;
+  --accent: #0f6e6e;
+  --accent-soft: #d7ecec;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top right, #e7f2f0 0, transparent 28%),
+    var(--paper);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+.hero h1,
+.page h1 {
+  font-family: Georgia, "Noto Serif SC", serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 0 rgba(28, 36, 48, 0.04);
+}
+
+.card h3 {
+  margin: 8px 0 6px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.tag {
+  font-size: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+pre.code {
+  background: #1c2430;
+  color: #f4efe6;
+  padding: 14px;
+  border-radius: 10px;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.md :where(p, ul, ol) {
+  line-height: 1.7;
+}

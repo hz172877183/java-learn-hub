@@ -1,0 +1,40 @@
+{
+  "slug": "kafka",
+  "title": "Kafka（对照 RabbitMQ）",
+  "category": "messaging",
+  "summary": "日志型流：分区、位移、高吞吐。本路线作对照，一期仅文档。",
+  "difficulty": "practical",
+  "estimatedHours": 8,
+  "tags": ["kafka", "streaming"],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://kafka.apache.org/documentation/",
+  "prerequisites": ["rabbitmq"],
+  "nextTopics": [],
+  "relatedTopics": ["rabbitmq"],
+  "overviewMd": "Kafka 把消息当成可重放的日志。多个消费者组各自维护位移，适合埋点、管道、事件溯源。教学主推 RabbitMQ 后，用本页建立「何时换 Kafka」的判断，而不是两个 Broker 都在本机跑起来。",
+  "concepts": [
+    { "term": "Topic 与 Partition", "explanation": "分区是并行与顺序的单位。同一 key 进同一分区则有序。" },
+    { "term": "Consumer Group", "explanation": "组内分摊分区；多组可重复消费同一日志。" },
+    { "term": "Offset", "explanation": "消费进度。可重置以重放，这是和 Rabbit 队列「取走即消失」的最大不同。" }
+  ],
+  "pathSteps": [
+    { "title": "对比表", "goal": "从模型、顺序、重放、运维成本四列对比 Rabbit。", "hours": 2, "resources": ["rabbitmq"] },
+    { "title": "看一条消息生命周期", "goal": "produce → log → consume → commit offset。", "hours": 3, "resources": ["官方介绍"] },
+    { "title": "决定不接入一期", "goal": "写清楚本学习门户没有事件管道需求。", "hours": 1, "resources": ["PRD"] }
+  ],
+  "samples": [
+    {
+      "title": "生产者草案",
+      "language": "java",
+      "description": "对照用，不进入运行时依赖。",
+      "code": "kafkaTemplate.send(\"content-events\", event.slug(), event);"
+    }
+  ],
+  "pitfalls": [
+    { "title": "分区数随意", "detail": "分区只能加不能廉价地减。先按吞吐估算。" },
+    { "title": "和 Rabbit 当同义词", "detail": "队列语义 vs 日志语义。选错会在重放和 fan-out 上痛苦。" },
+    { "title": "本机同时跑两套 Broker 学概念", "detail": "记忆会被运维噪音淹没。先把 Rabbit 跑通再碰 Kafka。" }
+  ],
+  "repoPointers": []
+}

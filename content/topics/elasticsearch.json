@@ -1,0 +1,40 @@
+{
+  "slug": "elasticsearch",
+  "title": "Elasticsearch 概览",
+  "category": "search",
+  "summary": "倒排索引与全文检索。学习项多起来后再值得独立搜索，一期用数据库/内存过滤。",
+  "difficulty": "practical",
+  "estimatedHours": 8,
+  "tags": ["elasticsearch", "search"],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://www.elastic.co/docs",
+  "prerequisites": ["spring-web-rest"],
+  "nextTopics": [],
+  "relatedTopics": ["spring-cloud-overview", "mysql-basics"],
+  "overviewMd": "现在的搜索是对 title/tags/summary 做内存包含匹配，足够几十条学习项。文档量到「模糊分词、相关性、高亮」再上 ES。本页建立概念，不引入运行时。",
+  "concepts": [
+    { "term": "倒排索引", "explanation": "词项指向文档列表，所以全文快，不等于替代事务库。" },
+    { "term": "Analyzer", "explanation": "中文分词决定搜「学习路线」能否命中。选错分析器比调分更致命。" },
+    { "term": "近实时", "explanation": "写入后稍有延迟才可搜。和 MySQL 读己之写不同。" }
+  ],
+  "pathSteps": [
+    { "title": "先用现有 q 参数", "goal": "感受内存搜索的边界（无分词）。", "hours": 1, "resources": ["目录页"] },
+    { "title": "读倒排索引", "goal": "能在白板上画出 term → docId。", "hours": 3, "resources": ["官方入门"] },
+    { "title": "规划索引字段", "goal": "title、overview、tags 权重不同。", "hours": 4, "resources": ["本页示例"] }
+  ],
+  "samples": [
+    {
+      "title": "查询草案",
+      "language": "json",
+      "description": "multi_match 仅示意。",
+      "code": "{\n  \"query\": {\n    \"multi_match\": {\n      \"query\": \"jwt 鉴权\",\n      \"fields\": [\"title^3\", \"tags^2\", \"overviewMd\"]\n    }\n  }\n}"
+    }
+  ],
+  "pitfalls": [
+    { "title": "当主数据库", "detail": "无事务、更新模型不同。学习项主数据仍应在 MySQL/文件。" },
+    { "title": "中文不配分词", "detail": "standard 分析器对中文往往单字切，体验差。" },
+    { "title": "一期就上集群", "detail": "单节点都还没问题定义时，集群只增加运维。" }
+  ],
+  "repoPointers": []
+}

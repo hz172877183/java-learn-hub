@@ -1,0 +1,21 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: java-learn-hub
+  jackson:
+    default-property-inclusion: non_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+learn-hub:
+  # 逗号分隔；@Value 注入 List 时会按逗号拆分
+  cors-origins: http://localhost:5173,http://127.0.0.1:5173

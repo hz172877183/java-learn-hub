@@ -1,0 +1,44 @@
+{
+  "slug": "junit-mockito",
+  "title": "JUnit 5 与 Mockito",
+  "category": "engineering",
+  "summary": "先测纯逻辑（内容过滤、分页），再考虑 @SpringBootTest 的切片测试。",
+  "difficulty": "beginner",
+  "estimatedHours": 6,
+  "tags": ["junit", "mockito", "test"],
+  "status": "published",
+  "integrationStatus": "runtime",
+  "officialDocsUrl": "https://junit.org/junit5/docs/current/user-guide/",
+  "prerequisites": ["spring-boot-fundamentals"],
+  "nextTopics": ["actuator"],
+  "relatedTopics": ["spring-web-rest"],
+  "overviewMd": "本项目的 TopicService 是纯内存过滤，非常适合单测：给定一组 published/draft，断言列表不含草稿。\n\n**该用时：** 分支逻辑、错误码、分页边界。\n\n**不必事事 @SpringBootTest：** 全容器测试慢，适合控制器契约或加载 JSON 的集成测试。",
+  "concepts": [
+    { "term": "@Test", "explanation": "JUnit 5（Jupiter）的测试方法，不再继承 TestCase。" },
+    { "term": "assertThrows", "explanation": "断言某调用抛出指定异常，用来测未知 slug。" },
+    { "term": "Mockito", "explanation": "给仓储打桩，服务层不依赖真实文件。" },
+    { "term": "@SpringBootTest", "explanation": "拉起完整上下文，适合验证 ContentLoader 能读 classpath JSON。" }
+  ],
+  "pathSteps": [
+    { "title": "跑仓库里的测试", "goal": "在 backend 执行 mvn test。", "hours": 0.5, "resources": ["README"] },
+    { "title": "补一个过滤用例", "goal": "按 category 过滤时 draft 仍不可见。", "hours": 1, "resources": ["TopicServiceTest"] },
+    { "title": "学 Mockito", "goal": "mock 仓储返回两篇文档，断言分页 total。", "hours": 2, "resources": ["Mockito 文档"] },
+    { "title": "切片测试", "goal": "了解 @WebMvcTest 只加载 Web 层。", "hours": 2.5, "resources": ["Spring Boot Testing"] }
+  ],
+  "samples": [
+    {
+      "title": "断言草稿不可见",
+      "language": "java",
+      "description": "服务层单测思路，不启动 Web 容器。",
+      "code": "@Test\nvoid listHidesDrafts() {\n    TopicService service = new TopicService(fixtureLoader());\n    TopicListResponse res = service.list(null, null, null, null, 0, 20);\n    assertTrue(res.items().stream().noneMatch(i -> \"draft\".equals(i.status())));\n}"
+    }
+  ],
+  "pitfalls": [
+    { "title": "测试依赖真实磁盘路径写死 C 盘", "detail": "用 classpath 或临时目录。别人克隆下来会红。" },
+    { "title": "断言整个 JSON 字符串", "detail": "字段一换全挂。断言关键字段。" },
+    { "title": "没有失败用例", "detail": "只测 happy path 等于没测 404 契约。" }
+  ],
+  "repoPointers": [
+    { "label": "示例测试", "path": "backend/src/test/java/com/learn/hub/topic/TopicServiceTest.java" }
+  ]
+}

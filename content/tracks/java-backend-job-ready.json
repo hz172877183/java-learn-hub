@@ -1,0 +1,42 @@
+{
+  "slug": "java-backend-job-ready",
+  "title": "Java 后端求职向路线",
+  "audience": "有 Java 基础，希望 8～12 周对齐常见业务技术栈",
+  "stages": [
+    {
+      "title": "1. 站稳 Web",
+      "goal": "能独立写 REST 接口，理解 Spring Boot 启动与配置。",
+      "topicSlugs": ["spring-boot-fundamentals", "spring-web-rest"]
+    },
+    {
+      "title": "2. 把数据存住",
+      "goal": "会建模、迁移，并对照 JPA 与 MyBatis。",
+      "topicSlugs": ["mysql-basics", "spring-data-jpa", "mybatis-plus", "flyway"]
+    },
+    {
+      "title": "3. 变快与变稳",
+      "goal": "缓存常用模式、会写单测、会看健康端点。",
+      "topicSlugs": ["redis", "junit-mockito", "actuator"]
+    },
+    {
+      "title": "4. 安全",
+      "goal": "理解认证授权与 JWT 的边界。",
+      "topicSlugs": ["spring-security-jwt"]
+    },
+    {
+      "title": "5. 异步",
+      "goal": "掌握消息驱动的基本模型；Kafka 作对照。",
+      "topicSlugs": ["rabbitmq", "kafka"]
+    },
+    {
+      "title": "6. 工程交付",
+      "goal": "能容器化依赖并与前端联调。",
+      "topicSlugs": ["docker-basics", "vue3-spa"]
+    },
+    {
+      "title": "7. 进阶地图",
+      "goal": "知道微服务与搜索在业务里的位置，不必一期全部跑起来。",
+      "topicSlugs": ["spring-cloud-overview", "elasticsearch"]
+    }
+  ]
+}

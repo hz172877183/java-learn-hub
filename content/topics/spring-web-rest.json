@@ -1,0 +1,44 @@
+{
+  "slug": "spring-web-rest",
+  "title": "Spring Web（REST、校验、异常）",
+  "category": "spring-core",
+  "summary": "用注解把 HTTP 映射到方法，统一返回 JSON，并把校验和错误变成稳定契约。",
+  "difficulty": "beginner",
+  "estimatedHours": 8,
+  "tags": ["rest", "validation", "exception"],
+  "status": "published",
+  "integrationStatus": "runtime",
+  "officialDocsUrl": "https://docs.spring.io/spring-framework/reference/web/webmvc.html",
+  "prerequisites": ["spring-boot-fundamentals"],
+  "nextTopics": ["spring-data-jpa"],
+  "relatedTopics": ["spring-security-jwt"],
+  "overviewMd": "REST 在本项目里就是资源 + HTTP 动词：学习项是 `/api/v1/topics`，详情是 `/api/v1/topics/{slug}`。\n\n**该用时：** 前后端分离、开放给 Vue 调用的 JSON API。\n\n**注意：** 控制器应保持薄，查询和校验规则放到服务或内容仓储；错误要有 `code`，不要把堆栈扔给浏览器。",
+  "concepts": [
+    { "term": "@RestController", "explanation": "等价于 @Controller + @ResponseBody，方法返回值直接序列化为 JSON。" },
+    { "term": "路径变量与查询参数", "explanation": "@PathVariable 绑定 URL 片段；@RequestParam 绑定 ?q=&page=。" },
+    { "term": "Bean Validation", "explanation": "在 DTO 上用 @NotBlank 等，方法参数加 @Valid，失败由异常解析器转 400。" },
+    { "term": "@ControllerAdvice", "explanation": "集中把业务异常、校验异常映射成统一错误体。" }
+  ],
+  "pathSteps": [
+    { "title": "读本仓库接口", "goal": "对照 PRD 第 7 节，用浏览器或 curl 调列表与详情。", "hours": 1, "resources": ["本页示例", "PRD"] },
+    { "title": "补一个查询条件", "goal": "尝试增加按 tag 过滤（先本地改，再还原）。", "hours": 2, "resources": ["TopicController"] },
+    { "title": "统一错误", "goal": "访问不存在的 slug，确认 404 JSON 含 code 与 message。", "hours": 1, "resources": ["ApiExceptionHandler"] },
+    { "title": "校验", "goal": "了解 @Valid 在写接口（二期管理端）时如何接到 400。", "hours": 4, "resources": ["Jakarta Validation 文档"] }
+  ],
+  "samples": [
+    {
+      "title": "列表查询参数",
+      "language": "java",
+      "description": "只读列表：筛选条件都是可选查询参数，未发布内容在仓储层过滤。",
+      "code": "@GetMapping(\"/api/v1/topics\")\npublic TopicListResponse list(\n        @RequestParam(required = false) String category,\n        @RequestParam(required = false) String difficulty,\n        @RequestParam(required = false) String integrationStatus,\n        @RequestParam(required = false) String q,\n        @RequestParam(defaultValue = \"0\") int page,\n        @RequestParam(defaultValue = \"20\") int size) {\n    return topicService.list(category, difficulty, integrationStatus, q, page, size);\n}"
+    }
+  ],
+  "pitfalls": [
+    { "title": "用 Map 当返回值", "detail": "前端会被迫猜字段。用 record/DTO，字段名与 PRD 对齐。" },
+    { "title": "404 返回 200 + 空对象", "detail": "详情找不到应 404，方便前端展示专门页面。" },
+    { "title": "把业务异常直接 toString", "detail": "用户看到的是 message，排障靠 traceId 查日志，不要返回堆栈。" }
+  ],
+  "repoPointers": [
+    { "label": "学习项 API", "path": "backend/src/main/java/com/learn/hub/api/TopicController.java" }
+  ]
+}

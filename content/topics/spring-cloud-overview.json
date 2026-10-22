@@ -1,0 +1,41 @@
+{
+  "slug": "spring-cloud-overview",
+  "title": "Spring Cloud 地图",
+  "category": "cloud",
+  "summary": "网关、配置、服务发现、OpenFeign。先建立地图，一期不拆微服务。",
+  "difficulty": "practical",
+  "estimatedHours": 6,
+  "tags": ["spring-cloud", "microservices"],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://spring.io/projects/spring-cloud",
+  "prerequisites": ["spring-web-rest"],
+  "nextTopics": ["elasticsearch"],
+  "relatedTopics": ["docker-basics"],
+  "overviewMd": "单体足够支撑学习门户。微服务解决的是团队规模与独立部署，不是「看起来高级」。本页帮你在面试里能讲清 Gateway / Nacos / OpenFeign 各自解决什么，而不是现在就拆成五个 jar。",
+  "concepts": [
+    { "term": "API Gateway", "explanation": "统一入口、路由、限流。Spring Cloud Gateway 基于 WebFlux。" },
+    { "term": "服务发现", "explanation": "实例上下线由注册中心（Nacos/Eureka）维护，调用方不写死 IP。" },
+    { "term": "OpenFeign", "explanation": "用接口声明式调 HTTP，底层仍是 REST。" },
+    { "term": "配置中心", "explanation": "集中改配置并刷新，避免每个实例改 yml。" }
+  ],
+  "pathSteps": [
+    { "title": "对照单体", "goal": "列出本项目如果硬拆会多出的仓库、流水线、联调成本。", "hours": 1, "resources": ["本仓库结构"] },
+    { "title": "记三件套职责", "goal": "网关、发现、Feign 各用一句话说清。", "hours": 2, "resources": ["官方项目页"] },
+    { "title": "等有第二个可部署服务再拆", "goal": "例如独立的搜索服务。", "hours": 3, "resources": ["elasticsearch"] }
+  ],
+  "samples": [
+    {
+      "title": "Feign 声明草案",
+      "language": "java",
+      "description": "仅示意，当前无第二个服务。",
+      "code": "@FeignClient(name = \"topic-service\", url = \"http://localhost:8080\")\npublic interface TopicClient {\n    @GetMapping(\"/api/v1/topics/{slug}\")\n    TopicDetail get(@PathVariable String slug);\n}"
+    }
+  ],
+  "pitfalls": [
+    { "title": "为拆而拆", "detail": "一个内容 JSON 加载器配五个进程，调试全耗在端口上。" },
+    { "title": "网关当业务层", "detail": "复杂校验仍应在服务内。网关做横切。" },
+    { "title": "国内组件版本矩阵", "detail": "Nacos 与 Boot 版本要对照兼容表，不要最新混搭。" }
+  ],
+  "repoPointers": []
+}

@@ -1,0 +1,42 @@
+{
+  "slug": "mysql-basics",
+  "title": "MySQL 与表设计基础",
+  "category": "data",
+  "summary": "关系模型、主键索引、字符集，以及学习项未来落库时会用到的表思路。",
+  "difficulty": "beginner",
+  "estimatedHours": 8,
+  "tags": ["mysql", "sql", "schema"],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://dev.mysql.com/doc/",
+  "prerequisites": [],
+  "nextTopics": ["spring-data-jpa", "flyway"],
+  "relatedTopics": ["mybatis-plus"],
+  "overviewMd": "一期学习内容来自仓库 JSON，尚未强制 MySQL。二期会把 Topic 落表，所以现在先把表设计想清楚，避免到时再推翻。\n\n**该用时：** 需要事务、关联查询、报表的业务数据。\n\n**不必上时：** 纯静态教学内容、本机演示 MVP。",
+  "concepts": [
+    { "term": "主键", "explanation": "本项目学习项自然键是 slug（URL 友好），也可另加自增 id 作内部关联。" },
+    { "term": "InnoDB", "explanation": "默认引擎，支持事务与外键。教学项目没有特殊理由不要换 MyISAM。" },
+    { "term": "utf8mb4", "explanation": "完整 Unicode，避免 emoji 或罕见汉字写入失败。" },
+    { "term": "索引", "explanation": "列表筛选 category、status 值得建索引；不要给低区分度列乱加。" }
+  ],
+  "pathSteps": [
+    { "title": "装库", "goal": "本机或 Docker 跑 MySQL 8，用客户端连上。", "hours": 1, "resources": ["docker-basics"] },
+    { "title": "画表", "goal": "按下面示例建 topic 表（先练习，不必接到 Boot）。", "hours": 2, "resources": ["本页 DDL"] },
+    { "title": "写三条 SQL", "goal": "按 category 过滤 published，体会索引与 EXPLAIN。", "hours": 3, "resources": ["官方 EXPLAIN"] },
+    { "title": "对照 JPA", "goal": "看实体如何映射到这些列。", "hours": 2, "resources": ["spring-data-jpa"] }
+  ],
+  "samples": [
+    {
+      "title": "学习项表草案",
+      "language": "sql",
+      "description": "二期落库草案，不是当前运行时依赖。",
+      "code": "CREATE TABLE topic (\n  slug VARCHAR(64) PRIMARY KEY,\n  title VARCHAR(128) NOT NULL,\n  category VARCHAR(32) NOT NULL,\n  summary VARCHAR(200) NOT NULL,\n  difficulty VARCHAR(16) NOT NULL,\n  estimated_hours INT NOT NULL,\n  status VARCHAR(16) NOT NULL,\n  integration_status VARCHAR(16) NOT NULL,\n  overview_md MEDIUMTEXT NOT NULL,\n  updated_at DATETIME NOT NULL,\n  INDEX idx_topic_category_status (category, status)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+    }
+  ],
+  "pitfalls": [
+    { "title": "utf8 不是完整 Unicode", "detail": "MySQL 的 utf8 实际是 utf8mb3。新建库一律 utf8mb4。" },
+    { "title": "用 TEXT 当什么都往里塞", "detail": "要筛选的字段单独列出来；JSON 数组（tags）可用 JSON 类型或关联表。" },
+    { "title": "没有迁移工具", "detail": "手工改线上表会漂移。下一课用 Flyway 管版本。" }
+  ],
+  "repoPointers": []
+}

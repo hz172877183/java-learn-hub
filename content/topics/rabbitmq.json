@@ -1,0 +1,42 @@
+{
+  "slug": "rabbitmq",
+  "title": "RabbitMQ（主推消息队列）",
+  "category": "messaging",
+  "summary": "AMQP：交换机、队列、路由键。本路线主推的消息中间件。",
+  "difficulty": "intermediate",
+  "estimatedHours": 8,
+  "tags": ["rabbitmq", "amqp", "async"],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://www.rabbitmq.com/docs",
+  "prerequisites": ["spring-boot-fundamentals"],
+  "nextTopics": ["kafka"],
+  "relatedTopics": ["kafka"],
+  "overviewMd": "拍板：教学主推 RabbitMQ。它的模型（exchange + queue + binding）适合把「发消息」和「谁来消费」解耦，国内中小业务与 Spring AMQP 资料多。\n\n一期不启动 Broker，避免本地依赖过重。",
+  "concepts": [
+    { "term": "Producer / Consumer", "explanation": "生产者发到交换机，消费者从队列取。" },
+    { "term": "Exchange 类型", "explanation": "direct 精确路由键；topic 通配；fanout 广播。" },
+    { "term": "ACK", "explanation": "消费成功再确认。否则消息可重投，要注意幂等。" },
+    { "term": "死信队列", "explanation": "过期或拒绝的消息进入 DLX，便于排查毒消息。" }
+  ],
+  "pathSteps": [
+    { "title": "画一张图", "goal": "topic 交换机如何把 content.updated 路由到缓存失效队列。", "hours": 1, "resources": ["官方教程"] },
+    { "title": "Spring AMQP 示例", "goal": "读懂 @RabbitListener 草案。", "hours": 3, "resources": ["本页示例"] },
+    { "title": "幂等", "goal": "同样的「内容更新」消息消费两次不能把数据打坏。", "hours": 2, "resources": ["常见坑"] },
+    { "title": "对照 Kafka", "goal": "明确何时不该用 Rabbit。", "hours": 2, "resources": ["kafka"] }
+  ],
+  "samples": [
+    {
+      "title": "监听草案",
+      "language": "java",
+      "description": "内容更新后删 Redis。当前未接入。",
+      "code": "@RabbitListener(queues = \"topic.cache.evict\")\npublic void onContentUpdated(ContentUpdatedEvent event) {\n    stringRedisTemplate.delete(\"topic:slug:\" + event.slug());\n}"
+    }
+  ],
+  "pitfalls": [
+    { "title": "忘记幂等", "detail": "at-least-once 投递是常态。用业务主键去重。" },
+    { "title": "无限重试打满 CPU", "detail": "毒消息要进死信，不要裸 while true。" },
+    { "title": "用 MQ 当 RPC 同步等待", "detail": "会把超时和运维复杂度推高。同步查询走 HTTP/DB。" }
+  ],
+  "repoPointers": []
+}

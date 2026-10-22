@@ -1,0 +1,42 @@
+{
+  "slug": "spring-security-jwt",
+  "title": "Spring Security 与 JWT",
+  "category": "security",
+  "summary": "过滤器链、认证授权；JWT 适合前后端分离的无状态访问令牌。",
+  "difficulty": "intermediate",
+  "estimatedHours": 10,
+  "tags": ["security", "jwt"],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://docs.spring.io/spring-security/reference/",
+  "prerequisites": ["spring-web-rest"],
+  "nextTopics": ["rabbitmq"],
+  "relatedTopics": ["actuator"],
+  "overviewMd": "一期学习门户全部只读、无登录。二期管理端写接口才需要认证。JWT 把身份放在令牌里，服务端不存会话（或只存黑名单）。\n\n**该用时：** SPA 调 API、多实例无会话粘滞。\n\n**注意：** JWT 不是加密，默认是签名。令牌里不要放敏感个人信息；过期时间要短，刷新令牌分开存。",
+  "concepts": [
+    { "term": "SecurityFilterChain", "explanation": "请求经过一系列 Filter。配置哪些路径 permitAll，哪些 authenticated。" },
+    { "term": "Authentication", "explanation": "你是谁。用户名密码或 JWT 解析后的主体。" },
+    { "term": "Authorization", "explanation": "你能做什么。角色或权限注解。" },
+    { "term": "JWT", "explanation": "Header.Payload.Signature。服务端用密钥验签。撤销困难，故过期要短。" }
+  ],
+  "pathSteps": [
+    { "title": "默记过滤器链", "goal": "画出请求从 HttpSecurity 到控制器的路径。", "hours": 2, "resources": ["官方架构图"] },
+    { "title": "先 permitAll", "goal": "理解本项目为何一期不引入 Security 依赖。", "hours": 1, "resources": ["本仓库"] },
+    { "title": "写验签伪代码", "goal": "Authorization: Bearer 解析、过期校验、设置 SecurityContext。", "hours": 4, "resources": ["本页示例"] },
+    { "title": "列威胁", "goal": "XSS 偷令牌、CSRF 对 cookie 方案、算法 none 攻击。", "hours": 3, "resources": ["OWASP"] }
+  ],
+  "samples": [
+    {
+      "title": "二期过滤器链草案",
+      "language": "java",
+      "description": "公开读接口放行，/api/v1/admin/** 要认证。当前未启用。",
+      "code": "@Bean\nSecurityFilterChain chain(HttpSecurity http) throws Exception {\n    return http\n        .csrf(csrf -> csrf.disable())\n        .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))\n        .authorizeHttpRequests(auth -> auth\n            .requestMatchers(\"/api/v1/topics/**\", \"/api/v1/tracks/**\", \"/actuator/health\").permitAll()\n            .requestMatchers(\"/api/v1/admin/**\").authenticated()\n            .anyRequest().denyAll())\n        .build();\n}"
+    }
+  ],
+  "pitfalls": [
+    { "title": "csrf.disable 却用 Cookie 存 JWT", "detail": "无状态 Bearer 可关 CSRF；Cookie 方案则要 CSRF 或 SameSite 策略。" },
+    { "title": "密钥写进仓库", "detail": "用环境变量。本仓库禁止提交真实密钥。" },
+    { "title": "令牌永不过期", "detail": "泄露即永久访问。access 短、refresh 长且可撤销。" }
+  ],
+  "repoPointers": []
+}
