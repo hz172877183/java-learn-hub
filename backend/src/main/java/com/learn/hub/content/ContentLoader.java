@@ -1,39 +1,66 @@
 package com.learn.hub.content;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learn.hub.persistence.TopicEntity;
+import com.learn.hub.persistence.TopicRepository;
+import com.learn.hub.persistence.TrackEntity;
+import com.learn.hub.persistence.TrackRepository;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Component
 public class ContentLoader {
 
     private final ObjectMapper objectMapper;
+    private final TopicRepository topicRepository;
+    private final TrackRepository trackRepository;
 
-    public ContentLoader(ObjectMapper objectMapper) {
+    public ContentLoader(
+            ObjectMapper objectMapper,
+            TopicRepository topicRepository,
+            TrackRepository trackRepository
+    ) {
         this.objectMapper = objectMapper;
+        this.topicRepository = topicRepository;
+        this.trackRepository = trackRepository;
     }
 
+    /**
+     * 从数据库加载全部内容，构建只读快照。数据库是唯一数据源。
+     */
     public ContentCatalog load() {
-        try {
-            Map<String, ContentModels.TopicDocument> topics = loadTopics();
-            Map<String, ContentModels.TrackDocument> tracks = loadTracks();
-            validate(topics, tracks);
-            return new ContentCatalog(topics, tracks);
-        } catch (IOException e) {
-            throw new IllegalStateException("无法加载 content/ 目录", e);
+        Map<String, ContentModels.TopicDocument> topics = new LinkedHashMap<>();
+        for (TopicEntity entity : topicRepository.findAll()) {
+            ContentModels.TopicDocument doc = parseTopic(entity.getPayload());
+            topics.put(doc.slug(), doc);
         }
+
+        Map<String, ContentModels.TrackDocument> tracks = new LinkedHashMap<>();
+        for (TrackEntity entity : trackRepository.findAll()) {
+            ContentModels.TrackDocument doc = parseTrack(entity.getPayload());
+            tracks.put(doc.slug(), doc);
+        }
+
+        validate(topics, tracks);
+        return new ContentCatalog(topics, tracks);
     }
 
-    private Map<String, ContentModels.TopicDocument> loadTopics() throws IOException {
+    /**
+     * 读取打包进 classpath 的 content/topics/*.json，用作首次启动的种子数据。
+     */
+    public List<ContentModels.TopicDocument> readSeedTopics() throws IOException {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         Resource[] resources = resolver.getResources("classpath:content/topics/*.json");
-        Map<String, ContentModels.TopicDocument> topics = new LinkedHashMap<>();
+        List<ContentModels.TopicDocument> topics = new ArrayList<>();
         for (Resource resource : resources) {
             try (InputStream in = resource.getInputStream()) {
                 ContentModels.TopicDocument doc = objectMapper.readValue(in, ContentModels.TopicDocument.class)
@@ -41,32 +68,52 @@ public class ContentLoader {
                 if (doc.slug() == null || doc.slug().isBlank()) {
                     throw new IllegalStateException("学习项缺少 slug: " + resource.getFilename());
                 }
-                if (topics.put(doc.slug(), doc) != null) {
-                    throw new IllegalStateException("重复 slug: " + doc.slug());
-                }
+                topics.add(doc);
             }
-        }
-        if (topics.isEmpty()) {
-            throw new IllegalStateException("未找到任何学习项 JSON");
         }
         return topics;
     }
 
-    private Map<String, ContentModels.TrackDocument> loadTracks() throws IOException {
+    /**
+     * 读取打包进 classpath 的 content/tracks/*.json，用作首次启动的种子数据。
+     */
+    public List<ContentModels.TrackDocument> readSeedTracks() throws IOException {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         Resource[] resources = resolver.getResources("classpath:content/tracks/*.json");
-        Map<String, ContentModels.TrackDocument> tracks = new LinkedHashMap<>();
+        List<ContentModels.TrackDocument> tracks = new ArrayList<>();
         for (Resource resource : resources) {
             try (InputStream in = resource.getInputStream()) {
-                ContentModels.TrackDocument doc = objectMapper.readValue(in, ContentModels.TrackDocument.class)
-                        .normalized();
-                tracks.put(doc.slug(), doc);
+                tracks.add(objectMapper.readValue(in, ContentModels.TrackDocument.class).normalized());
             }
         }
         return tracks;
     }
 
-    private void validate(
+    public ContentModels.TopicDocument parseTopic(String json) {
+        try {
+            return objectMapper.readValue(json, ContentModels.TopicDocument.class).normalized();
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("数据库中的学习项 JSON 无法解析", e);
+        }
+    }
+
+    public ContentModels.TrackDocument parseTrack(String json) {
+        try {
+            return objectMapper.readValue(json, ContentModels.TrackDocument.class).normalized();
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("数据库中的路线 JSON 无法解析", e);
+        }
+    }
+
+    public String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("内容无法序列化为 JSON", e);
+        }
+    }
+
+    public void validate(
             Map<String, ContentModels.TopicDocument> topics,
             Map<String, ContentModels.TrackDocument> tracks
     ) {
@@ -82,14 +129,12 @@ public class ContentLoader {
                         "已发布学习项不完整（需要概述、路线、至少 1 个示例、至少 3 条常见坑）: " + topic.slug());
             }
         }
-        for (ContentModels.TrackDocument track : tracks.values()) {
-            for (ContentModels.Stage stage : track.stages()) {
-                for (String slug : stage.topicSlugs()) {
-                    if (!topics.containsKey(slug)) {
-                        throw new IllegalStateException("路线 " + track.slug() + " 引用了不存在的学习项: " + slug);
-                    }
-                }
-            }
-        }
+        // 路线允许临时引用不存在的学习项，读取时会自动跳过，避免删除学习项被路线阻塞。
+    }
+
+    public void validateOne(ContentModels.TopicDocument topic) {
+        Map<String, ContentModels.TopicDocument> single = new LinkedHashMap<>();
+        single.put(topic.slug(), topic);
+        validate(single, Map.of());
     }
 }

@@ -6,6 +6,18 @@ spring:
     name: java-learn-hub
   jackson:
     default-property-inclusion: non_null
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/learnhub?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: ${DB_USER:learnhub}
+    password: ${DB_PASSWORD:learnhub123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
 management:
   endpoints:
@@ -19,3 +31,5 @@ management:
 learn-hub:
   # 逗号分隔；@Value 注入 List 时会按逗号拆分
   cors-origins: http://localhost:5173,http://127.0.0.1:5173
+  # 管理端写接口的 Bearer Token，生产环境请用环境变量覆盖
+  admin-token: ${LEARNHUB_ADMIN_TOKEN:dev-admin-token}

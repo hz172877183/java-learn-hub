@@ -10,6 +10,7 @@ import { RouterLink, RouterView } from 'vue-router'
         <RouterLink to="/catalog">学习目录</RouterLink>
         <RouterLink to="/track">总路线</RouterLink>
         <RouterLink to="/about">关于</RouterLink>
+        <RouterLink to="/admin">管理</RouterLink>
       </nav>
     </header>
     <RouterView />

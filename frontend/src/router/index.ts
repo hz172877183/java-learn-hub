@@ -9,6 +9,12 @@ const router = createRouter({
     { path: '/topics/:slug', name: 'topic', component: () => import('@/views/TopicDetailView.vue') },
     { path: '/track', name: 'track', component: () => import('@/views/TrackView.vue') },
     { path: '/about', name: 'about', component: () => import('@/views/AboutView.vue') },
+    { path: '/admin', name: 'admin', component: () => import('@/views/AdminView.vue') },
+    {
+      path: '/admin/topics/:slug',
+      name: 'admin-topic',
+      component: () => import('@/views/AdminTopicEditView.vue'),
+    },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFoundView.vue') },
   ],
   scrollBehavior() {

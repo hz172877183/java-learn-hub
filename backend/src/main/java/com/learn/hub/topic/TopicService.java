@@ -1,9 +1,8 @@
 package com.learn.hub.topic;
 
+import com.learn.hub.content.CatalogStore;
 import com.learn.hub.content.ContentCatalog;
-import com.learn.hub.content.ContentLoader;
 import com.learn.hub.content.ContentModels;
-import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -15,24 +14,22 @@ import java.util.Objects;
 @Service
 public class TopicService {
 
-    private final ContentLoader contentLoader;
-    private ContentCatalog catalog;
+    private final CatalogStore catalogStore;
+    private final ContentCatalog fixedCatalog;
 
     @Autowired
-    public TopicService(ContentLoader contentLoader) {
-        this.contentLoader = contentLoader;
+    public TopicService(CatalogStore catalogStore) {
+        this.catalogStore = catalogStore;
+        this.fixedCatalog = null;
     }
 
     TopicService(ContentCatalog catalog) {
-        this.contentLoader = null;
-        this.catalog = catalog;
+        this.catalogStore = null;
+        this.fixedCatalog = catalog;
     }
 
-    @PostConstruct
-    void init() {
-        if (contentLoader != null) {
-            this.catalog = contentLoader.load();
-        }
+    private ContentCatalog catalog() {
+        return fixedCatalog != null ? fixedCatalog : catalogStore.get();
     }
 
     public TopicDtos.TopicListResponse list(
@@ -47,7 +44,7 @@ public class TopicService {
             throw new IllegalArgumentException("page 从 0 起，size 范围 1-100");
         }
         String needle = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
-        List<TopicDtos.TopicSummary> all = catalog.topics().stream()
+        List<TopicDtos.TopicSummary> all = catalog().topics().stream()
                 .filter(ContentModels.TopicDocument::published)
                 .filter(doc -> category == null || category.isBlank() || category.equals(doc.category()))
                 .filter(doc -> difficulty == null || difficulty.isBlank() || difficulty.equals(doc.difficulty()))
@@ -63,7 +60,7 @@ public class TopicService {
     }
 
     public TopicDtos.TopicDetail detail(String slug) {
-        ContentModels.TopicDocument doc = catalog.topic(slug)
+        ContentModels.TopicDocument doc = catalog().topic(slug)
                 .filter(ContentModels.TopicDocument::published)
                 .orElseThrow(() -> new NotFoundException("TOPIC_NOT_FOUND", "未找到学习项: " + slug));
         return new TopicDtos.TopicDetail(
@@ -89,14 +86,14 @@ public class TopicService {
     }
 
     public TopicDtos.TrackResponse track(String slug) {
-        ContentModels.TrackDocument track = catalog.track(slug)
+        ContentModels.TrackDocument track = catalog().track(slug)
                 .orElseThrow(() -> new NotFoundException("TRACK_NOT_FOUND", "未找到学习路线: " + slug));
         List<TopicDtos.TrackStage> stages = track.stages().stream()
                 .map(stage -> new TopicDtos.TrackStage(
                         stage.title(),
                         stage.goal(),
                         stage.topicSlugs().stream()
-                                .map(topicSlug -> catalog.topic(topicSlug).orElse(null))
+                                .map(topicSlug -> catalog().topic(topicSlug).orElse(null))
                                 .filter(Objects::nonNull)
                                 .filter(ContentModels.TopicDocument::published)
                                 .map(TopicDtos.TopicSummary::from)
@@ -107,7 +104,7 @@ public class TopicService {
     }
 
     public TopicDtos.MetaResponse meta() {
-        List<ContentModels.TopicDocument> published = catalog.topics().stream()
+        List<ContentModels.TopicDocument> published = catalog().topics().stream()
                 .filter(ContentModels.TopicDocument::published)
                 .toList();
         List<TopicDtos.CategoryStat> categories = published.stream()
@@ -125,7 +122,7 @@ public class TopicService {
 
     private List<TopicDtos.TopicRef> refs(List<String> slugs) {
         return slugs.stream()
-                .map(slug -> catalog.topic(slug).orElse(null))
+                .map(slug -> catalog().topic(slug).orElse(null))
                 .filter(Objects::nonNull)
                 .filter(ContentModels.TopicDocument::published)
                 .map(doc -> new TopicDtos.TopicRef(doc.slug(), doc.title()))

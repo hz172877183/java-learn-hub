@@ -45,3 +45,55 @@ export interface TrackResponse {
   audience: string
   stages: { title: string; goal: string; topics: TopicSummary[] }[]
 }
+
+export interface Concept {
+  term: string
+  explanation: string
+}
+
+export interface PathStep {
+  title: string
+  goal: string
+  hours?: number
+  resources: string[]
+}
+
+export interface Sample {
+  title: string
+  language: string
+  description: string
+  code: string
+}
+
+export interface Pitfall {
+  title: string
+  detail: string
+}
+
+export interface RepoPointer {
+  label: string
+  path: string
+}
+
+/** 管理端编辑的完整学习项，与 content/topics/*.json 结构一致 */
+export interface TopicDocument {
+  slug: string
+  title: string
+  category: string
+  summary?: string
+  difficulty: string
+  estimatedHours?: number
+  tags?: string[]
+  status: string
+  integrationStatus: string
+  officialDocsUrl?: string
+  prerequisites?: string[]
+  nextTopics?: string[]
+  relatedTopics?: string[]
+  overviewMd?: string
+  concepts?: Concept[]
+  pathSteps?: PathStep[]
+  samples?: Sample[]
+  pitfalls?: Pitfall[]
+  repoPointers?: RepoPointer[]
+}
