@@ -2,12 +2,14 @@ package com.learn.hub.api;
 
 import com.learn.hub.topic.ConflictException;
 import com.learn.hub.topic.NotFoundException;
+import com.learn.hub.user.UnauthorizedException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -43,6 +45,12 @@ public class ApiExceptionHandler {
                 .body(new ApiError(ex.getCode(), ex.getMessage(), traceId()));
     }
 
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiError> unauthorized(UnauthorizedException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiError(ex.getCode(), ex.getMessage(), traceId()));
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiError> noResource(NoResourceFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -59,6 +67,12 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiError> unsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
         return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
                 .body(new ApiError("UNSUPPORTED_MEDIA_TYPE", "请求体需要 application/json", traceId()));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> unreadableBody(HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ApiError("BAD_REQUEST", "请求体 JSON 无法解析", traceId()));
     }
 
     @ExceptionHandler(Exception.class)

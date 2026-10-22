@@ -1,19 +1,76 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
-import { fetchTopic } from '@/api/client'
-import type { TopicDetail } from '@/api/types'
+import { fetchNote, fetchProgress, fetchTopic, saveNote, setProgress } from '@/api/client'
+import type { LearningState, TopicDetail } from '@/api/types'
 import { categoryLabel, difficultyLabel, integrationLabel } from '@/labels'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const auth = useAuthStore()
 const topic = ref<TopicDetail | null>(null)
 const missing = ref(false)
 const error = ref('')
 const html = computed(() => (topic.value ? marked.parse(topic.value.overviewMd) : ''))
 
+const state = ref<LearningState>('not_started')
+const note = ref('')
+const noteStatus = ref('')
+const savingNote = ref(false)
+
 async function copy(code: string) {
   await navigator.clipboard.writeText(code)
+}
+
+async function loadStudy(slug: string) {
+  state.value = 'not_started'
+  note.value = ''
+  noteStatus.value = ''
+  if (!auth.isLoggedIn) {
+    return
+  }
+  try {
+    const [progressList, noteData] = await Promise.all([fetchProgress(), fetchNote(slug)])
+    state.value = progressList.find((item) => item.topicSlug === slug)?.state ?? 'not_started'
+    note.value = noteData.content
+    if (noteData.updatedAt) {
+      noteStatus.value = `上次保存：${noteData.updatedAt.replace('T', ' ').slice(0, 16)}`
+    }
+  } catch {
+    /* 未登录或网络问题时保持默认值 */
+  }
+}
+
+async function saveState(value: LearningState) {
+  if (!topic.value) {
+    return
+  }
+  try {
+    await setProgress(topic.value.slug, value)
+    ElMessage.success('已更新学习状态')
+  } catch (e) {
+    ElMessage.error((e as Error).message)
+  }
+}
+
+async function saveNoteNow() {
+  if (!topic.value) {
+    return
+  }
+  savingNote.value = true
+  try {
+    const saved = await saveNote(topic.value.slug, note.value)
+    noteStatus.value = saved.updatedAt
+      ? `已保存：${saved.updatedAt.replace('T', ' ').slice(0, 16)}`
+      : '已清空笔记'
+    ElMessage.success('笔记已保存')
+  } catch (e) {
+    ElMessage.error((e as Error).message)
+  } finally {
+    savingNote.value = false
+  }
 }
 
 watch(
@@ -24,6 +81,7 @@ watch(
     error.value = ''
     try {
       topic.value = await fetchTopic(String(slug))
+      await loadStudy(String(slug))
     } catch (e) {
       if (e instanceof Error && e.message === '404') missing.value = true
       else error.value = '加载失败'
@@ -47,6 +105,23 @@ watch(
       <p v-if="topic.officialDocsUrl">
         <a :href="topic.officialDocsUrl" target="_blank" rel="noreferrer">官方文档</a>
       </p>
+
+      <section class="card study">
+        <template v-if="auth.isLoggedIn">
+          <span>学习状态</span>
+          <el-select v-model="state" size="small" class="state-select" @change="saveState">
+            <el-option label="未开始" value="not_started" />
+            <el-option label="学习中" value="learning" />
+            <el-option label="已完成" value="completed" />
+          </el-select>
+        </template>
+        <template v-else>
+          <span class="muted">
+            登录后可勾选学习进度、写私人笔记。
+            <RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">去登录</RouterLink>
+          </span>
+        </template>
+      </section>
 
       <section>
         <h2>概述</h2>
@@ -131,6 +206,20 @@ watch(
           </RouterLink>
         </div>
       </section>
+
+      <section v-if="auth.isLoggedIn" class="card note-box">
+        <h2>我的笔记 <span class="muted">仅自己可见</span></h2>
+        <el-input
+          v-model="note"
+          type="textarea"
+          :rows="8"
+          placeholder="记录你的理解、命令、踩坑……支持 Markdown。"
+        />
+        <div class="note-actions">
+          <el-button type="primary" :loading="savingNote" @click="saveNoteNow">保存笔记</el-button>
+          <span class="muted">{{ noteStatus }}</span>
+        </div>
+      </section>
     </article>
   </main>
 </template>
@@ -160,5 +249,28 @@ dd {
 .related a {
   display: block;
   margin-bottom: 6px;
+}
+.study {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.state-select {
+  width: 120px;
+}
+.note-box {
+  margin-top: 28px;
+}
+.note-box h2 {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.note-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
 }
 </style>

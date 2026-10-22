@@ -33,3 +33,6 @@ learn-hub:
   cors-origins: http://localhost:5173,http://127.0.0.1:5173
   # 管理端写接口的 Bearer Token，生产环境请用环境变量覆盖
   admin-token: ${LEARNHUB_ADMIN_TOKEN:dev-admin-token}
+  # 普通用户 JWT；密钥至少 32 字节，生产环境务必覆盖
+  jwt-secret: ${LEARNHUB_JWT_SECRET:dev-jwt-secret-change-me-at-least-32-bytes}
+  jwt-ttl-hours: ${LEARNHUB_JWT_TTL_HOURS:168}

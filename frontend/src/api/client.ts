@@ -1,9 +1,14 @@
 import type {
+  AuthResponse,
+  LearningState,
   MetaResponse,
+  NoteItem,
+  ProgressItem,
   TopicDetail,
   TopicDocument,
   TopicListResponse,
   TrackResponse,
+  UserInfo,
 } from './types'
 
 const TOKEN_KEY = 'learnhub-admin-token'
@@ -98,4 +103,82 @@ export function adminUpdateTopic(slug: string, doc: TopicDocument) {
 
 export function adminDeleteTopic(slug: string) {
   return request<void>(`/api/v1/admin/topics/${slug}`, adminInit('DELETE'))
+}
+
+/* ---------------- 普通用户 ---------------- */
+
+const USER_TOKEN_KEY = 'learnhub-token'
+
+export function getUserToken() {
+  return localStorage.getItem(USER_TOKEN_KEY) ?? ''
+}
+
+export function setUserToken(token: string) {
+  if (token) {
+    localStorage.setItem(USER_TOKEN_KEY, token)
+  } else {
+    localStorage.removeItem(USER_TOKEN_KEY)
+  }
+}
+
+function jsonInit(method: string, body?: unknown): RequestInit {
+  return {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }
+}
+
+function userInit(method: string, body?: unknown): RequestInit {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${getUserToken()}`,
+  }
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json'
+  }
+  return {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  }
+}
+
+export function register(payload: { username: string; password: string; displayName?: string }) {
+  return request<AuthResponse>('/api/v1/auth/register', jsonInit('POST', payload))
+}
+
+export function login(payload: { username: string; password: string }) {
+  return request<AuthResponse>('/api/v1/auth/login', jsonInit('POST', payload))
+}
+
+export function fetchMe() {
+  return request<UserInfo>('/api/v1/me', userInit('GET'))
+}
+
+export function fetchProgress() {
+  return request<ProgressItem[]>('/api/v1/me/progress', userInit('GET'))
+}
+
+export function setProgress(slug: string, state: LearningState) {
+  return request<ProgressItem>(`/api/v1/me/progress/${slug}`, userInit('PUT', { state }))
+}
+
+export function resetProgress(slug: string) {
+  return request<void>(`/api/v1/me/progress/${slug}`, userInit('DELETE'))
+}
+
+export function fetchNotes() {
+  return request<NoteItem[]>('/api/v1/me/notes', userInit('GET'))
+}
+
+export function fetchNote(slug: string) {
+  return request<NoteItem>(`/api/v1/me/notes/${slug}`, userInit('GET'))
+}
+
+export function saveNote(slug: string, content: string) {
+  return request<NoteItem>(`/api/v1/me/notes/${slug}`, userInit('PUT', { content }))
+}
+
+export function deleteNote(slug: string) {
+  return request<void>(`/api/v1/me/notes/${slug}`, userInit('DELETE'))
 }

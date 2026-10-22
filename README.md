@@ -60,10 +60,18 @@ npm run dev
 
 浏览器打开 http://localhost:5173 。API：http://localhost:8080/api/v1/topics
 
+## 普通用户
+
+- 注册 / 登录：`/register`、`/login`，接口为 `POST /api/v1/auth/register|login`，成功后返回 JWT。
+- 权限：`/api/v1/me/**` 需要 `Authorization: Bearer <JWT>`；JWT 默认有效期 7 天（`LEARNHUB_JWT_TTL_HOURS`）。
+- 学习进度：`/track` 页每个学习项可选「未开始 / 学习中 / 已完成」，并显示阶段与整体进度；`/me` 汇总。
+- 私人笔记：每个学习项一条 Markdown 笔记，在详情页编辑保存，仅本人可见（按 user_id 隔离）。
+- 相关表：`app_user`、`learning_progress`、`topic_note`（V2 迁移）。
+- 注意：普通用户与 `/admin` 的 Bearer Token 是两套鉴权，互不影响。
+
 ## 管理端
 
 管理页：http://localhost:5173/admin
-
 - 写接口为 `/api/v1/admin/topics`（GET / POST / PUT / DELETE），需要 `Authorization: Bearer <token>`。
 - 令牌默认 `dev-admin-token`，可用环境变量 `LEARNHUB_ADMIN_TOKEN` 覆盖；进入 `/admin` 时输入一次，保存在浏览器 localStorage。
 - 「已发布」的学习项必须满足：概述非空、至少 1 条路线、至少 1 个示例、至少 3 条常见坑；否则接口返回 400。

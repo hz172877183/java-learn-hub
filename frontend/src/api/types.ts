@@ -97,3 +97,32 @@ export interface TopicDocument {
   pitfalls?: Pitfall[]
   repoPointers?: RepoPointer[]
 }
+
+export interface UserInfo {
+  id: number
+  username: string
+  displayName: string
+}
+
+export interface AuthResponse {
+  token: string
+  user: UserInfo
+}
+
+export type LearningState = 'not_started' | 'learning' | 'completed'
+
+export interface ProgressItem {
+  topicSlug: string
+  title: string
+  state: LearningState
+  startedAt?: string
+  completedAt?: string
+  updatedAt?: string
+}
+
+export interface NoteItem {
+  topicSlug: string
+  title: string
+  content: string
+  updatedAt?: string
+}

@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+const router = useRouter()
+
+function logout() {
+  auth.logout()
+  void router.push('/')
+}
 </script>
 
 <template>
@@ -10,7 +19,16 @@ import { RouterLink, RouterView } from 'vue-router'
         <RouterLink to="/catalog">学习目录</RouterLink>
         <RouterLink to="/track">总路线</RouterLink>
         <RouterLink to="/about">关于</RouterLink>
+        <RouterLink v-if="auth.isLoggedIn" to="/me">我的学习</RouterLink>
         <RouterLink to="/admin">管理</RouterLink>
+        <template v-if="auth.isLoggedIn">
+          <span class="who">{{ auth.user?.displayName }}</span>
+          <a href="#" @click.prevent="logout">退出</a>
+        </template>
+        <template v-else>
+          <RouterLink to="/login">登录</RouterLink>
+          <RouterLink to="/register">注册</RouterLink>
+        </template>
       </nav>
     </header>
     <RouterView />
@@ -39,6 +57,8 @@ import { RouterLink, RouterView } from 'vue-router'
 nav {
   display: flex;
   gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 nav a {
@@ -47,5 +67,10 @@ nav a {
 
 nav a.router-link-active {
   color: var(--accent);
+}
+
+.who {
+  color: var(--ink);
+  font-weight: 600;
 }
 </style>
