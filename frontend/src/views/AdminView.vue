@@ -22,10 +22,14 @@ const error = ref('')
 async function load() {
   loading.value = true
   error.value = ''
+  // 先落盘再请求：首次登录时 localStorage 里还没有令牌
+  token.value = token.value.trim()
+  if (token.value) {
+    setAdminToken(token.value)
+  }
   try {
     items.value = await adminListTopics(q.value)
     authed.value = true
-    setAdminToken(token.value)
   } catch (e) {
     authed.value = false
     error.value = (e as Error).message
