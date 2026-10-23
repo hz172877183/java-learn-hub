@@ -308,4 +308,23 @@ onMounted(async () => {
     grid-template-columns: 1fr;
   }
 }
+@media (max-width: 768px) {
+  .question {
+    padding: 14px;
+  }
+  .badge.id {
+    display: none;
+  }
+  .options :deep(.el-radio) {
+    height: auto;
+    margin-right: 0;
+    align-items: flex-start;
+    white-space: normal;
+    width: 100%;
+  }
+  .options :deep(.el-radio__label) {
+    white-space: normal;
+    line-height: 1.6;
+  }
+}
 </style>

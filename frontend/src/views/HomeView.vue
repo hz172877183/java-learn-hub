@@ -75,4 +75,20 @@ onMounted(async () => {
 .error {
   color: #8a2f2f;
 }
+@media (max-width: 768px) {
+  .hero h1 {
+    font-size: 28px;
+  }
+  .lead {
+    font-size: 16px;
+  }
+  .actions {
+    gap: 8px;
+  }
+  .btn {
+    flex: 1 1 100%;
+    text-align: center;
+    padding: 12px 16px;
+  }
+}
 </style>

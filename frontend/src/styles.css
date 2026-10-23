@@ -99,3 +99,33 @@ pre.code {
 .md :where(p, ul, ol) {
   line-height: 1.7;
 }
+
+/* ---------- 手机端通用适配 ---------- */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 16px 14px calc(88px + env(safe-area-inset-bottom));
+  }
+  .page h1 {
+    font-size: 26px;
+    line-height: 1.35;
+  }
+  .page h2 {
+    font-size: 19px;
+  }
+  pre.code {
+    font-size: 12px;
+    padding: 12px;
+  }
+  /* iOS 输入框字号小于 16px 会在聚焦时自动放大页面 */
+  .el-input__inner,
+  .el-textarea__inner {
+    font-size: 16px;
+  }
+  .el-button {
+    min-height: 36px;
+  }
+}

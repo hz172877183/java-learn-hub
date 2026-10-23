@@ -178,4 +178,15 @@ section {
     grid-template-columns: 1fr 1fr 1fr;
   }
 }
+@media (max-width: 768px) {
+  .row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .note-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
 </style>

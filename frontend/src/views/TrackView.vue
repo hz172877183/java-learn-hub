@@ -139,4 +139,12 @@ section {
   align-self: flex-start;
   width: 110px;
 }
+@media (max-width: 768px) {
+  .state-select {
+    width: 100%;
+  }
+  .stage-head h2 {
+    font-size: 18px;
+  }
+}
 </style>

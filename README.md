@@ -76,6 +76,12 @@ npm run dev
 - 管理端 `/admin/interview`：新增、编辑、删除，支持自定义分类。
 - 接口：`GET /api/v1/interview/questions`、`GET /api/v1/interview/meta`；管理端 `GET/POST/PUT/DELETE /api/v1/admin/interview/questions`。
 
+## 手机访问
+
+- 开发调试：前端用 `npm run dev -- --host 0.0.0.0`，手机与电脑连同一 Wi-Fi，访问 `http://电脑IP:5173`；Windows 防火墙需放行 5173。
+- 手机端使用底部 Tab（目录 / 路线 / 面试 / 我的），笔记改为底部抽屉，输入框字号 ≥16px 避免 iOS 自动放大。
+- 正式部署建议 Nginx/Caddy 同域托管 `dist` 并反代 `/api`，配 HTTPS 后可作为 PWA 安装到桌面。
+
 ## 普通用户
 
 - 注册 / 登录：`/register`、`/login`，接口为 `POST /api/v1/auth/register|login`，成功后返回 JWT。

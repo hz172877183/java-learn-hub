@@ -206,12 +206,24 @@ watch(() => props.slug, load, { immediate: true })
   color: #b45f35;
 }
 @media (max-width: 700px) {
+  .note-fab {
+    right: 14px;
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    padding: 9px 15px;
+  }
   .note-panel {
-    left: 12px;
-    right: 12px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
     width: auto;
-    top: 76px;
-    bottom: 12px;
+    max-height: 78vh;
+    border-radius: 18px 18px 0 0;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+    box-shadow: 0 -8px 30px rgba(28, 36, 48, 0.18);
+  }
+  .note-input {
+    min-height: 26vh;
   }
 }
 </style>

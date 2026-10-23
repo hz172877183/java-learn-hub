@@ -425,4 +425,34 @@ dd {
   color: #c0392b;
   font-weight: 600;
 }
+@media (max-width: 768px) {
+  .study {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .study a {
+    white-space: nowrap;
+  }
+  .related {
+    grid-template-columns: 1fr;
+  }
+  .sample-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .options :deep(.el-radio),
+  .option {
+    height: auto;
+    margin-right: 0;
+    align-items: flex-start;
+    white-space: normal;
+    width: 100%;
+  }
+  .options :deep(.el-radio__label) {
+    white-space: normal;
+    line-height: 1.6;
+  }
+}
 </style>
