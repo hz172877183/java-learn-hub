@@ -1,0 +1,20 @@
+[
+  {
+    "type": "choice",
+    "stem": "Spring Security 6 中，没有匹配到 permitAll 的请求默认会？",
+    "options": [
+      "直接放行",
+      "要求认证",
+      "返回 404",
+      "忽略过滤器链"
+    ],
+    "correctIndex": 1,
+    "explanation": "默认拒绝是安全基线；新增公开接口必须显式放行，否则会出现登录接口也被拦截的死循环。"
+  },
+  {
+    "type": "text",
+    "stem": "使用 JWT 时，自定义过滤器应该插在哪里？为什么？",
+    "referenceAnswer": "插在 UsernamePasswordAuthenticationFilter 之前，先解析令牌并写入 SecurityContext，后续的授权规则才能拿到已认证身份；否则 authorizeHttpRequests 会认为请求未认证。",
+    "explanation": "过滤器顺序决定 SecurityContext 是否已填充；顺序错了表现为所有请求 401 或匿名。"
+  }
+]

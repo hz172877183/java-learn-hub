@@ -1,0 +1,20 @@
+[
+  {
+    "type": "choice",
+    "stem": "使用 MockMvc 测试接口，需要启动真实 HTTP 端口吗？",
+    "options": [
+      "需要，必须用随机端口",
+      "不需要，进程内模拟请求",
+      "需要，必须固定 8080",
+      "只能测 Controller 方法"
+    ],
+    "correctIndex": 1,
+    "explanation": "MockMvc 在进程内走完整的 Spring MVC 与过滤器链，不起真实端口，速度更快。"
+  },
+  {
+    "type": "text",
+    "stem": "集成测试为什么建议加 @Transactional？",
+    "referenceAnswer": "每个用例结束后自动回滚，测试可以自由造数据而不污染数据库，也避免用例之间互相影响；前提是请求与测试在同一线程（MockMvc 满足）。",
+    "explanation": "数据隔离是集成测试可靠性的关键，独立测试库 + 回滚是成本最低的方案。"
+  }
+]

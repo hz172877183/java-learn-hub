@@ -1,0 +1,20 @@
+[
+  {
+    "type": "choice",
+    "stem": "JWT 默认提供的能力是？",
+    "options": [
+      "加密 payload，任何人无法查看",
+      "对 payload 签名，防止篡改",
+      "压缩传输体积",
+      "自动续期"
+    ],
+    "correctIndex": 1,
+    "explanation": "JWT 默认只签名不加密，payload 可以被 base64 解码查看；敏感信息不应放进 claims。"
+  },
+  {
+    "type": "text",
+    "stem": "JWT 是无状态的，如何实现“退出登录/强制下线”？",
+    "referenceAnswer": "缩短 access token 有效期并配合 refresh token；服务端维护黑名单或用户令牌版本号，在验签时额外校验；或改用服务端会话。",
+    "explanation": "无状态令牌没有天然吊销机制，吊销必然要引入额外状态，这是核心取舍。"
+  }
+]

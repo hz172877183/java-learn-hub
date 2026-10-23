@@ -20,8 +20,8 @@
     },
     {
       "title": "4. 安全",
-      "goal": "理解认证授权与 JWT 的边界。",
-      "topicSlugs": ["spring-security-jwt"]
+      "goal": "从认证概念走到可落地的 JWT 与 Spring Security 配置。",
+      "topicSlugs": ["spring-security-jwt", "jwt-auth-practice", "spring-security-basics"]
     },
     {
       "title": "5. 异步",
@@ -30,8 +30,15 @@
     },
     {
       "title": "6. 工程交付",
-      "goal": "能容器化依赖并与前端联调。",
-      "topicSlugs": ["docker-basics", "vue3-spa"]
+      "goal": "能容器化依赖、定义错误契约、补集成测试，并管好配置与密钥。",
+      "topicSlugs": [
+        "docker-basics",
+        "vue3-spa",
+        "http-error-contract",
+        "cors-practice",
+        "integration-testing",
+        "config-and-secrets"
+      ]
     },
     {
       "title": "7. 进阶地图",

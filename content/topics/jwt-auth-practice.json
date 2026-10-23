@@ -1,0 +1,131 @@
+{
+  "slug": "jwt-auth-practice",
+  "title": "JWT 鉴权落地",
+  "category": "security",
+  "summary": "用 JJWT 从零实现签发、校验、过期与注销，并管好密码哈希。",
+  "difficulty": "practical",
+  "estimatedHours": 5,
+  "tags": [
+    "jwt",
+    "auth",
+    "bcrypt",
+    "spring-boot"
+  ],
+  "status": "published",
+  "integrationStatus": "runtime",
+  "officialDocsUrl": "https://github.com/jwtk/jjwt",
+  "prerequisites": [
+    "spring-security-jwt"
+  ],
+  "nextTopics": [
+    "spring-security-basics"
+  ],
+  "relatedTopics": [
+    "http-error-contract",
+    "config-and-secrets"
+  ],
+  "overviewMd": "JWT 把用户身份放进一个签名令牌，服务端不保存会话。真正难的不是“怎么签发”，而是四件事：**密钥怎么管、令牌放哪、过期怎么办、如何注销**。\n\n本项目用 JJWT 0.12 加一个自写 `OncePerRequestFilter`，没有引入完整的 Spring Security；密码用 BCrypt 哈希，只依赖 `spring-security-crypto`。这是一条“前后端分离 + 单体服务”的最小落地路径。\n\n学习的顺序建议是：先能签发和校验，再处理过期与错误响应，最后才考虑刷新令牌和强制下线。不要一上来就设计双令牌体系。",
+  "concepts": [
+    {
+      "term": "签名不是加密",
+      "explanation": "JWT 默认只签名，payload 只是 base64，任何拿到令牌的人都能解开。不要往 claims 里放密码、身份证等敏感信息。"
+    },
+    {
+      "term": "claims 与过期",
+      "explanation": "sub 放用户 ID，exp 控制有效期。服务端每次请求都要校验签名和 exp，不能只在前端判断。"
+    },
+    {
+      "term": "HS256 密钥",
+      "explanation": "对称密钥至少 32 字节，必须来自环境变量。密钥泄露等于别人可以伪造任意用户。"
+    },
+    {
+      "term": "无状态与吊销",
+      "explanation": "服务端不存会话，就没有天然注销。常见做法是短 TTL + refresh token，或维护令牌黑名单、用户令牌版本号。"
+    },
+    {
+      "term": "BCrypt 密码哈希",
+      "explanation": "自带随机盐和成本因子，不可逆。登录时用 matches 比较，永远不要自行拼 MD5/SHA。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "签发与校验",
+      "goal": "写一个 JwtService，能签发令牌并从令牌解析出用户 ID。",
+      "hours": 2,
+      "resources": [
+        "jjwt 文档",
+        "本项目 JwtService"
+      ]
+    },
+    {
+      "title": "接进过滤器",
+      "goal": "只保护 /api/v1/me/**，无效令牌返回统一的 401 错误体。",
+      "hours": 1.5,
+      "resources": [
+        "本项目 UserAuthFilter"
+      ]
+    },
+    {
+      "title": "过期与注销",
+      "goal": "理解过期处理，能说清黑名单与短 TTL 的取舍。",
+      "hours": 1.5,
+      "resources": [
+        "spring-security-jwt 学习项"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "签发令牌",
+      "language": "java",
+      "description": "把用户 ID 放进 sub，设置有效期并签名。",
+      "code": "public String issue(Long userId, String username) {\n    Instant now = Instant.now();\n    return Jwts.builder()\n            .subject(String.valueOf(userId))\n            .claim(\"username\", username)\n            .issuedAt(Date.from(now))\n            .expiration(Date.from(now.plus(7, ChronoUnit.DAYS)))\n            .signWith(key)\n            .compact();\n}"
+    },
+    {
+      "title": "在过滤器里校验",
+      "language": "java",
+      "description": "解析失败统一 401；成功则把用户 ID 传给后续控制器。",
+      "code": "String header = request.getHeader(\"Authorization\");\nString token = header != null && header.startsWith(\"Bearer \")\n        ? header.substring(7).trim() : null;\nvar userId = token == null ? Optional.<Long>empty() : jwtService.parseUserId(token);\nif (userId.isEmpty()) {\n    response.setStatus(401);\n    response.getWriter().write(\"{\\\"code\\\":\\\"UNAUTHORIZED\\\"}\");\n    return;\n}\nrequest.setAttribute(\"currentUserId\", userId.get());\nchain.doFilter(request, response);"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "把令牌放在 URL 里",
+      "detail": "查询参数会进入访问日志、Referer 和浏览器历史，等于泄露。只放 Authorization 头。"
+    },
+    {
+      "title": "密钥硬编码进仓库",
+      "detail": "默认值可以用于本地，但上线必须用环境变量覆盖，并在启动时校验长度。"
+    },
+    {
+      "title": "claims 塞太多东西",
+      "detail": "令牌会变大且无法更新；只放稳定标识，昵称、权限每次从库里查或单独缓存。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "签发与解析",
+      "path": "backend/src/main/java/com/learn/hub/user/JwtService.java"
+    },
+    {
+      "label": "过滤器",
+      "path": "backend/src/main/java/com/learn/hub/user/UserAuthFilter.java"
+    },
+    {
+      "label": "配置",
+      "path": "backend/src/main/resources/application.yml"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "前后端分离，需要无状态登录",
+      "signal": "Web 和小程序共用 API，服务端不想维护 session",
+      "approach": "登录签发 JWT，客户端放 Authorization 头；服务端每次验签并检查 exp"
+    },
+    {
+      "title": "接口突然全部 401",
+      "signal": "改完密钥或部署后，老令牌全部失效",
+      "approach": "先确认服务端密钥是否被环境变量覆盖；JWT 无状态，换密钥必然让旧令牌失效，提前规划轮换窗口"
+    }
+  ]
+}

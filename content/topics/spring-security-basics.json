@@ -1,0 +1,107 @@
+{
+  "slug": "spring-security-basics",
+  "title": "Spring Security 6 基础",
+  "category": "security",
+  "summary": "过滤器链、授权规则与方法级权限，以及 JWT 应该插在哪里。",
+  "difficulty": "intermediate",
+  "estimatedHours": 6,
+  "tags": [
+    "spring-security",
+    "authorization",
+    "jwt"
+  ],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://docs.spring.io/spring-security/reference/",
+  "prerequisites": [
+    "spring-security-jwt"
+  ],
+  "nextTopics": [],
+  "relatedTopics": [
+    "jwt-auth-practice"
+  ],
+  "overviewMd": "Spring Security 的核心是一条**过滤器链**：请求先经过认证过滤器，再进入授权判断，最后才到 Controller。Security 6 用 `SecurityFilterChain` 取代了旧的 `WebSecurityConfigurerAdapter`。\n\n默认策略是“所有请求都要认证”，所以你必须显式放行登录、注册和公开读接口。JWT 通常会写成一个自定义过滤器，插在 `UsernamePasswordAuthenticationFilter` 之前。\n\n本项目为了保持依赖轻量，只用了 `spring-security-crypto` 做 BCrypt，鉴权是手写过滤器。学完这一项，你应该能判断“什么时候值得上完整 Security”。",
+  "concepts": [
+    {
+      "term": "SecurityFilterChain",
+      "explanation": "用 @Bean 声明过滤链，链式配置 csrf、session、authorizeHttpRequests 和自定义过滤器。"
+    },
+    {
+      "term": "认证 vs 授权",
+      "explanation": "认证回答“你是谁”，授权回答“你能做什么”。过滤器负责认证，authorize 规则和方法注解负责授权。"
+    },
+    {
+      "term": "默认拒绝",
+      "explanation": "没有匹配到 permitAll 的请求默认需要认证；新增接口时忘记放行是最常见的 401 来源。"
+    },
+    {
+      "term": "方法级权限",
+      "explanation": "@PreAuthorize(\"hasRole('ADMIN')\") 把权限放到业务方法上，适合细粒度控制，需要 @EnableMethodSecurity。"
+    },
+    {
+      "term": "无状态与 CSRF",
+      "explanation": "纯 Token 的无状态 API 通常关闭 CSRF；如果仍用 Cookie 承载凭证，就不能随意关闭。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "最小可用配置",
+      "goal": "放行公开接口，其余要求认证，并能解释每一行的作用。",
+      "hours": 2,
+      "resources": [
+        "官方文档 Getting Started"
+      ]
+    },
+    {
+      "title": "接入 JWT",
+      "goal": "把自定义过滤器插到正确位置，认证成功后写入 SecurityContext。",
+      "hours": 2,
+      "resources": [
+        "本项目 UserAuthFilter"
+      ]
+    },
+    {
+      "title": "方法级权限",
+      "goal": "用 @PreAuthorize 控制管理接口，并验证 403 行为。",
+      "hours": 2,
+      "resources": [
+        "官方文档 Method Security"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "Security 6 过滤链",
+      "language": "java",
+      "description": "公开接口放行，管理接口要求角色，JWT 过滤器前置。",
+      "code": "@Bean\nSecurityFilterChain chain(HttpSecurity http) throws Exception {\n    http.csrf(AbstractHttpConfigurer::disable)\n        .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))\n        .authorizeHttpRequests(auth -> auth\n            .requestMatchers(\"/api/v1/auth/**\", \"/api/v1/topics/**\").permitAll()\n            .requestMatchers(\"/api/v1/admin/**\").hasRole(\"ADMIN\")\n            .anyRequest().authenticated())\n        .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);\n    return http.build();\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "忘记放行登录接口",
+      "detail": "默认全拦截，登录请求也被要求认证，形成死循环。新增公开接口时要同步加 permitAll。"
+    },
+    {
+      "title": "关掉 CSRF 却还在用 Cookie",
+      "detail": "无状态 Token 可以关；Cookie 会话关掉 CSRF 会引入跨站请求伪造风险。"
+    },
+    {
+      "title": "只做 URL 级授权",
+      "detail": "同一个 URL 下不同资源的归属仍需业务校验，别把“能访问接口”当成“能操作这条数据”。"
+    }
+  ],
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "接口要区分匿名、登录、管理员",
+      "signal": "同一服务既有公开目录，又有后台管理接口",
+      "approach": "用 SecurityFilterChain 按路径授权，管理接口再加方法级 hasRole 校验"
+    },
+    {
+      "title": "多服务统一认证",
+      "signal": "多个后端都要校验同一套登录态",
+      "approach": "统一签发 JWT，各服务只做验签和权限判断，避免复制 session"
+    }
+  ]
+}

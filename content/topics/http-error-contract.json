@@ -1,0 +1,113 @@
+{
+  "slug": "http-error-contract",
+  "title": "HTTP 错误契约设计",
+  "category": "engineering",
+  "summary": "状态码表达类别、错误体表达细节，traceId 连接日志。",
+  "difficulty": "practical",
+  "estimatedHours": 3,
+  "tags": [
+    "api",
+    "http",
+    "error-handling"
+  ],
+  "status": "published",
+  "integrationStatus": "runtime",
+  "officialDocsUrl": "https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Status",
+  "prerequisites": [
+    "spring-web-rest"
+  ],
+  "nextTopics": [],
+  "relatedTopics": [
+    "jwt-auth-practice",
+    "integration-testing"
+  ],
+  "overviewMd": "失败也是接口契约的一部分。前端需要知道“是参数错了、没登录、没权限，还是服务挂了”，运维需要从一次报错追到日志。\n\n最低要求是：**HTTP 状态码表达类别，响应体表达细节，traceId 连接日志**。不要所有错误都返回 200 再在 body 里写 code，那会让网关、监控和重试策略全部失效。\n\n本项目的错误体固定为 `{code, message, traceId}`，并用全局异常处理器把业务异常、参数错误、方法不支持等情况映射到正确的状态码。",
+  "concepts": [
+    {
+      "term": "状态码语义",
+      "explanation": "400 参数、401 未认证、403 无权限、404 不存在、409 冲突、415 媒体类型、500 未预期。"
+    },
+    {
+      "term": "统一错误体",
+      "explanation": "code 给程序判断，message 给人看，traceId 给日志检索；字段稳定，前端才能统一处理。"
+    },
+    {
+      "term": "业务码与 HTTP 码",
+      "explanation": "HTTP 码表达大类，业务码表达细分原因（如 TOPIC_NOT_FOUND），两者都要有。"
+    },
+    {
+      "term": "traceId",
+      "explanation": "每次请求生成或透传一个 ID，错误日志和响应使用同一个值，排查时能直接串起来。"
+    },
+    {
+      "term": "异常兜底",
+      "explanation": "全局兜底必须记日志；否则 500 只剩一句“服务不可用”，线上无从下手。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "定义错误体",
+      "goal": "确定 code/message/traceId 三个字段，并约定命名风格。",
+      "hours": 0.5,
+      "resources": [
+        "本项目 ApiExceptionHandler"
+      ]
+    },
+    {
+      "title": "全局异常映射",
+      "goal": "把 NotFound、参数错误、冲突、405/415 分别映射到正确状态码。",
+      "hours": 1.5,
+      "resources": [
+        "Spring @RestControllerAdvice"
+      ]
+    },
+    {
+      "title": "补边界与测试",
+      "goal": "为 401/404/405/415 写集成测试，防止改代码时退化。",
+      "hours": 1,
+      "resources": [
+        "本项目 AdminAndQuizTest"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "统一错误体与兜底",
+      "language": "java",
+      "description": "业务异常给 404；未预期异常记日志后返回 500。",
+      "code": "public record ApiError(String code, String message, String traceId) {}\n\n@ExceptionHandler(NotFoundException.class)\nResponseEntity<ApiError> notFound(NotFoundException ex) {\n    return ResponseEntity.status(404)\n            .body(new ApiError(ex.getCode(), ex.getMessage(), traceId()));\n}\n\n@ExceptionHandler(Exception.class)\nResponseEntity<ApiError> fallback(Exception ex, HttpServletRequest req) {\n    log.error(\"未处理异常: {} {}\", req.getMethod(), req.getRequestURI(), ex);\n    return ResponseEntity.status(500)\n            .body(new ApiError(\"INTERNAL_ERROR\", \"服务暂时不可用\", traceId()));\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "所有错误都返回 200",
+      "detail": "前端无法区分成功与失败，监控也统计不到错误率；重试和熔断策略会全部失效。"
+    },
+    {
+      "title": "把堆栈返回给前端",
+      "detail": "泄露类名、SQL 和内部路径。堆栈进日志，响应只给稳定文案和 traceId。"
+    },
+    {
+      "title": "兜底不记日志",
+      "detail": "只剩 500 和一句“服务暂不可用”，线上无法定位；本项目曾因此排查变慢。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "全局异常处理",
+      "path": "backend/src/main/java/com/learn/hub/api/ApiExceptionHandler.java"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "前端要统一处理失败",
+      "signal": "每个页面各写一套 if (res.code !== 0)",
+      "approach": "固定错误体和状态码，前端在请求层统一提示与跳转登录"
+    },
+    {
+      "title": "线上报错但不知道哪条日志",
+      "signal": "用户只记得一个时间点，日志量很大",
+      "approach": "响应返回 traceId，日志按 traceId 检索，串起整条请求链路"
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "slug": "integration-testing",
+  "title": "集成测试与测试数据库",
+  "category": "engineering",
+  "summary": "MockMvc 打真实 HTTP，独立测试库 + 事务回滚，覆盖鉴权与隔离。",
+  "difficulty": "practical",
+  "estimatedHours": 4,
+  "tags": [
+    "testing",
+    "mockmvc",
+    "mysql"
+  ],
+  "status": "published",
+  "integrationStatus": "runtime",
+  "officialDocsUrl": "https://docs.spring.io/spring-framework/reference/testing.html",
+  "prerequisites": [
+    "junit-mockito",
+    "spring-web-rest"
+  ],
+  "nextTopics": [],
+  "relatedTopics": [
+    "http-error-contract",
+    "spring-security-jwt"
+  ],
+  "overviewMd": "单元测试保证逻辑正确，集成测试保证“接线正确”。鉴权过滤器、参数绑定、序列化、事务这些环节，只有走完整请求链才测得到。\n\n`MockMvc` 不启动真实端口，但会经过完整的 Spring MVC 和 Filter，速度比 `@SpringBootTest(webEnvironment = RANDOM_PORT)` 快，足够覆盖大部分接口。\n\n关键工程问题是**数据隔离**：用独立的 `learnhub_test` 库，测试类加 `@Transactional` 自动回滚，避免污染开发数据，也避免用例之间互相影响。",
+  "concepts": [
+    {
+      "term": "MockMvc",
+      "explanation": "在进程内模拟 HTTP 请求，经过 Filter、Controller、序列化，不需要真实端口。"
+    },
+    {
+      "term": "独立测试库",
+      "explanation": "用 application-test.yml 指向 learnhub_test，Flyway 自动建表，绝不复用开发库。"
+    },
+    {
+      "term": "事务回滚",
+      "explanation": "@Transactional 让每个用例结束后回滚，测试可以自由造数据。"
+    },
+    {
+      "term": "真实依赖的取舍",
+      "explanation": "数据库用真实 MySQL 才能测到方言和约束；第三方服务用 mock，避免不稳定。"
+    },
+    {
+      "term": "测异常路径",
+      "explanation": "401、404、409、400 比 200 更容易退化，必须显式断言。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "搭测试配置",
+      "goal": "独立库 + 测试 profile，Flyway 自动迁移。",
+      "hours": 1.5,
+      "resources": [
+        "本项目 application-test.yml"
+      ]
+    },
+    {
+      "title": "覆盖认证链路",
+      "goal": "注册、登录、无令牌 401、用户隔离。",
+      "hours": 1.5,
+      "resources": [
+        "本项目 AuthAndPrivacyTest"
+      ]
+    },
+    {
+      "title": "补管理端与边界",
+      "goal": "CRUD、发布校验、405/415、坏 JSON。",
+      "hours": 1,
+      "resources": [
+        "本项目 AdminAndQuizTest"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "一个认证集成测试",
+      "language": "java",
+      "description": "不启动端口，直接断言未登录访问 /me 的行为。",
+      "code": "@SpringBootTest\n@AutoConfigureMockMvc\n@ActiveProfiles(\"test\")\n@Transactional\nclass AuthTest {\n    @Autowired MockMvc mvc;\n\n    @Test\n    void meRequiresToken() throws Exception {\n        mvc.perform(get(\"/api/v1/me\"))\n           .andExpect(status().isUnauthorized())\n           .andExpect(jsonPath(\"$.code\").value(\"UNAUTHORIZED\"));\n    }\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "拿开发库跑测试",
+      "detail": "测试数据残留、用例互相污染，严重时把真实内容删掉。必须独立库。"
+    },
+    {
+      "title": "只测 happy path",
+      "detail": "真实故障多发生在 401、404、400 和并发边界，异常路径更值得写。"
+    },
+    {
+      "title": "用 H2 代替 MySQL",
+      "detail": "方言、JSON 字段、唯一约束行为不同，测过了线上仍可能挂；至少关键链路用真实 MySQL。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "认证与隔离测试",
+      "path": "backend/src/test/java/com/learn/hub/AuthAndPrivacyTest.java"
+    },
+    {
+      "label": "测试配置",
+      "path": "backend/src/test/resources/application-test.yml"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "改完鉴权，担心把别的接口弄挂",
+      "signal": "过滤器、错误处理这类横切逻辑改动",
+      "approach": "用 MockMvc 覆盖公开接口、JWT 接口、管理接口三条链路，一次跑完"
+    },
+    {
+      "title": "需要验证越权",
+      "signal": "同一个接口不同用户能看到的资源不同",
+      "approach": "在一个用例里注册两个用户，分别请求并断言互相不可见"
+    }
+  ]
+}

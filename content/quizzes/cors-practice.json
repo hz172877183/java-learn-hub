@@ -1,0 +1,20 @@
+[
+  {
+    "type": "choice",
+    "stem": "跨域限制是由谁执行的？",
+    "options": [
+      "服务端 Tomcat",
+      "浏览器",
+      "DNS",
+      "HTTP 协议本身"
+    ],
+    "correctIndex": 1,
+    "explanation": "同源策略是浏览器行为；curl/Postman 不受限制，所以会出现“工具正常、页面报错”。"
+  },
+  {
+    "type": "text",
+    "stem": "为什么 Postman 请求正常，浏览器却报 CORS 错误？",
+    "referenceAnswer": "浏览器会先发 OPTIONS 预检，并按服务端返回的 Access-Control-Allow-* 头决定是否放行；Postman 不执行同源策略。常见原因是 allowedMethods 没包含实际方法、来源不在白名单，或预检被鉴权拦截。",
+    "explanation": "排查要看预检请求本身，而不是只测业务接口。"
+  }
+]

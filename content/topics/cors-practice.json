@@ -1,0 +1,113 @@
+{
+  "slug": "cors-practice",
+  "title": "CORS 与浏览器同源策略",
+  "category": "engineering",
+  "summary": "预检、允许的方法与头，以及为什么 Postman 正常、浏览器报错。",
+  "difficulty": "beginner",
+  "estimatedHours": 2,
+  "tags": [
+    "cors",
+    "browser",
+    "http"
+  ],
+  "status": "published",
+  "integrationStatus": "runtime",
+  "officialDocsUrl": "https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS",
+  "prerequisites": [
+    "spring-web-rest"
+  ],
+  "nextTopics": [],
+  "relatedTopics": [
+    "vue3-spa",
+    "http-error-contract"
+  ],
+  "overviewMd": "同源策略是**浏览器**的安全机制，不是服务端限制。跨源请求时，浏览器会先判断是否发预检（OPTIONS），再根据服务端返回的 CORS 响应头决定是否放行。\n\n所以会出现“Postman 正常、浏览器报错”：Postman 不受同源策略约束。排查时要看浏览器 Network 里的预检请求，而不是只测接口本身。\n\n本项目踩过的坑：CORS 只配置了 `allowedMethods(\"GET\")`，结果管理端 PUT 全部 403 `Invalid CORS request`。",
+  "concepts": [
+    {
+      "term": "同源",
+      "explanation": "协议 + 域名 + 端口三者相同才算同源；127.0.0.1 和 localhost 也算不同源。"
+    },
+    {
+      "term": "简单请求与预检",
+      "explanation": "带 Authorization 或 JSON 的 PUT/POST 会触发 OPTIONS 预检，预检通过才发真实请求。"
+    },
+    {
+      "term": "allowedOrigins",
+      "explanation": "精确列出前端地址；配合 credentials 时不能用 *。"
+    },
+    {
+      "term": "allowedMethods",
+      "explanation": "必须包含实际使用的方法；只写 GET 时，PUT/DELETE 会在预检阶段被拒。"
+    },
+    {
+      "term": "开发代理",
+      "explanation": "Vite 把 /api 代理到后端，浏览器看到的是同源请求，从根上绕开 CORS。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "复现跨域",
+      "goal": "用浏览器 Network 看到预检请求和失败原因。",
+      "hours": 0.5,
+      "resources": [
+        "MDN CORS"
+      ]
+    },
+    {
+      "title": "配置允许项",
+      "goal": "按来源、方法、头精确配置，并验证 PUT/DELETE。",
+      "hours": 1,
+      "resources": [
+        "本项目 WebConfig"
+      ]
+    },
+    {
+      "title": "用代理收敛",
+      "goal": "开发期用 Vite proxy，生产用同域部署或网关。",
+      "hours": 0.5,
+      "resources": [
+        "vite.config.ts"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "放开读写方法",
+      "language": "java",
+      "description": "只允许本地前端来源，方法覆盖管理端需要的 PUT/DELETE。",
+      "code": "registry.addMapping(\"/api/**\")\n        .allowedOrigins(\"http://localhost:5173\", \"http://127.0.0.1:5173\")\n        .allowedMethods(\"GET\", \"POST\", \"PUT\", \"DELETE\", \"OPTIONS\")\n        .allowedHeaders(\"*\");"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "只允许 GET",
+      "detail": "预检直接失败，浏览器报 CORS 错误，但 curl 一切正常；本项目管理端就因此 403。"
+    },
+    {
+      "title": "allowedOrigins('*') + credentials",
+      "detail": "浏览器会拒绝这种组合；带 Cookie 时必须精确列出来源。"
+    },
+    {
+      "title": "预检被鉴权拦截",
+      "detail": "OPTIONS 不带业务令牌，过滤器要放行预检，否则永远拿不到真实请求。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "CORS 配置",
+      "path": "backend/src/main/java/com/learn/hub/config/WebConfig.java"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "前后端分开端口开发",
+      "signal": "页面在 5173，接口在 8080，浏览器报 CORS",
+      "approach": "开发期用 Vite 代理，或精确配置 allowedOrigins 与 allowedMethods"
+    },
+    {
+      "title": "Postman 正常但页面失败",
+      "signal": "curl 200，浏览器控制台 CORS 报错",
+      "approach": "看预检 OPTIONS 的状态和响应头，确认方法、头、来源是否被允许"
+    }
+  ]
+}
