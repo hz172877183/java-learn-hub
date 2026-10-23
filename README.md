@@ -1,6 +1,6 @@
 # java-learn-hub
 
-面向 Java / Spring 生态的学习门户。仓库路径：`D:\worksapce\java-learn-hub`。
+面向 Java / Spring 生态的学习门户。仓库路径：`D:\workspace\java-learn-hub`。
 
 - 需求：[docs/requirements/PRD.md](docs/requirements/PRD.md)
 - 内容格式：[docs/content-schema.md](docs/content-schema.md)
@@ -46,14 +46,14 @@ java -version
 后端：
 
 ```powershell
-cd D:\worksapce\java-learn-hub\backend
+cd D:\workspace\java-learn-hub\backend
 mvn spring-boot:run
 ```
 
 前端（另开终端）：
 
 ```powershell
-cd D:\worksapce\java-learn-hub\frontend
+cd D:\workspace\java-learn-hub\frontend
 npm install
 npm run dev
 ```

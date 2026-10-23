@@ -373,4 +373,4 @@ function bullets(slide, x, y, w, h, items, size = 12) {
   });
 }
 
-pptx.writeFile({ fileName: "D:\\worksapce\\java-learn-hub\\docs\\java-learn-hub-介绍.pptx" });
+pptx.writeFile({ fileName: "D:\\workspace\\java-learn-hub\\docs\\java-learn-hub-介绍.pptx" });

@@ -394,7 +394,7 @@
 | 语言 | UI 与内容均为简体中文 |
 | 外部 API | 示例禁止依赖付费/需密钥的外部服务 |
 | 工程结构 | `backend/`（Spring Boot 单体）+ `frontend/`（Vue 3），不拆 Maven 多模块 |
-| 仓库位置 | `D:\worksapce\java-learn-hub` |
+| 仓库位置 | `D:\workspace\java-learn-hub` |
 
 ---
 
@@ -403,4 +403,4 @@
 | 版本 | 日期 | 说明 |
 | --- | --- | --- |
 | v0.1 | 2026-10-20 | 首稿，仅需求，不含实现 |
-| v0.2 | 2026-10-21 | 冻结默认决策；仓库迁至 D:\worksapce |
+| v0.2 | 2026-10-21 | 冻结默认决策；仓库迁至 D:\workspace |
