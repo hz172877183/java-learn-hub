@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "Spring Boot 3 中，自动配置类登记在哪个文件里才会被加载？",
+    "options": [
+      "META-INF/spring.factories",
+      "@Configuration 类里的 @Import 列表",
+      "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports",
+      "application.yml 中的 spring.autoconfigure.include"
+    ],
+    "correctIndex": 2,
+    "explanation": "Boot 3.0 起自动配置清单改为 AutoConfiguration.imports，一行一个全限定类名；spring.factories 仍服务其它扩展点，但不再决定自动配置是否加载。"
+  },
+  {
+    "type": "choice",
+    "stem": "自定义 Starter 想让使用者能用自己的 Bean 替换默认实现，最关键的写法是？",
+    "options": [
+      "给默认 Bean 标注 @Primary 强制优先",
+      "在提供默认 Bean 的方法上加 @ConditionalOnMissingBean",
+      "把自动配置类声明成 @Component 交给包扫描",
+      "去掉全部条件注解，让装配无条件发生"
+    ],
+    "correctIndex": 1,
+    "explanation": "@ConditionalOnMissingBean 表示「用户没声明我才给默认值」，是 Starter 最重要的扩展点；加 @Primary 反而会压过用户实现。"
+  },
+  {
+    "type": "text",
+    "stem": "已经开启 server.shutdown=graceful，为什么滚动发布时仍可能丢请求？",
+    "options": [],
+    "referenceAnswer": "graceful 只保证进程收到 SIGTERM 后停止接收新请求并等待在途请求，但流量入口未必同步摘流：如果网关或 readiness 还在转发、没有 preStop 缓冲，请求会打到正在关闭的实例。另外 timeout-per-shutdown-phase 若小于最长请求耗时，等待会被强行截断。做法是让 readiness 先转为未就绪、网关摘流后再停机，并把超时设到 P99 请求时间以上，最后用压测中的滚动发布验证一次。",
+    "explanation": "优雅停机是服务端能力，无损发布是整条链路配合；只配 server.shutdown 而不处理摘流与超时，是生产上最常见的误判。"
+  }
+]

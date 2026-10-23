@@ -1,0 +1,317 @@
+[
+  {
+    "category": "network",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于 TCP/IP 四层模型与各层职责，下列描述正确的是？",
+    "options": [
+      "传输层用端口号区分应用进程，TCP 在此层提供可靠传输",
+      "应用层负责端到端可靠传输，TCP 与 UDP 都属于这一层",
+      "网络层用 MAC 地址寻址，负责同一局域网内的帧转发",
+      "链路层负责 IP 路由选择与跨网段的分组转发"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "四层自下而上是链路层、网络层、传输层、应用层：网络层用 IP 做主机寻址和路由，链路层用 MAC 在同一广播域内转发，传输层用端口区分进程并可选 TCP/UDP。把 TCP 说成应用层、把路由说成链路层是最常见的混淆点。"
+  },
+  {
+    "category": "network",
+    "level": "junior",
+    "type": "choice",
+    "stem": "TCP 建立连接需要三次握手，最主要的原因是？",
+    "options": [
+      "两次握手无法交换初始序列号，必须先各发一次再补一次确认",
+      "双方都要确认自己和对方的收发能力正常，并同步初始序列号",
+      "防止服务端在握手期间收到重复的 SYN 报文而重复建立连接",
+      "让客户端在第三次握手时才能携带数据，避免出现半开连接"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "三次握手同时完成两件事：双方各自发出并确认 ISN，且都确认“我能发、你能收”与“你能发、我能收”成立。两次握手下服务端无法确认客户端已收到自己的 SYN，历史重复的 SYN 还会让服务端建立无效连接。"
+  },
+  {
+    "category": "network",
+    "level": "junior",
+    "type": "choice",
+    "stem": "相比 TCP，UDP 的特点是什么？",
+    "options": [
+      "面向连接、提供流量控制，但重传开销比 TCP 更大",
+      "保证消息边界与顺序，因此常用于文件传输和网页请求",
+      "无连接、不保证可靠与顺序，头部开销小，适合实时性优先的场景",
+      "自带拥塞控制，检测到丢包时会自动降低发送速率"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "UDP 只做端口寻址和校验，无连接、不可靠、不保序、无拥塞控制，头部仅 8 字节，因此延迟低、开销小，适合音视频、游戏和 DNS 查询。可靠性与拥塞控制需要应用层自己实现，QUIC 就是典型例子。"
+  },
+  {
+    "category": "network",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于 HTTP 方法的语义，下列说法正确的是？",
+    "options": [
+      "GET 可以携带请求体，并且按规范会修改服务端资源",
+      "POST 是幂等的，重复提交同一请求不会产生副作用",
+      "PUT 用于部分更新，只提交需要修改的那部分字段",
+      "PUT 与 DELETE 是幂等的，HEAD 只返回响应头不返回响应体"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "GET/HEAD 是安全方法，GET 不应产生副作用；PUT 是整体替换且幂等，部分更新用 PATCH，PATCH 不保证幂等；POST 非幂等，重复提交可能重复下单。HEAD 与 GET 相同但不返回响应体，常用于探测资源是否存在。"
+  },
+  {
+    "category": "network",
+    "level": "junior",
+    "type": "choice",
+    "stem": "下列 HTTP 状态码与含义对应正确的是？",
+    "options": [
+      "304 表示协商缓存命中，响应中不包含实体内容",
+      "301 表示资源临时移动，后续请求仍应使用原来的地址",
+      "401 表示服务器理解了请求，但拒绝授权访问该资源",
+      "502 表示网关等待上游响应超时，上游未在时限内返回"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "301 是永久重定向且可被缓存，302/307 才是临时重定向；401 是未认证，403 才是已认证但无权限；304 表示协商缓存命中、复用本地副本；502 是网关收到上游无效响应，504 才是上游超时。这几个码最容易被张冠李戴。"
+  },
+  {
+    "category": "network",
+    "level": "junior",
+    "type": "choice",
+    "stem": "在浏览器输入域名后，本地 DNS 服务器查不到缓存时，通常的解析过程是？",
+    "options": [
+      "本地 DNS 直接问权威服务器，权威服务器再逐级询问根和顶级域",
+      "本地 DNS 依次询问根、顶级域、权威服务器，逐级拿到下一跳地址",
+      "根服务器把最终 IP 直接返回给本地 DNS，不再需要后续查询",
+      "客户端自己依次请求根、顶级域、权威服务器，本地 DNS 只做转发"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "这是迭代查询：本地 DNS 向根要顶级域地址，向顶级域要权威服务器地址，最后向权威服务器拿到记录，缓存后再返回客户端。而客户端到本地 DNS 是递归查询，客户端只发一次请求，剩下的由本地 DNS 跑完。"
+  },
+  {
+    "category": "network",
+    "level": "junior",
+    "type": "text",
+    "stem": "WebSocket 和普通的 HTTP 轮询相比优势在哪？它是怎么建立连接的？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 建连：客户端发 HTTP Upgrade 请求，带 Upgrade: websocket 与 Sec-WebSocket-Key，服务端返回 101 Switching Protocols，此后同一条 TCP 连接上升级为全双工帧协议。② 优势：服务端可主动推送，省去轮询的重复请求头和握手开销，延迟低、连接数少。③ 代价：长连接占用服务端资源，需要心跳保活、断线重连，水平扩展时还要处理连接路由。",
+    "explanation": "WebSocket 复用 HTTP 握手完成协议升级，之后是独立帧格式。面试要答出 101 与全双工，并主动提心跳、重连和网关路由这些落地问题，只答“比轮询快”不够。"
+  },
+  {
+    "category": "network",
+    "level": "junior",
+    "type": "text",
+    "stem": "HTTP/1.1 的长连接和短连接有什么区别？什么场景更适合短连接？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 短连接每次请求新建 TCP、响应后关闭；长连接用 Connection: keep-alive 复用同一条 TCP 连接处理多次请求，省去握手和慢启动开销。② 长连接适合请求密集、静态资源多的场景，HTTP/1.1 默认开启；请求稀疏或对端不可信时用短连接更省资源。③ 长连接要设置空闲超时和单连接最大请求数，避免服务端堆积大量空闲连接。",
+    "explanation": "长连接省的是反复建连的成本，代价是服务端要维护连接状态与 fd。答题要点出 keep-alive 复用、超时与最大请求数，以及低频场景下短连接反而更省资源这一反向判断。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "choice",
+    "stem": "主动关闭方在四次挥手后进入 TIME_WAIT 并等待 2MSL，主要目的是？",
+    "options": [
+      "等待对端把发送缓冲区中的数据全部发送完毕后再释放端口",
+      "给应用层留出时间读取剩余数据，避免连接被立即复用",
+      "确保最后的 ACK 能到达对端，并让旧连接的残留报文在网络中消失",
+      "防止对端在 CLOSE_WAIT 状态停留过久导致文件描述符泄漏"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "两个作用：最后的 ACK 丢失时对端会重发 FIN，主动关闭方还能再回一次 ACK；等待 2MSL 让本连接的历史报文在网络中过期，避免新连接收到旧数据。TIME_WAIT 只出现在主动关闭方，与 CLOSE_WAIT 是两回事。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "text",
+    "stem": "TCP 断开为什么要四次挥手？线上出现大量 CLOSE_WAIT 说明什么，怎么排查？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① TCP 是全双工，一方发 FIN 只表示自己不再发送、仍可接收，所以需要 FIN、ACK、FIN、ACK 四步，被动方收到 FIN 后进入 CLOSE_WAIT，等应用调用 close 才发第二个 FIN。② 大量 CLOSE_WAIT 是本端应用没有及时关闭连接，常见于异常分支漏关、连接池未归还。③ 用 ss -tanp 定位归属进程，配合 jstack 查阻塞线程，再核对连接池配置与释放逻辑。",
+    "explanation": "四次挥手源于全双工的半关闭语义；CLOSE_WAIT 堆积是本端应用问题而不是网络问题，这个判断方向是排查题的关键，方向反了会白查网络链路。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "text",
+    "stem": "TCP 的流量控制和拥塞控制解决的是同一件事吗？滑动窗口在其中起什么作用？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 不是同一件事。流量控制是端到端的，防止发送方把接收方缓冲区打满，靠接收窗口 rwnd 通告；拥塞控制面向网络，防止过多数据注入导致链路拥塞，靠拥塞窗口 cwnd 调节。② 发送方实际可发送的数据量取 min(rwnd, cwnd)。③ 接收窗口降为 0 时发送方停止发送，靠零窗口探测和持续计时器恢复，避免双方互相等待形成死锁。",
+    "explanation": "两者作用对象不同：一个怕压垮对端，一个怕压垮网络。滑动窗口是流量控制的载体，实际发送窗口取 rwnd 与 cwnd 的最小值，这个结论是高频追问点。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于 TCP 拥塞控制的慢启动和拥塞避免，下列说法正确的是？",
+    "options": [
+      "慢启动阶段拥塞窗口按线性增长，每个 RTT 只加一个 MSS",
+      "收到三个重复 ACK 时应把 cwnd 置为 1，重新进入慢启动",
+      "进入拥塞避免后一旦发生超时，仍应按原速率继续探测发送",
+      "慢启动阶段 cwnd 按指数增长，达到阈值后转为线性增长"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "慢启动每个 RTT 翻倍（指数），到达 ssthresh 后转入拥塞避免线性增长。三个重复 ACK 走快重传与快恢复，cwnd 减半而非归 1；只有超时才把 cwnd 置 1 重新慢启动。区分“超时”和“重复 ACK”是本题考点。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于浏览器的强缓存与协商缓存，下列说法正确的是？",
+    "options": [
+      "强缓存命中时浏览器直接使用本地副本，不发请求，也不会出现 304",
+      "Cache-Control: no-cache 表示不缓存响应，浏览器不会保存副本",
+      "协商缓存命中时服务端返回 200 和完整响应体，由浏览器决定是否使用",
+      "ETag 属于强缓存，Last-Modified 属于协商缓存，二者不能同时出现"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "强缓存由 Cache-Control/Expires 决定，命中后不发请求，DevTools 显示 from disk/memory cache；协商缓存带 If-None-Match/If-Modified-Since 询问，命中返回 304 且无响应体。no-cache 是可缓存但每次必须校验，no-store 才是不存储；ETag 与 Last-Modified 都属于协商缓存。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "text",
+    "stem": "请描述一次完整的 HTTPS 握手过程，非对称加密和对称加密分别用在哪一步？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 客户端发 ClientHello，带支持的 TLS 版本、密码套件和随机数；服务端回 ServerHello 选定套件、给出随机数，并下发证书链。② 客户端校验证书链、有效期和域名，用 CA 公钥验签确认服务端身份，再用 ECDHE 协商出会话密钥。③ 之后双方切换为对称加密传输应用数据。非对称只用于身份认证与密钥交换，对称加密承担业务数据，因为性能高得多。",
+    "explanation": "核心口诀是“非对称换密钥、对称传数据”。现代 TLS 1.3 用 ECDHE 提供前向安全并把握手压缩到 1-RTT，答题时补上证书校验与随机数的作用能明显加分。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "text",
+    "stem": "Cookie、Session、Token 在登录态方案里各承担什么角色？服务端集群部署时要注意什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① Cookie 是浏览器存储并自动携带的键值，只是载体；Session 把状态存在服务端，靠 sessionId 关联，可随时失效但占内存、难扩展；Token 如 JWT 把状态编码进令牌由客户端保存，服务端验签即可，天然适合无状态和多端。② 集群下 Session 需要粘性会话或集中存储到 Redis；JWT 则要解决注销与续期，通常用短有效期加 refresh token 与黑名单。",
+    "explanation": "三者不是互斥关系：Cookie 是传输载体，Session 与 Token 是状态放服务端还是放客户端的两种思路。集群下 Session 共享与 JWT 注销难题是必问的取舍点。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "choice",
+    "stem": "前端用 Content-Type: application/json 向跨域接口发 POST，浏览器会先发 OPTIONS 预检，原因是？",
+    "options": [
+      "JSON 属于简单请求，浏览器为兼容旧服务端统一先探测一次",
+      "application/json 不属于简单请求允许的类型，需预检确认授权",
+      "预检由服务端框架发起，用于确认接口是否允许跨域调用",
+      "只有携带 Cookie 的请求才需要预检，与 Content-Type 无关"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "简单请求只允许 GET/HEAD/POST，且 Content-Type 限于 text/plain、multipart/form-data、application/x-www-form-urlencoded。application/json 或自定义头会触发预检：浏览器发 OPTIONS 带 Origin 与 Access-Control-Request-Method 询问，服务端用 Access-Control-Allow-* 应答并用 max-age 缓存结果。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "text",
+    "stem": "CDN 的回源是什么？哪些情况会触发回源，怎么降低回源率？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 回源是边缘节点没有可用缓存时，向上级节点或源站请求内容，拿到后返回用户并缓存。② 常见触发：首次访问未命中、缓存过期、内容被刷新或预热、请求带 Cookie 或随机查询参数被判定不可缓存、源站返回了不可缓存的状态码。③ 降低回源率靠合理设置 Cache-Control 与 s-maxage、去掉 URL 中的无用参数、静态资源加指纹长缓存、热点内容提前预热，并开启多级缓存与回源合并。",
+    "explanation": "回源率直接决定源站压力和首字节延迟。回答要点出“未命中、过期、刷新、不可缓存”四类触发条件，以及缓存头配置和 URL 规范化这两个治理手段。"
+  },
+  {
+    "category": "network",
+    "level": "mid",
+    "type": "text",
+    "stem": "NAT 是如何让内网机器访问公网的？为什么外网无法直接访问内网服务，内网穿透怎么解决？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① NAT 在出口设备把内网源地址端口替换为公网地址端口并记录映射表，回包按表还原，因此内网可以主动访问公网，但映射由内网发起，外部无法凭空建立连接。② 内网穿透用反向连接：内网客户端主动连到公网中转服务器并保持长连接，外部请求先到中转，再经这条连接转发进来。③ 也可用端口映射、STUN/TCP 打洞或 VPN 组网，成本与运维复杂度各不相同。",
+    "explanation": "NAT 映射表是单向的、由内网发起，所以外网进不来。穿透的本质是把“外部发起连接”改造成“内网主动建连加中转转发”，抓住这条主线即可，再补充打洞与 VPN。"
+  },
+  {
+    "category": "network",
+    "level": "senior",
+    "type": "text",
+    "stem": "HTTP/2 的多路复用解决了什么问题？它是否彻底消除了队头阻塞？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① HTTP/1.1 在一条连接上串行处理请求，前一个响应慢会阻塞后续请求，浏览器只能靠多开连接缓解，带来额外握手与资源开销。② HTTP/2 用二进制分帧把请求响应拆成带 stream id 的帧，在同一连接上交错传输实现多路复用，并用 HPACK 压缩头部。③ 但 TCP 层仍有队头阻塞：一个包丢失，整条连接上所有流都要等它重传。所以 HTTP/2 只解决了应用层队头阻塞，彻底消除要靠基于 UDP 的 HTTP/3。",
+    "explanation": "要分两层回答：应用层 HOL 由分帧多路复用解决，传输层 HOL 依然存在而且被放大，这正是 HTTP/3 的动机。只答“多路复用更快”拿不到高分。"
+  },
+  {
+    "category": "network",
+    "level": "senior",
+    "type": "choice",
+    "stem": "HTTP/3 基于 QUIC 并改用 UDP，主要原因是？",
+    "options": [
+      "UDP 比 TCP 更可靠，QUIC 直接复用 UDP 自带的重传与拥塞控制",
+      "QUIC 必须依赖 UDP 才能实现 TLS，换成 TCP 就无法加密",
+      "QUIC 在用户态实现可靠传输，各流独立重传，规避 TCP 层队头阻塞",
+      "UDP 单个报文更大，能减少分片数量，从而提升传输效率"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "QUIC 把可靠传输、拥塞控制和 TLS 1.3 集成到用户态，每条流独立排序重传，丢包只影响该流，绕开 TCP 整条连接的队头阻塞；还能 0-RTT 建连与连接迁移。UDP 本身不可靠，可靠性、加密和拥塞控制都是 QUIC 自己实现的。"
+  },
+  {
+    "category": "network",
+    "level": "senior",
+    "type": "text",
+    "stem": "四层负载均衡和七层负载均衡的区别是什么？线上选型时你会怎么组合？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 四层只看 IP 和端口做转发，不改写报文，性能高、延迟低，但无法按 URL 或 Header 路由；七层解析 HTTP，可按域名、路径、Header 分发，支持改写、灰度、鉴权和会话保持，代价是解析开销。② 常见组合是外层用 LVS 或云 SLB 做四层入口抗量，内层用 Nginx 或 Envoy 做七层路由与灰度。③ 选型看是否需要内容路由、TLS 在哪一层卸载、吞吐与连接数要求，以及健康检查要细到什么粒度。",
+    "explanation": "关键差异是“看不看报文内容”，由此带来性能与灵活性的取舍。真实架构多是四层在前、七层在后，答出这个组合比单独比较两种设备更有说服力。"
+  },
+  {
+    "category": "network",
+    "level": "senior",
+    "type": "text",
+    "stem": "线上监控发现某台机器出现大量 TIME_WAIT 且偶发无法建立新连接，你会怎么分析和处理？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 先确认哪一侧在主动关闭：高并发短连接客户端容易堆积 TIME_WAIT，占满本地约 2.8 万个端口后报 cannot assign requested address。② 优先改应用：改用长连接或连接池、减少短连接频次，这是根治手段；其次扩大本地端口范围、开启 tcp_tw_reuse 复用。③ 不要简单调小 2MSL 或开启 tcp_tw_recycle，后者在 NAT 环境下会导致部分客户端握手失败。",
+    "explanation": "TIME_WAIT 本身是正常状态，问题在于主动关闭方太多而端口不够。排查方向应是“谁在主动关连接”，根治靠连接复用而非改内核参数，tcp_tw_recycle 在 NAT 下有害是加分点。"
+  },
+  {
+    "category": "network",
+    "level": "senior",
+    "type": "choice",
+    "stem": "线上接口偶发超时，需要确认链路上是否有丢包和重传。下列命令与用途对应正确的是？",
+    "options": [
+      "netstat -s 用于列出监听端口，能直接定位端口属于哪个进程",
+      "tcpdump 只能解析 HTTP 应用层内容，看不到 TCP 重传报文",
+      "ping 能测出目标端口是否可连通，可以替代 telnet 做端口探测",
+      "ss -ti 可查看连接的 RTT、重传次数和拥塞窗口等 TCP 细节"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "ss -ti 输出 rtt、retrans、cwnd 等内核 TCP 信息，是判断重传的首选；netstat -s 是协议栈统计汇总（含重传计数）而非端口列表；tcpdump 能抓到重传和乱序的原始报文；ping 走 ICMP，测不了 TCP 端口连通性，要用 telnet 或 nc。"
+  },
+  {
+    "category": "network",
+    "level": "senior",
+    "type": "choice",
+    "stem": "客户端访问 HTTPS 站点报证书错误，但服务端证书本身在有效期内，最可能的原因和处理是？",
+    "options": [
+      "证书链缺少中间证书，应补齐完整链并确认 SNI 返回的是正确证书",
+      "服务端没有开启 TLS 1.3，客户端因此判定该证书无效",
+      "证书的 CN 字段已被废弃，必须改用 IP 地址访问才能通过校验",
+      "客户端系统时间偏差不影响证书校验，问题一定在服务端证书链"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "最常见原因是服务端只下发叶子证书、缺中间 CA，客户端无法构建到受信根的完整链；多域名场景还要确认 SNI 命中了正确证书。客户端时间偏差同样会导致“证书未生效或已过期”，所以不能断言不影响；CN 已被 SAN 取代，但不会因此必须用 IP 访问。"
+  },
+  {
+    "category": "network",
+    "level": "architect",
+    "type": "text",
+    "stem": "请设计一个支撑百万级长连接的接入层，说明负载均衡、协议选型和容量规划上的关键决策。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 入口用 DNS 加四层 LB 做 VIP 与抗量，七层网关做 TLS 卸载、鉴权、路由和限流；长连接场景要保证同一条连接始终落在同一网关实例，避免中途漂移。② 协议上实时双向通信用 WebSocket，对外 API 用 HTTP/2，弱网和移动端可评估 HTTP/3；心跳间隔与超时按网络质量设定。③ 容量按单机连接数、内存与 fd 上限规划，网关尽量无状态，配套连接数、消息延迟、断连率监控和灰度迁移方案。",
+    "explanation": "百万连接考的不是单点技术，而是分层入口、连接粘性、协议取舍和容量模型。要主动说明单机瓶颈在 fd、内存和 GC，以及扩缩容时存量连接如何迁移、如何避免抖动。"
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "关于 EXPLAIN 与 EXPLAIN ANALYZE 的区别，下列说法正确的是？",
+    "options": [
+      "EXPLAIN ANALYZE 只输出估算成本，不会执行语句",
+      "EXPLAIN 会真正执行 SQL 并返回实际行数",
+      "EXPLAIN ANALYZE 会执行语句，并额外输出实际行数与各算子耗时",
+      "两者输出完全等价，只是格式不同"
+    ],
+    "correctIndex": 2,
+    "explanation": "EXPLAIN 只是展示优化器的估算计划；EXPLAIN ANALYZE 从 8.0.18 起可用，会真正执行语句并给出 actual rows 与实际耗时。两者对不上时，优先怀疑统计信息失真或数据分布倾斜。"
+  },
+  {
+    "type": "choice",
+    "stem": "表上有联合索引 idx_list(category, status, updated_at, id)，下列哪条查询最能充分利用该索引？",
+    "options": [
+      "WHERE category = 'data' AND status = 'published' ORDER BY updated_at DESC",
+      "WHERE status = 'published' AND updated_at >= '2026-09-01'",
+      "WHERE category = 'data' ORDER BY slug",
+      "WHERE DATE(updated_at) = '2026-10-01'"
+    ],
+    "correctIndex": 0,
+    "explanation": "联合索引按定义顺序生效：category、status 等值匹配后，updated_at 可以直接提供排序，避免 filesort。跳过最左列、排序键不在索引里、或在列上套函数，都会让索引部分或完全失效。"
+  },
+  {
+    "type": "text",
+    "stem": "某张表已有 8000 万行，列表查询按 category + status 过滤、按 updated_at 排序分页，P99 已达 2 秒。请说明你的排查顺序和至少三层优化手段，并指出什么条件下才该考虑分库分表。",
+    "options": [],
+    "referenceAnswer": "排查顺序：先在慢查询日志与 performance_schema 里确认这条 SQL 的真实耗时与执行次数，再用 EXPLAIN ANALYZE 对比估算行数与实际行数，看是否命中联合索引、是否回表、是否出现 Using filesort 或 Using temporary。优化第一层是索引：建 (category, status, updated_at, id) 联合索引覆盖过滤与排序，列表只取必要列做成覆盖索引；第二层是 SQL 改写：把大 OFFSET 换成 (updated_at, id) 游标分页，去掉列上函数，避免 SELECT *；第三层是资源与架构：核对 Buffer Pool 命中率、连接池等待与主从延迟，读多写少可走只读副本，历史数据做归档或分区。只有单表容量与写入真的触顶、索引与归档都已用尽时，才按高基数分片键做分库分表，并提前设计跨片查询与分布式事务方案。",
+    "explanation": "调优的次序是「先证明慢在哪，再按代价从小到大改」：索引与 SQL 改写成本最低、可回滚，参数与架构改动大且不可逆。分库分表是最后手段，因为分片键一旦选错，后续迁移代价极高。"
+  }
+]

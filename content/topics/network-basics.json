@@ -1,0 +1,209 @@
+{
+  "slug": "network-basics",
+  "title": "网络基础（HTTP 与链路排障）",
+  "category": "engineering",
+  "summary": "从 TCP 握手到 HTTPS、DNS、CORS，用 curl 与抓包把一次请求的链路讲清楚。",
+  "difficulty": "beginner",
+  "estimatedHours": 6,
+  "tags": [
+    "network",
+    "http",
+    "tcp",
+    "tls",
+    "cdn"
+  ],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://developer.mozilla.org/zh-CN/docs/Web/HTTP",
+  "prerequisites": [],
+  "nextTopics": [
+    "nginx-basics",
+    "spring-cloud-gateway"
+  ],
+  "relatedTopics": [
+    "linux-basics",
+    "vue3-spa"
+  ],
+  "overviewMd": "用户点一次按钮到后端写下一行日志，中间隔着 DNS、TCP、TLS、HTTP、反向代理和 CDN。这一节的目标不是背协议字段，而是能按层说清楚这条链路，并用 curl、dig、ss、tcpdump 证明问题停在哪一层，而不是在「接口 502 了」和「网络问题吧」之间来回猜。\n\n分层模型是排障的坐标系。TCP/IP 大致分四层：链路层负责同一网段投递，IP 层负责跨网段路由，TCP 提供面向连接、可靠、有序的字节流，应用层是 HTTP、WebSocket、DNS。每层都有对应工具：ip 与 ss 看本机地址和连接，ping 与 traceroute 看路由可达，curl 与 openssl 看应用层，tcpdump 抓的是更底层的帧。\n\n连接与请求是两条主线。三次握手同步序号并确认双向可达，四次挥手是因为全双工需要各自关闭；主动关闭方进入 TIME_WAIT，短连接高并发时本地端口会被占满。HTTP 是无状态的请求响应模型，方法的幂等性决定能否安全重试，状态码按 2xx 到 5xx 分区表达结果归属；HTTPS 则在 TCP 之上加 TLS 握手与证书校验，证书链不完整时 curl 能通、移动端却握手失败。\n\n名字与边界决定流量走向。DNS 逐级递归解析并按 TTL 缓存，切流前要先降 TTL；CDN 靠 Cache-Control 与 ETag 把静态资源挡在边缘，未命中才回源。浏览器侧受同源策略约束，跨域要靠 CORS 预检与响应头，带凭证时还不能用通配。需要服务端推送时用 WebSocket，它借 HTTP Upgrade 升级成长连接，代理必须转发 Upgrade 与 Connection 头并单独放宽读超时，否则大约一分钟就断。\n\n与仓库的关系：线上入口通常由 Nginx 或网关做反向代理与负载均衡，代理层要正确传递 X-Forwarded-For 与 X-Forwarded-Proto，否则后端记录的客户端 IP 全是代理地址、生成的链接也退回 http。示例以 HTTP/1.1 与 TLS 1.2/1.3 为准，命令在 Linux 与 WSL 上通用；跨域细节可对照 cors-practice，端口与进程排查对照 linux-basics。",
+  "concepts": [
+    {
+      "term": "TCP/IP 分层",
+      "explanation": "链路、IP、TCP、应用四层，每层加自己的头再交给下一层；排障先确认问题停在哪层，别跨层猜。"
+    },
+    {
+      "term": "三次握手",
+      "explanation": "SYN、SYN+ACK、ACK 同步双方序号并确认双向可达；连不上通常是端口未监听、防火墙丢包或 backlog 已满。"
+    },
+    {
+      "term": "四次挥手与 TIME_WAIT",
+      "explanation": "全双工要各自 FIN/ACK；主动关闭方等 2MSL 保证末次 ACK 可达，短连接密集时本地端口会被 TIME_WAIT 占满。"
+    },
+    {
+      "term": "HTTP 请求与响应",
+      "explanation": "请求行、头、体与状态行、头、体；GET/HEAD/PUT/DELETE 幂等可重试，POST 非幂等，重试必须带幂等键。"
+    },
+    {
+      "term": "状态码分区",
+      "explanation": "2xx 成功、3xx 需跳转、4xx 调用方问题、5xx 服务端问题；502 是上游响应无效，504 是等上游超时，别混着查。"
+    },
+    {
+      "term": "HTTPS 与 TLS",
+      "explanation": "TLS 在 TCP 上协商密钥并校验证书签名链、域名与有效期；证书要带完整中间链，SNI 决定返回哪张证书。"
+    },
+    {
+      "term": "DNS 解析",
+      "explanation": "浏览器缓存→系统解析器→递归服务器→根/顶级/权威；TTL 决定缓存时长，切流前先降 TTL 再改记录。"
+    },
+    {
+      "term": "CDN 与缓存头",
+      "explanation": "边缘节点按 Cache-Control、ETag 缓存静态资源，未命中回源；带 Cookie 或 private 的响应不该进公共缓存。"
+    },
+    {
+      "term": "同源与 CORS",
+      "explanation": "同源看协议、域名、端口三者一致；跨域的写请求先发 OPTIONS 预检，响应要带 Allow-Origin/Methods/Headers。"
+    },
+    {
+      "term": "Cookie 与 Session",
+      "explanation": "Cookie 按 Domain/Path 自动回传，Session 存服务端并靠 Cookie 里的 ID 关联；跨站场景要配 SameSite 与 Secure。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "分层与握手",
+      "goal": "用 tcpdump 抓一次 curl 请求，在抓包里认出 SYN、SYN+ACK、ACK 与 HTTP 请求行，说清每一跳发生了什么。",
+      "hours": 1,
+      "resources": [
+        "man tcpdump",
+        "Wireshark 显示过滤器"
+      ]
+    },
+    {
+      "title": "报文与状态码",
+      "goal": "用 curl -v/-i 观察请求与响应头，构造 200、301、401、404、500 各一次，能解释每类状态该由哪层负责。",
+      "hours": 1,
+      "resources": [
+        "MDN HTTP 状态码",
+        "curl 手册"
+      ]
+    },
+    {
+      "title": "HTTPS 与证书",
+      "goal": "用 openssl s_client 查看证书链、SAN 与 TLS 版本，再用 curl --resolve 把域名指到指定 IP，区分 DNS 问题与证书问题。",
+      "hours": 1,
+      "resources": [
+        "openssl s_client 文档",
+        "Let's Encrypt 证书链说明"
+      ]
+    },
+    {
+      "title": "DNS 与 CDN",
+      "goal": "用 dig +trace 看完整解析路径，改动 TTL 观察缓存生效时间；用 curl -I 检查 CDN 的命中与缓存头。",
+      "hours": 1,
+      "resources": [
+        "man dig",
+        "MDN HTTP 缓存"
+      ]
+    },
+    {
+      "title": "CORS 与 Cookie",
+      "goal": "本地起前后端两个端口，触发一次预检请求，观察 SameSite 与 credentials 对响应头的要求。",
+      "hours": 1,
+      "resources": [
+        "MDN 跨源资源共享",
+        "本页 nginx 配置"
+      ]
+    },
+    {
+      "title": "反向代理与负载均衡",
+      "goal": "用 nginx upstream 挂两台后端，验证轮询与 least_conn 的差异，并人为制造 502 与 504 各一次。",
+      "hours": 0.5,
+      "resources": [
+        "nginx upstream 文档",
+        "本页 nginx 示例"
+      ]
+    },
+    {
+      "title": "WebSocket 与抓包",
+      "goal": "对照浏览器 Network 的 WS 帧与 tcpdump 输出，调整代理读超时与心跳，确认长连接不再被掐断。",
+      "hours": 0.5,
+      "resources": [
+        "RFC 6455",
+        "本页 Java 示例"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "反向代理、负载均衡与 WebSocket 透传",
+      "language": "nginx",
+      "description": "一个站点同时演示 TLS 终止、upstream 负载均衡、X-Forwarded-* 透传，以及 /ws 路径的 Upgrade 转发与超时放宽；http2 on 需 nginx 1.25.1+，旧版写 listen 443 ssl http2。",
+      "code": "# /etc/nginx/conf.d/learnhub.conf\nupstream learnhub_api {\n    least_conn;\n    server 10.0.0.11:8080 max_fails=3 fail_timeout=10s;\n    server 10.0.0.12:8080 max_fails=3 fail_timeout=10s;\n    keepalive 32;\n}\n\nserver {\n    listen 443 ssl;\n    http2 on;\n    server_name learn.example.com;\n\n    ssl_certificate     /etc/nginx/certs/fullchain.pem;\n    ssl_certificate_key /etc/nginx/certs/privkey.pem;\n\n    location /api/ {\n        proxy_pass http://learnhub_api;\n        proxy_http_version 1.1;\n        proxy_set_header Host              $host;\n        proxy_set_header X-Real-IP         $remote_addr;\n        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header Connection        \"\";\n        proxy_read_timeout 30s;\n    }\n\n    location /ws/ {\n        proxy_pass http://learnhub_api;\n        proxy_http_version 1.1;\n        proxy_set_header Upgrade    $http_upgrade;\n        proxy_set_header Connection \"upgrade\";\n        proxy_read_timeout 3600s;\n    }\n}\n\nserver {\n    listen 80;\n    server_name learn.example.com;\n    return 301 https://$host$request_uri;\n}"
+    },
+    {
+      "title": "一次请求的逐层排查命令",
+      "language": "bash",
+      "description": "从名字解析、端口连通、TLS、响应头到抓包，按层各留一条命令，用来证明问题出在哪一段而不是凭感觉。",
+      "code": "# 1. 名字解析：确认到底连到哪台机器\ndig +short learn.example.com\ngetent hosts learn.example.com        # 走系统解析器，能看到 /etc/hosts 的影响\n\n# 2. 端口与耗时：把 DNS、TCP、TLS 拆开看\nss -lntp | grep -E ':80|:443'\ncurl -o /dev/null -s -w 'code=%{http_code} dns=%{time_namelookup} tcp=%{time_connect} tls=%{time_appconnect} total=%{time_total}\\n' https://learn.example.com/\n\n# 3. 逐个排除变量：绕过 DNS、看证书链\ncurl -sv --resolve learn.example.com:443:10.0.0.11 https://learn.example.com/ -o /dev/null\nopenssl s_client -connect learn.example.com:443 -servername learn.example.com -showcerts </dev/null 2>/dev/null | openssl x509 -noout -subject -dates\n\n# 4. 看响应头：缓存命中、CORS 预检、跳转\ncurl -sI https://learn.example.com/assets/app.9f2c1d.js\ncurl -s -i -X OPTIONS https://learn.example.com/api/topics \\\n  -H 'Origin: http://localhost:5173' \\\n  -H 'Access-Control-Request-Method: POST' | head -20\n\n# 5. 抓包：确认丢在哪一层（需要 root 或 CAP_NET_RAW）\ntcpdump -i any -nn -c 20 'host 10.0.0.11 and port 443'\ntcpdump -i any -nn -A 'tcp port 80 and tcp[((tcp[12] & 0xf0) >> 2):4] = 0x47455420' | head -40"
+    },
+    {
+      "title": "WebSocket 握手与来源校验",
+      "language": "java",
+      "description": "Spring 原生 WebSocket 写法：限定允许的来源、在握手阶段取代理传来的客户端 IP。握手本质是一次 HTTP Upgrade，配置错就会 403 或反复重连。",
+      "code": "package com.learnhub.chat;\n\nimport java.util.Map;\n\nimport org.springframework.context.annotation.Configuration;\nimport org.springframework.http.server.ServerHttpRequest;\nimport org.springframework.http.server.ServerHttpResponse;\nimport org.springframework.web.socket.WebSocketHandler;\nimport org.springframework.web.socket.config.annotation.EnableWebSocket;\nimport org.springframework.web.socket.config.annotation.WebSocketConfigurer;\nimport org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;\nimport org.springframework.web.socket.server.HandshakeInterceptor;\n\n@Configuration\n@EnableWebSocket\nclass ChatWebSocketConfig implements WebSocketConfigurer {\n\n    private final ChatHandler handler;\n\n    ChatWebSocketConfig(ChatHandler handler) {\n        this.handler = handler;\n    }\n\n    @Override\n    public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {\n        registry.addHandler(handler, \"/ws/chat\")\n                .setAllowedOriginPatterns(\"https://learn.example.com\", \"http://localhost:5173\")\n                .addInterceptors(new HandshakeInterceptor() {\n                    @Override\n                    public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,\n                                                   WebSocketHandler wsHandler, Map<String, Object> attributes) {\n                        // 握手是一次 HTTP Upgrade：代理要转发 Upgrade/Connection，并放宽读超时\n                        attributes.put(\"clientIp\", request.getHeaders().getFirst(\"X-Forwarded-For\"));\n                        return true;\n                    }\n\n                    @Override\n                    public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,\n                                               WebSocketHandler wsHandler, Exception exception) {\n                    }\n                });\n    }\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "只加 Allow-Origin 就以为跨域通了",
+      "detail": "现象是简单 GET 正常，带 JSON 的 POST 预检直接 403。原因是 OPTIONS 请求没被放行，或缺 Allow-Methods、Allow-Headers。规避：网关与后端都对 OPTIONS 返回 204 并带上完整 CORS 头，且只在路由层处理一次，避免重复添加导致头重复。"
+    },
+    {
+      "title": "Allow-Origin 用通配又想带 Cookie",
+      "detail": "现象是浏览器报 credentials 模式不允许通配。原因是规范禁止 * 与凭证共存。规避：按请求回显具体 Origin 并加 Vary: Origin，同时给 Cookie 配 SameSite=None; Secure，且只对可信来源放行。"
+    },
+    {
+      "title": "502 与 504 混为一谈",
+      "detail": "现象是一看到 5xx 就重启后端，问题反复出现。原因是 502 指上游拒绝连接或返回非法响应，504 指等上游超时。规避：先看 nginx error.log 里的 upstream 行，502 查进程与端口，504 查慢查询、连接池与超时配置。"
+    },
+    {
+      "title": "证书链不完整",
+      "detail": "现象是 curl 与桌面浏览器正常，部分安卓或 Java 客户端握手失败。原因是只部署了站点证书、缺中间证书。规避：下发 fullchain 文件，用 openssl s_client -showcerts 确认链完整，并在客户端侧验证 Java trustStore 是否包含对应 CA。"
+    },
+    {
+      "title": "切流被 DNS 缓存拖住",
+      "detail": "现象是记录改完，部分用户仍访问旧 IP 半小时以上。原因是 TTL 没提前降低，递归与本地缓存仍在有效期。规避：提前一个 TTL 周期把 TTL 降到 60 秒，灰度切流并保留旧节点一段时间，用 dig @公共 DNS 抽查各地解析结果。"
+    },
+    {
+      "title": "代理掐断 WebSocket 长连接",
+      "detail": "现象是连接约 60 秒后自动断开、前端不停重连。原因是代理读超时与长连接不匹配，或 Upgrade/Connection 头没透传。规避：为 /ws 单独设置 proxy_read_timeout，显式转发 Upgrade 与 Connection，并在应用层加心跳保活。"
+    }
+  ],
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "接口返回 502，后端看着还活着",
+      "signal": "网关日志大量 502，应用进程存在但响应异常",
+      "approach": "按层收敛：先在服务器上 curl 直连后端 IP 与端口，绕过代理；再用 ss -lntp 确认监听地址，查 nginx error.log 的 upstream 行；最后回到应用日志与线程栈，判断是崩溃重启、端口写错还是连接被拒。"
+    },
+    {
+      "title": "浏览器跨域被拦，Postman 却正常",
+      "signal": "控制台报 CORS 错误，预检请求返回 4xx 或缺响应头",
+      "approach": "在 Network 面板单独看 OPTIONS 预检与实际请求的响应头，确认 Allow-Origin 是否回显了具体来源、是否带 Allow-Methods/Headers；把 CORS 处理收敛到网关一处，凭证场景补 Vary 与 SameSite。"
+    },
+    {
+      "title": "全站切 HTTPS",
+      "signal": "混入 http 资源告警、部分接口证书不匹配或跳转循环",
+      "approach": "证书用 fullchain 部署并开 HSTS，Nginx 上 80 统一 301 到 443；后端按 X-Forwarded-Proto 生成绝对链接，静态资源改用 https 或相对协议，上线前用 curl 与不同客户端各验一遍。"
+    },
+    {
+      "title": "首页首屏慢，静态资源反复回源",
+      "signal": "静态资源响应头无 Cache-Control，CDN 命中率很低",
+      "approach": "用 curl -I 看缓存头与 Age，给带内容哈希的资源设长缓存 immutable，HTML 设短缓存或 no-cache；确认 CDN 回源 Host 与证书正确，再压测看边缘命中率是否上升。"
+    },
+    {
+      "title": "消息推送延迟，连接每分钟重连",
+      "signal": "WebSocket 连接周期性断开，重连日志刷屏",
+      "approach": "在浏览器 Network 的 WS 面板看关闭码与帧间隔，对照代理的 read timeout 与 keepalive；转发 Upgrade/Connection 头、单独放宽 /ws 超时并加心跳，必要时降级为轮询兜底。"
+    }
+  ]
+}

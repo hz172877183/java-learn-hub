@@ -1,0 +1,432 @@
+[
+  {
+    "category": "jvm",
+    "level": "junior",
+    "type": "choice",
+    "stem": "以下哪组区域都属于线程私有的运行时数据区？",
+    "options": [
+      "程序计数器、虚拟机栈、本地方法栈",
+      "堆、方法区、运行时常量池",
+      "堆、虚拟机栈、直接内存",
+      "方法区、本地方法栈、程序计数器"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "程序计数器、虚拟机栈和本地方法栈随线程创建与销毁，是线程私有的；堆和方法区由所有线程共享，直接内存不属于运行时数据区。"
+  },
+  {
+    "category": "jvm",
+    "level": "junior",
+    "type": "choice",
+    "stem": "一般情况下，new 创建的对象优先分配在堆的哪个区域？",
+    "options": [
+      "新生代 Survivor 区，存活对象在此复制",
+      "新生代 Eden 区，绝大多数对象在此分配",
+      "老年代，大对象和长期存活对象在此",
+      "元空间，存放类元数据而非对象实例"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "多数对象在 Eden 分配，Minor GC 后存活对象进入 Survivor；大对象可能直接进入老年代，TLAB 也只是 Eden 内的线程私有分配缓冲区。"
+  },
+  {
+    "category": "jvm",
+    "level": "junior",
+    "type": "choice",
+    "stem": "下列哪一项不能作为 GC Roots 直接判定对象存活？",
+    "options": [
+      "虚拟机栈中局部变量引用的对象",
+      "方法区中静态属性引用的对象",
+      "仅被 WeakReference 引用的对象",
+      "处于存活状态的 Thread 对象"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "GC Roots 包括栈帧局部变量、静态属性、常量、JNI 引用、活跃线程和同步锁等；弱引用对象随时可能被回收，不能作为根。"
+  },
+  {
+    "category": "jvm",
+    "level": "junior",
+    "type": "text",
+    "stem": "说说 JVM 运行时数据区包含哪些部分，哪些线程私有、哪些线程共享？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 线程私有：程序计数器、虚拟机栈、本地方法栈，随线程创建销毁。② 线程共享：堆存对象实例，方法区存类元信息、常量、静态变量，JDK 8 后用元空间实现。③ 直接内存不属于运行时数据区，但 NIO 会用到。程序计数器不会 OOM，栈会 StackOverflowError，堆和方法区会 OOM。",
+    "explanation": "答题要区分线程私有与共享，并点出 JDK 8 永久代被元空间替代；程序计数器是唯一不会 OOM 的区域，常被追问。"
+  },
+  {
+    "category": "jvm",
+    "level": "junior",
+    "type": "text",
+    "stem": "从执行 new 到对象可用，JVM 大致做了哪些步骤？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 类加载检查：确认类已加载、解析、初始化。② 分配内存：指针碰撞或空闲列表，并发下用 CAS 或 TLAB 保证安全。③ 初始化零值：保证实例字段有默认值。④ 设置对象头：写入 Mark Word、类型指针，数组还要写长度。⑤ 执行构造方法 <init>，按父类到子类完成初始化。",
+    "explanation": "重点是分配方式与并发安全，以及“零值—对象头—构造方法”的顺序；TLAB 是 Eden 内的线程私有缓冲区，可减少分配竞争。"
+  },
+  {
+    "category": "jvm",
+    "level": "junior",
+    "type": "text",
+    "stem": "一个 Java 对象在内存中由哪几部分组成？对象头里有什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 对象头：Mark Word 存哈希码、GC 年龄、锁状态；Klass Pointer 指向类元数据；数组还有长度。② 实例数据：保存字段值，含父类继承字段，按类型宽度排列。③ 对齐填充：保证 8 字节对齐，不一定存在。64 位开启压缩指针时 Klass Pointer 占 4 字节。",
+    "explanation": "对象头是锁升级、GC 年龄和哈希码的公共存储区，Mark Word 会随锁状态复用位；注意压缩指针与数组长度字段的存在。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "对于 static int value = 1;，类加载的准备阶段和初始化阶段分别将它设置为什么值？",
+    "options": [
+      "准备阶段 1，初始化阶段 1",
+      "准备阶段 1，初始化阶段 0",
+      "准备阶段不分配，初始化阶段 1",
+      "准备阶段 0，初始化阶段 1"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "准备阶段为静态变量分配内存并赋类型零值；显式赋值在 <clinit> 中执行。若为 static final 编译期常量，准备阶段就会通过 ConstantValue 赋为最终值。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "以下哪种操作不会触发子类的初始化？",
+    "options": [
+      "通过子类访问父类的静态字段",
+      "使用 new 创建子类实例",
+      "调用子类的静态方法",
+      "用 Class.forName 加载子类"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "访问父类静态字段在编译期就解析为对父类的引用，只初始化父类；new、调用子类静态方法和反射加载都会触发子类初始化。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "下列哪项不是逃逸分析带来的优化？",
+    "options": [
+      "栈上分配",
+      "常量折叠",
+      "标量替换",
+      "锁消除"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "JIT 通过逃逸分析判断对象是否逃出方法或线程，进而做标量替换、锁消除，HotSpot 的“栈上分配”主要靠标量替换实现；常量折叠属于编译期常量传播。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "新生代收集普遍采用复制算法，主要原因是？",
+    "options": [
+      "复制算法不会产生内存碎片，实现也最简单",
+      "复制算法可以完全避免 Stop The World",
+      "新生代对象朝生夕死，存活对象少，复制成本低",
+      "新生代空间小，复制算法不需要额外空间"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "新生代存活率低，只需复制少量存活对象到 Survivor，性价比高；代价是需要预留 Survivor 空间。老年代存活率高，更适合标记-清除或标记-整理。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于 CMS 收集器，下列说法错误的是？",
+    "options": [
+      "基于标记-清除，会产生内存碎片",
+      "初始标记和重新标记阶段仍需 STW",
+      "对 CPU 资源敏感，可能产生浮动垃圾",
+      "采用复制算法，因此没有碎片问题"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "CMS 是老年代收集器，采用标记-清除，碎片多到一定程度会触发 Full GC 和压缩；并发标记产生浮动垃圾，且无法处理 Concurrent Mode Failure。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "JDK 8 及以后，关于元空间（Metaspace）的说法正确的是？",
+    "options": [
+      "使用本地内存，可用 -XX:MaxMetaspaceSize 限制",
+      "位于 Java 堆内，受 -Xmx 限制",
+      "与永久代完全等价，只是改了名字",
+      "用于存储对象实例，字符串常量池也在其中"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "JDK 8 移除永久代，类元数据移到本地内存；默认上限受物理内存约束，建议设置 MaxMetaspaceSize 以暴露类加载器泄漏。字符串常量池和静态变量已移到堆。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "用 jstat -gcutil <pid> 1000 观察应用，哪组指标最能说明发生了 Full GC？",
+    "options": [
+      "YGC 增长快，YGCT 很小",
+      "FGC、FGCT 持续增长且老年代占用高",
+      "EU 接近 100%，OU 很低",
+      "S0 和 S1 同时接近 100%"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "gcutil 输出各分区使用百分比及 GC 次数、耗时；FGC/FGCT 增长通常对应 Full GC，但 G1 下还要结合 GC 日志区分 Mixed GC 与真正的 Full GC。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "text",
+    "stem": "类加载过程分为哪几个阶段？每个阶段主要做什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 加载：按全限定名获取二进制字节流，生成 Class 对象。② 验证：做文件格式、元数据、字节码和符号引用验证。③ 准备：为静态变量分配内存并赋零值。④ 解析：把常量池符号引用转为直接引用，可延迟到首次使用。⑤ 初始化：执行 <clinit>，完成静态变量赋值和静态代码块。",
+    "explanation": "顺序是加载、验证、准备、解析、初始化；解析可能发生在初始化之后。准备阶段赋零值、初始化阶段才执行显式赋值，是最常考细节。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "text",
+    "stem": "并发标记中三色标记法如何工作？为什么会漏标，怎么解决？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 白色未访问，灰色已访问但引用未扫完，黑色已完成。② 漏标：用户线程让黑色对象新增指向白色对象的引用，同时灰色对象删除对该白色对象的引用。③ 解决：增量更新用写屏障记录新增，重新标记时以黑色为根重扫；SATB 记录删除的旧引用，按开始快照处理。CMS 用增量更新，G1 用 SATB。",
+    "explanation": "判断漏标要同时满足“黑色新增白引用”和“灰到白的引用被删除”；增量更新关注新增，SATB 关注删除，二者都用写屏障实现。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "text",
+    "stem": "分代收集如何划分内存？对象在什么情况下晋升到老年代？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 新生代含 Eden 和两个 Survivor，Minor GC 用复制算法，存活对象年龄加一并在 Survivor 间复制。② 晋升条件：年龄达 MaxTenuringThreshold（默认 15）；大对象直接进老年代；动态年龄判断，Survivor 中某年龄及以下对象总和过半，则该年龄及以上晋升；分配担保失败也会触发。③ 老年代存活率高，用标记-清除或标记-整理。",
+    "explanation": "除年龄阈值外，大对象、动态年龄判断和分配担保更容易被忽略；晋升过快会加剧老年代压力，是调优的重要观察点。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "text",
+    "stem": "常见的 OOM 有哪些类型？分别对应哪块内存？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① Java heap space：堆不足或泄漏。② GC overhead limit exceeded：回收效率过低。③ Metaspace：类元数据过多，常见于动态生成类或类加载器泄漏。④ Direct buffer memory：堆外内存超限。⑤ unable to create native thread：线程数超限。⑥ 数组长度非法。看异常信息定位区域再取指标和 dump。",
+    "explanation": "不要把所有 OOM 都当成堆问题；元空间、直接内存和本地线程各有独立上限，处置方式不同。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "text",
+    "stem": "Class 文件的基本结构是什么？方法体存放在哪里？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 魔数 0xCAFEBABE、版本号。② 常量池：字面量和符号引用。③ 访问标志、类/父类/接口索引。④ 字段表和方法表。⑤ 属性表。方法体在方法表的 Code 属性中，含操作数栈深度、局部变量表大小、字节码和异常表；LineNumberTable、LocalVariableTable 用于调试，可用 javap -v 查看。",
+    "explanation": "类文件是平台无关的二进制契约，版本号决定能否被当前 JVM 加载；方法体不在方法表顶层，而在 Code 属性里。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "text",
+    "stem": "直接内存是什么？它受什么参数限制，又是如何释放的？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 直接内存不属于运行时数据区，DirectByteBuffer 通过 Unsafe 在本地内存分配，NIO 可减少一次复制。② 不受 -Xmx 限制，受 -XX:MaxDirectMemorySize 约束，未设置时默认约等于最大堆。③ 释放依赖 Cleaner，DirectByteBuffer 被回收后才 free，通常要等 GC，大量短命 Buffer 可能先 OOM。可用 NMT 观察。",
+    "explanation": "直接内存快在减少一次复制，代价是分配和回收成本高；它由 GC 间接管理，显式调用 cleaner 或复用缓冲区更稳妥。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "choice",
+    "stem": "关于 G1 收集器，下列说法正确的是？",
+    "options": [
+      "必须用 -Xmn 固定新生代大小才能正常工作",
+      "只做 Young GC，不会回收老年代",
+      "堆被划分为固定大小的 Region，Humongous 对象占用连续 Region",
+      "使用标记-复制，因此完全不会产生内存碎片"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "G1 按 Region 管理堆并逻辑分代，Humongous 对象（不小于 Region 一半）分配在连续 Region；Mixed GC 会回收部分老年代，停顿目标由 MaxGCPauseMillis 控制，但仍可能因大对象或晋升失败触发 Full GC。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "choice",
+    "stem": "ZGC 的核心特点是什么？",
+    "options": [
+      "采用分代复制算法，需要预留两倍堆空间",
+      "只支持 4GB 以下堆，适合小内存服务",
+      "必须开启压缩指针才能正常工作",
+      "染色指针加读屏障，停顿与堆大小基本无关"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "ZGC 通过染色指针、读屏障和并发转移把停顿压到毫秒级，堆从几百 MB 到数 TB 都能用；它使用 64 位指针，不支持压缩指针，JDK 15 转正，JDK 21 引入分代 ZGC。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "choice",
+    "stem": "给 32GB 堆的生产应用导堆快照，哪种做法更稳妥？",
+    "options": [
+      "先评估 STW 与磁盘，再用 jcmd 或 jmap -dump:live 导出",
+      "直接 jmap -dump 随时导出，对业务没有影响",
+      "用 jmap -histo:live 导出完整对象引用图",
+      "用 jstack 把线程栈当作堆快照导出"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "heap dump 会进入安全点并 STW，大堆可能持续数秒到数十秒，文件大小接近堆占用；jcmd 是统一入口，jmap 的 :live 会先触发 Full GC。jmap -histo 只给统计，jstack 导的是线程栈。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "choice",
+    "stem": "接口偶发超时，想快速确认哪个线程长时间占用 CPU，Arthas 中最直接的命令是？",
+    "options": [
+      "jad com.example.Foo",
+      "thread -n 3",
+      "sc -d com.example.Foo",
+      "watch 观察方法入参与返回值"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "thread -n 列出最忙的 N 个线程及调用栈，thread <id> 可看指定线程；jad 反编译、sc 查类信息、watch 观察方法入参和返回值，都不直接定位 CPU 热点。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "choice",
+    "stem": "容器内存 4GiB、只跑一个 Java 服务，JDK 11 下哪种堆参数更合理？",
+    "options": [
+      "不设置堆参数，让 JVM 按物理机内存的 1/4 计算",
+      "设置 -Xmx4g，把容器内存全部交给堆",
+      "设置 -XX:MaxRAMPercentage=70，并预留元空间、直接内存和线程栈",
+      "设置 -Xms256m -Xmx4g，完全依赖弹性伸缩"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "JDK 10+ 默认开启容器感知，堆只应占容器 limit 的一部分；线程栈、元空间、直接内存、Code Cache 都要预留，堆给满容易被 OOMKilled。Xms 与 Xmx 差距过大还会带来伸缩抖动。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "text",
+    "stem": "Serial、Parallel、CMS、G1、ZGC 应该怎么选？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 吞吐优先选 Parallel，适合批处理和离线计算。② 停顿优先且堆在 4-16GB 选 G1，JDK 9 起为默认。③ 超大堆、极低停顿选 ZGC 或 Shenandoah。④ CMS 在 JDK 14 已移除，老系统可短期保留，但要注意碎片和 Concurrent Mode Failure。⑤ 单核小内存可用 Serial。最终按堆大小、停顿目标、JDK 版本和压测日志验证。",
+    "explanation": "没有绝对最好的收集器，只有匹配场景的组合；先明确吞吐、停顿、堆大小和 JDK 版本四个约束，再用数据验证。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "text",
+    "stem": "线上服务发生 OOM 后，你会如何保留现场并定位根因？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 加 -XX:+HeapDumpOnOutOfMemoryError 和 HeapDumpPath，用 -XX:OnOutOfMemoryError 做告警预案。② 看异常类型、GC 日志和 jstat，判断堆、元空间或直接内存。③ 用 MAT 看 Leak Suspects、支配树和引用链，对比两次 dump 找增长对象。④ 用 Arthas 和日志定位代码，修复后压测回归。",
+    "explanation": "关键是先保现场再重启；不同 OOM 类型要看不同区域，dump 只是起点，必须落到引用链和代码。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "text",
+    "stem": "Java 内存泄漏常见有哪些原因？线上如何定位？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 常见原因：长生命周期 Map 或缓存无界、ThreadLocal 未 remove、监听器未注销、连接或流未关闭、类加载器泄漏、队列积压。② 定位：看老年代使用率和 Full GC 后是否回落；间隔两次 dump 对比对象增长；用 MAT 支配树和引用链找 GC Root，Arthas 辅助。③ 治理：加 TTL、弱引用、容量上限和淘汰策略。",
+    "explanation": "内存泄漏的本质是仍有强引用可达，GC 无法回收；单次 dump 只能看现状，两次对比和引用链才能定位增长源。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "text",
+    "stem": "解释一下分层编译和 Code Cache，线上如何观察 JIT 的效果？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① HotSpot 用解释器、C1、C2 分层编译：C1 编译快并采集 profiling，C2 基于热点和类型反馈做内联、逃逸分析、循环优化。② 方法调用和回边计数触发编译，假设失效会逆优化回退。③ 机器码存于 Code Cache，可用 ReservedCodeCacheSize 调整，写满会停止编译并告警。④ 用 PrintCompilation、JFR 观察。",
+    "explanation": "分层编译在启动速度和峰值性能之间折中；Code Cache 满、逆优化和去优化都可能造成性能抖动，不能只盯 GC。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "text",
+    "stem": "线上 CPU 使用率飙到 100%，如何用 jps、jstack 定位到具体代码？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① jps -l 找到 Java 进程。② top -Hp <pid> 找高 CPU 线程，printf '%x' 转十六进制。③ jstack <pid> 按 nid 匹配，重点看 RUNNABLE 且停在业务代码、正则、序列化或死循环的线程。④ 多次抓取看栈是否固定。⑤ 若是 GC 线程则查 GC 日志；也可用 Arthas thread -n 或 async-profiler。",
+    "explanation": "线程号要转十六进制再匹配 nid；多次采样能区分偶发与死循环，别忘了 GC 线程也会把 CPU 打满。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "text",
+    "stem": "接口 P99 偶发毛刺，怀疑是 GC 导致的，如何用日志和工具确认？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 开启 -Xlog:gc*,safepoint 或 PrintGCDetails，记录时间戳和停顿。② 把毛刺时间点与日志对齐，区分 Young、Mixed、Full GC 及安全点停顿。③ 排除 JIT 逆优化、大对象、锁竞争和 IO。④ 用 jstat、jcmd GC.heap_info 看分配率，用 JFR 录制 GC 事件。⑤ 调整堆、Region 或停顿目标后压测验证。",
+    "explanation": "毛刺不一定来自 GC，安全点、逆优化和 IO 也会造成停顿；要做时间对齐，不能只看 GC 总次数。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "text",
+    "stem": "元空间 OOM 的常见原因是什么？如何排查和治理？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 常见原因：CGLIB、脚本引擎等动态生成大量类；热部署或类加载器未释放；MaxMetaspaceSize 过小。② 排查：看异常中的 Metaspace，jstat -gc 看 MC/MU，jcmd VM.metaspace 或 jmap -clstats 看类加载器，MAT 看 ClassLoader 引用链。③ 治理：限制动态类生成、修复加载器泄漏、合理设置上限并监控。",
+    "explanation": "元空间增长往往不是“类太多”而是“类加载器没释放”；只调大 MaxMetaspaceSize 会拖延问题，必须找到持有加载器的引用链。"
+  },
+  {
+    "category": "jvm",
+    "level": "architect",
+    "type": "choice",
+    "stem": "一个 8 核 16GiB 的节点要部署 4 个 Java 服务实例，堆内存如何规划更合理？",
+    "options": [
+      "每个实例 -Xmx4g，正好把 16GiB 用完",
+      "每个实例 -Xmx2g，不设容器 limit，靠 JVM 自动感知",
+      "统一 -Xmx1g，堆越小越不容易 OOM",
+      "按实例预留堆外开销后分配，并设置容器 limit 压测"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "堆只占进程内存的一部分，线程栈、元空间、直接内存、Code Cache 和 GC 结构都要预留；容器 limit 应小于节点内存，避免实例互相挤兑，最终以压测的 RSS 和 GC 指标为准。"
+  },
+  {
+    "category": "jvm",
+    "level": "architect",
+    "type": "text",
+    "stem": "如何为多团队、多形态的 Java 服务制定一套可落地的 JVM 参数基线？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 按服务画像分组：低延迟、吞吐型、缓存型、批处理，统一 JDK 版本和基础镜像。② 基线收敛通用项：容器感知、Xms=Xmx、MaxRAMPercentage、元空间上限、GC 日志、OOM 自动 dump、时区和编码。③ 收集器和堆大小给推荐区间，禁止随意 -Xmn、关闭 GC 日志。④ 配套配置中心、启动校验、灰度和压测准入，定期复盘。",
+    "explanation": "基线要解决的是“默认值安全”和“可观测”，而不是一刀切；分层分组加准入校验，才能避免参数被随意改坏。"
+  },
+  {
+    "category": "jvm",
+    "level": "architect",
+    "type": "text",
+    "stem": "分别设计低延迟交易系统和高吞吐离线计算平台，JVM 侧你会怎么做选型与容量规划？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 低延迟：堆控制在 GC 友好区间（如 8-32GB），选 ZGC 或 G1 并设停顿目标；降低分配率、避免大对象和频繁晋升，必要时用堆外缓存；关注安全点、JIT 预热和栈开销。② 高吞吐：选 Parallel 或 G1，用较大堆和更高晋升阈值减少 Full GC，重视内存复用和背压。③ 两者都以分配率、停顿分布、CPU 利用率和压测驱动，而非只调 -Xmx。",
+    "explanation": "低延迟看停顿尾部和分配率，高吞吐看单位时间处理量；选型要先量化目标，再用压测验证，不能照搬参数模板。"
+  },
+  {
+    "category": "jvm",
+    "level": "architect",
+    "type": "text",
+    "stem": "如何搭建一套覆盖 JVM 的可观测性与故障应急体系？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 统一 GC 日志格式并轮转，采集堆、元空间、线程、直接内存和 GC 停顿指标，配置阈值告警。② 接入 Micrometer、Prometheus 和 JFR，OOM 时自动 dump 并归档。③ 提供 Arthas、jcmd 的安全准入和操作审计。④ 建立预案：摘流量、扩容、重启前留证，并定期演练。⑤ 事后用 dump、日志和火焰图复盘，沉淀为参数基线和代码规范。",
+    "explanation": "可观测性要覆盖指标、日志、快照三层；应急体系的关键是留证和演练，避免一上来就重启导致根因丢失。"
+  }
+]

@@ -1,0 +1,312 @@
+[
+  {
+    "category": "algorithm",
+    "level": "junior",
+    "type": "choice",
+    "stem": "下面代码中 sum++ 的执行次数在数量级上是多少？代码为 for (int i = 0; i < n; i++) for (int j = 1; j < n; j *= 2) sum++；",
+    "options": [
+      "O(n log n)",
+      "O(n)",
+      "O(log n)",
+      "O(n²)"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "外层循环 n 次，内层 j 每次翻倍，只执行 log₂n 次，相乘得 O(n log n)。把 j *= 2 误看成 j++ 就会错答 O(n²)，这是复杂度题最常见的失分点。"
+  },
+  {
+    "category": "algorithm",
+    "level": "junior",
+    "type": "choice",
+    "stem": "在已经拿到前驱节点指针的前提下，下列哪种操作在双向链表上比数组更有优势？",
+    "options": [
+      "按下标随机访问第 k 个元素，一步定位",
+      "在已知节点前插入或删除一个元素",
+      "顺序遍历时利用 CPU 缓存批量预读",
+      "尾部追加元素时由容器自动扩容"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "链表插入删除只改前后指针，是 O(1)；数组按下标访问 O(1) 且内存连续、缓存友好。题目限定“前驱已定位”，双方查找成本抵消，链表的优势才成立。"
+  },
+  {
+    "category": "algorithm",
+    "level": "junior",
+    "type": "choice",
+    "stem": "不考虑极端冲突时，哈希表查找与插入的平均时间复杂度、最坏时间复杂度分别是？",
+    "options": [
+      "平均 O(log n)，最坏 O(n)",
+      "平均 O(1)，最坏 O(1)",
+      "平均 O(1)，最坏 O(n)",
+      "平均 O(n)，最坏 O(n²)"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "哈希函数把 key 映射到桶，理想情况一次定位为 O(1)；所有 key 落到同一个桶会退化成链表，最坏 O(n)。Java 8 用红黑树优化桶内退化，但整体最坏仍是 O(n)。"
+  },
+  {
+    "category": "algorithm",
+    "level": "junior",
+    "type": "choice",
+    "stem": "判断括号字符串是否合法（例如 {[()]} 合法、([)] 非法），最合适的数据结构是？",
+    "options": [
+      "队列，按先进先出依次配对左右括号",
+      "哈希表，统计每种括号各自出现的次数",
+      "小顶堆，按字符编码顺序逐个弹出比较",
+      "栈，按后进先出匹配最近的未闭合括号"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "右括号必须与最近一个未匹配的左括号闭合，符合后进先出：左括号入栈，右括号与栈顶比对后出栈，最后栈空才合法。只统计数量发现不了 ([)] 这种顺序错误。"
+  },
+  {
+    "category": "algorithm",
+    "level": "junior",
+    "type": "text",
+    "stem": "栈和队列的核心区别是什么？各自举一个真实开发中的使用场景。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）栈后进先出，只在同一端进出；队列先进先出，一端进另一端出。2）栈适合回退与就近匹配：函数调用栈、浏览器前进后退、括号匹配。3）队列适合按到达顺序处理：任务队列、消息削峰、BFS 层序遍历。4）栈用数组加栈顶指针实现，队列常用循环数组或链表避免搬移。",
+    "explanation": "考点是 LIFO 与 FIFO 的语义差异，以及能否落到具体场景；只背定义、举不出例子，是初级候选人常见的失分点。"
+  },
+  {
+    "category": "algorithm",
+    "level": "junior",
+    "type": "text",
+    "stem": "如何反转一个单链表？请说明迭代做法的关键步骤以及时间、空间复杂度。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）用 prev、curr、next 三个指针，prev 初始为 null。2）先存 next = curr.next，再令 curr.next = prev，最后两指针前移。3）curr 为 null 时结束，prev 即新头节点。4）时间 O(n)、空间 O(1)；递归写法栈深 O(n)，长链表有溢出风险。",
+    "explanation": "核心是“先存后继再改指向”，顺序写反会丢链；面试官通常还会追问递归写法，以及空链表、单节点等边界处理。"
+  },
+  {
+    "category": "algorithm",
+    "level": "junior",
+    "type": "text",
+    "stem": "给定一个整数数组和目标值，返回和为目标值的两个元素下标。说说暴力解法和更优解法。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）暴力双重循环枚举下标对，时间 O(n²)、空间 O(1)，数据量大不可取。2）更优做法用哈希表存“值到下标”，一次遍历即可完成配对。3）对每个值先查 target - nums[i]，查到就返回，否则存入表。4）先查后存避免同一元素用两次；时间 O(n)，空间 O(n)。",
+    "explanation": "考察用哈希表把“查找配对”从 O(n) 降到 O(1)；先存后查会导致元素重复使用，是这道题最典型的错误。"
+  },
+  {
+    "category": "algorithm",
+    "level": "junior",
+    "type": "text",
+    "stem": "二分查找的适用前提是什么？写代码时 mid 的计算和循环边界容易出什么问题？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）前提是有序且支持随机访问，数组可以，链表不行。2）mid 用 low + (high - low) / 2，避免相加整型溢出。3）左闭右闭用 low <= high，收缩写 high = mid - 1。4）左闭右开用 low < high、high = mid，两种写法不能混。",
+    "explanation": "二分本身不难，挂人最多的是整型溢出与区间开闭混用导致的死循环或漏查；答题时要把前提和边界约定讲清楚。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "对一批需要按多个字段排序的对象做某一列排序时，下列排序算法中属于稳定排序的是？",
+    "options": [
+      "归并排序，合并时相等元素优先取左侧序列",
+      "快速排序，按基准交换后相同元素次序可能改变",
+      "堆排序，建堆与下沉会打乱相同元素的相对位置",
+      "选择排序，每轮把最小元素换到前面会跨越相同元素"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "稳定指相等元素排序后相对次序不变。归并、插入、冒泡、基数排序稳定；快排、堆排、选择排序会做远距离交换，不稳定。多字段排序时稳定性直接决定结果是否正确。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "求“最长无重复字符子串”时可以用滑动窗口把复杂度降到 O(n)，这个做法成立的关键前提是？",
+    "options": [
+      "字符串只包含 ASCII 字符，字符种类不超过 128 种",
+      "右指针只前进，左边界随重复字符单调右移且不回退",
+      "每轮都必须把窗口扩张到字符串末尾再做判断",
+      "窗口内的字符必须按字典序保持有序排列"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "右指针只前进，左指针随重复字符单调右移，每个下标最多进出窗口一次，总计 O(n)。若窗口指标不具单调性，例如含负数求和不小于 K 的最短子数组，双指针会失效。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "对已经有序的数组使用“固定取第一个元素为基准”的快速排序，会出现什么问题？如何避免？",
+    "options": [
+      "排序结果不再稳定，可改用选择排序保证相对顺序",
+      "递归深度恒为 O(1)，需要把递归改写成迭代",
+      "每次划分都极不均衡，退化为 O(n²)，可随机化基准或三数取中",
+      "元素比较次数降为 O(n)，但需要额外做判空处理"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "有序数组上固定取首元素，每次只能分出一个元素，递归深度 O(n)、时间 O(n²)。随机化基准或三数取中可以概率性规避；工程实现还会在小区间切换插入排序。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "从 n 个整数中找出最大的 k 个数（k 远小于 n），下列做法在时间和空间上最合适的是？",
+    "options": [
+      "整体快排后取前 k 个，时间 O(n log n)",
+      "维护大小为 n 的大顶堆，时间 O(n log n)",
+      "每个数二分插入有序数组，时间 O(nk)",
+      "维护大小为 k 的小顶堆，时间 O(n log k)"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "小顶堆堆顶是当前 k 个元素里最小的，新元素比堆顶大就替换并下沉，遍历一遍即可，空间 O(k)。全排序浪费了“只要前 k”的信息，用大顶堆存全部元素则白白多花空间。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "choice",
+    "stem": "对二叉树做层序遍历（按层输出），最合适的做法以及它的空间复杂度是？",
+    "options": [
+      "用队列逐层入队出队，空间为树的最大宽度",
+      "用栈做深度优先遍历，空间为树的高度",
+      "用递归做中序遍历，额外空间为 O(1)",
+      "用哈希表记录每个节点的层级，空间为 O(n²)"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "BFS 用队列保存待访问节点，队列峰值长度就是最宽一层的节点数；DFS 用栈或递归，空间是树高 O(h)，链状树退化为 O(n)。按层输出还要在每轮循环前记录当前队列长度。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "text",
+    "stem": "用动态规划解 0-1 背包：状态怎么定义、转移方程怎么写？为什么内层容量要倒序遍历？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）dp[j] 表示容量 j 时的最大价值，外层物品、内层容量。2）转移：dp[j] = max(dp[j], dp[j - w] + v)，即不装与装取大者。3）容量必须倒序：正序会让 dp[j - w] 被本件更新，等于重复放。4）时间 O(n × capacity)，空间 O(capacity)，初始全 0。",
+    "explanation": "考察状态定义与遍历顺序之间的因果关系；倒序保证每件物品只用一次，正序则是完全背包的写法，两者差别在面试里经常被追问。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "text",
+    "stem": "回溯算法的通用模板是什么？以“含重复元素的全排列”为例说明如何去重。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）模板：选择、递归、撤销选择，路径达标时拷贝后加入结果。2）含重复元素先排序，让相同元素相邻，便于同层跳过。3）同一层用 used 标记跳过重复分支，同枝不去重。4）复杂度约 O(n × n!)，剪枝只减少无效分支。",
+    "explanation": "关键在区分同一层去重与同一枝去重：前者跳过重复候选，后者会误删合法排列；排序是去重的前提。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "text",
+    "stem": "在含重复元素的有序数组中查找目标值的第一个和最后一个位置，二分的边界该怎么写？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）找左边界时命中不返回，记录答案后令 high = mid - 1 继续左移。2）找右边界则令 low = mid + 1，向右收缩。3）循环用 low <= high，收缩必须排除 mid，否则会死循环。4）找不到返回 [-1, -1]，两次二分均为 O(log n)。",
+    "explanation": "考点是命中后继续收缩和区间收缩方式；把收缩写成 low = mid 或 high = mid 是手写二分最常见的死循环来源。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "text",
+    "stem": "如何用双指针求三数之和为 0 的所有不重复三元组？为什么排序之后才能用双指针？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先排序，固定 nums[i]，在其后用左右指针找和为 -nums[i] 的两数。2）和偏小左指针右移，偏大右指针左移，内层 O(n)，整体 O(n²)。3）i 与前一个相同则跳过，命中后左右指针也要跳过重复值。4）nums[i] 大于 0 时可直接结束，后面凑不出 0。",
+    "explanation": "排序既让双指针的单调性成立，也让去重变得简单；忘记对左右指针去重，是这道题最典型的错误。"
+  },
+  {
+    "category": "algorithm",
+    "level": "mid",
+    "type": "text",
+    "stem": "什么情况下可以用贪心而不是动态规划？以“区间调度，最多选多少个不重叠区间”为例说明。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）贪心要求贪心选择性质与最优子结构，局部最优能推出全局最优。2）区间调度按右端点升序，每次选结束最早且不重叠的区间。3）这样给后面留的余地最大，可用交换论证证明其最优。4）选择互相影响、需要比较组合时用动态规划，如 0-1 背包。",
+    "explanation": "考察能否讲清贪心正确性的依据，而不是只写排序加计数；背包类问题按性价比贪心会得到反例，说明贪心并非万能。"
+  },
+  {
+    "category": "algorithm",
+    "level": "senior",
+    "type": "choice",
+    "stem": "内存只有 100MB，需要从 10 亿个整数中找出最大的 100 个，下列方案最可行的是？",
+    "options": [
+      "一次性读入内存，用 Arrays.sort 排序后取前 100 个",
+      "流式读取并维护大小为 100 的小顶堆，内存占用常数级",
+      "用 HashMap 统计每个数出现的次数，再按次数排序",
+      "按整数范围开一个计数数组做桶排序后倒序取数"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "10 亿个整数约 4GB，无法整体载入；流式扫描维护 100 个元素的小顶堆，时间 O(n log 100)、内存只有常数级。若还要去重或统计频次，再考虑哈希分桶加外排序。"
+  },
+  {
+    "category": "algorithm",
+    "level": "senior",
+    "type": "text",
+    "stem": "10 亿条 URL 需要去重，单机内存有限，你会怎么设计？说说各方案的取舍。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先估算规模：10 亿条 URL 远超单机内存，必须避免全量载入。2）精确方案：按 hash(url) 取模分桶写入磁盘文件，保证相同 URL 落进同一桶，再对每个小文件用哈希表或排序去重后合并，代价是多轮磁盘 IO。3）近似方案：布隆过滤器或 BitMap，内存小、可流式处理，但有假阳性且不支持删除。4）工程上常先用布隆过滤器挡掉绝大部分重复，再对小批量做精确校验。",
+    "explanation": "考察分治与近似数据结构的取舍依据：是否允许误判、内存预算、能否接受多轮磁盘 IO，是三个决定性因素。"
+  },
+  {
+    "category": "algorithm",
+    "level": "senior",
+    "type": "text",
+    "stem": "BFS 和 DFS 分别适合解决什么图问题？最短路径该选 Dijkstra 还是 Bellman-Ford？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）BFS 按层扩展，适合无权图最短路径、连通块统计和拓扑排序；DFS 适合遍历所有路径、连通性判断、环检测和回溯搜索。2）边权非负用 Dijkstra 配优先队列，复杂度 O((V+E)logV)；有负权边时 Dijkstra 会失效，因为已出堆节点可能被更短路径更新，要改用 Bellman-Ford 或 SPFA 并检测负环。3）多源最短路径用 Floyd，O(V³)。4）图很稠密时堆操作会成为瓶颈，可换朴素 O(V²) 实现。",
+    "explanation": "回答要点是由图的形态和边权性质决定算法；只会说用 BFS 或 DFS，却不区分有权无权、有无负权，是常见减分项。"
+  },
+  {
+    "category": "algorithm",
+    "level": "senior",
+    "type": "text",
+    "stem": "面试中拿到一道没见过的算法题，你会按什么步骤推进？如何与面试官沟通？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先复述题目并澄清：数据范围、是否有序、有无重复、边界输入。2）说出暴力解与复杂度作为基线，再提哈希、排序、双指针等优化方向。3）编码前讲清思路与变量含义，边写边解释关键步骤。4）写完用边界样例走查，主动给出复杂度，卡住时说明思路。",
+    "explanation": "考察工程沟通能力：澄清需求、先正确后优化、主动暴露复杂度与卡点，比一声不吭写完更重要。"
+  },
+  {
+    "category": "algorithm",
+    "level": "senior",
+    "type": "choice",
+    "stem": "求无序数组中第 k 大的元素，希望平均时间复杂度为 O(n)，应该选用哪种方法？",
+    "options": [
+      "整体排序后按下标取值，时间 O(n log n)",
+      "维护大小为 k 的大顶堆，时间 O(n log k)",
+      "基于快排 partition 的快速选择，平均时间 O(n)",
+      "用哈希表统计每个值的频次后遍历，时间 O(n)"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "快速选择每次只递归包含目标的那一侧，平均比较次数约为 2n，是 O(n)；基准极不均衡时最坏退化到 O(n²)，可随机化基准规避。堆是 O(n log k)，更适合 k 很小或数据流场景。"
+  },
+  {
+    "category": "algorithm",
+    "level": "architect",
+    "type": "choice",
+    "stem": "统计站点 UV 时业务能接受约 1% 的误差，但要求内存固定且能处理亿级数据，下列方案最合适的是？",
+    "options": [
+      "用 HashSet 存全量访客 ID，精确但内存随 UV 线性增长",
+      "用 BitMap 按访客 ID 分片存储，内存随 ID 上限增长",
+      "把 ID 排序后去重计数，需要多轮外部排序与磁盘 IO",
+      "用 HyperLogLog 做基数估计，固定小内存、误差约 1%"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "HyperLogLog 用寄存器估计基数，内存只与精度相关，标准误差约为 1.04 除以根号 m，正好匹配 1% 的要求；HashSet 和 BitMap 的内存都随数据量或 ID 空间线性增长。"
+  },
+  {
+    "category": "algorithm",
+    "level": "architect",
+    "type": "text",
+    "stem": "设计一个系统：每天 100 亿条访问日志，支持按小时查询访问量最高的 Top 100 URL。说说整体方案与关键权衡。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）采集层用消息队列削峰，按小时分区落盘到对象存储，避免压垮计算层。2）计算层做流式预聚合：按小时和 URL 计数，每小时用堆或分治求 Top 100，结果写入 KV 表供查询，原始日志只保留有限天数。3）倾斜处理：URL 长尾明显，先分片内取 TopK 再合并，超级热点单独打散。4）权衡：精确 TopK 成本高时先用 Count-Min Sketch 筛候选再精确校验，并保留离线重算。",
+    "explanation": "考察海量数据的分层设计能力：采集削峰、流式预聚合、分片合并、热点打散，以及精确性与成本之间的取舍。"
+  }
+]

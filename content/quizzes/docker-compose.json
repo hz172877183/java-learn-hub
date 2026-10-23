@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "app 启动时 MySQL 还在初始化，导致连接被拒。要让 app 等到数据库真正可用再启动，哪种做法正确？",
+    "options": [
+      "把 depends_on 写成短列表，顺序写了就会等",
+      "给 app 加 restart: always，失败了自动重试",
+      "给 mysql 配 healthcheck，app 用 depends_on 的 condition: service_healthy",
+      "把 app 和 mysql 装进同一个容器，避免网络问题"
+    ],
+    "correctIndex": 2,
+    "explanation": "短语法只保证容器按顺序启动，不等服务就绪；长语法配合 healthcheck 的 service_healthy 才会等到探活通过。restart 重试只能掩盖问题，同容器则违背了一容器一进程的原则。"
+  },
+  {
+    "type": "choice",
+    "stem": "基础文件已经有 8080 映射，compose.override.yaml 里又写了一遍 ports: [\"8080:8080\"]。按 Compose 的合并规则会发生什么？",
+    "options": [
+      "列表字段追加，出现重复端口绑定并报错",
+      "标量与列表都覆盖，最终只剩一条，没有任何影响",
+      "只有 environment 会合并，ports 会被忽略",
+      "override 文件整体替换基础文件，只保留 8080"
+    ],
+    "correctIndex": 0,
+    "explanation": "Compose 合并时标量覆盖、列表追加，ports 属于列表，重复写同一映射会变成两条相同绑定并触发端口冲突。override 只写增量，合并结果用 docker compose config 核对。"
+  },
+  {
+    "type": "text",
+    "stem": "团队把包含生产数据库密码的 .env 提交进了 Git。请说明这会带来什么风险，并给出至少两条可落地的改法。",
+    "options": [],
+    "referenceAnswer": "风险：密码进入提交历史后，任何有仓库读权限的人都能拿到；即使后续删除文件，历史记录与 fork、CI 日志里仍可能残留，必须视为已泄露并轮换。改法：1) 把 .env 加入 .gitignore，仓库只保留 .env.example 说明变量名；2) 生产密钥由 CI/CD 或密钥管理服务在运行时注入，不落盘到仓库；3) 用 .env 中的占位默认值仅限本地，启动前用 docker compose config 检查实际值；4) 立即轮换已泄露的数据库口令，并清理历史记录。",
+    "explanation": "环境变量只是注入通道，不是保密手段；密钥一旦进入版本库就应按泄露处理，改配置和轮换要同时做。"
+  }
+]

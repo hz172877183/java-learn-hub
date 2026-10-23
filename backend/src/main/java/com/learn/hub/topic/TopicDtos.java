@@ -76,6 +76,10 @@ public final class TopicDtos {
     public record MetaResponse(List<CategoryStat> categories, long publishedTotal) {
     }
 
+    /** 路线列表项，用于前台切换不同学习路线。 */
+    public record TrackSummary(String slug, String title, String audience) {
+    }
+
     public record TrackStage(String title, String goal, List<TopicSummary> topics) {
     }
 

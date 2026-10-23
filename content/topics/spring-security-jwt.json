@@ -6,12 +6,15 @@
   "difficulty": "intermediate",
   "estimatedHours": 10,
   "tags": [
-    "security",
-    "jwt"
+    "spring-security",
+    "jwt",
+    "authentication",
+    "resource-server",
+    "bearer-token"
   ],
   "status": "published",
   "integrationStatus": "docs_only",
-  "officialDocsUrl": "https://docs.spring.io/spring-security/reference/",
+  "officialDocsUrl": "https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html",
   "prerequisites": [
     "spring-web-rest"
   ],
@@ -19,94 +22,190 @@
     "rabbitmq"
   ],
   "relatedTopics": [
-    "actuator"
+    "actuator",
+    "jwt-auth-practice",
+    "spring-security-basics",
+    "config-and-secrets"
   ],
-  "overviewMd": "一期学习门户全部只读、无登录。二期管理端写接口才需要认证。JWT 把身份放在令牌里，服务端不存会话（或只存黑名单）。\n\n**该用时：** SPA 调 API、多实例无会话粘滞。\n\n**注意：** JWT 不是加密，默认是签名。令牌里不要放敏感个人信息；过期时间要短，刷新令牌分开存。",
+  "overviewMd": "JWT 把身份从服务端会话搬到客户端令牌：服务端不再保存登录态，只验签并读取声明。在 Spring Security 6 里它并不神秘——要么是一个自定义认证过滤器，要么是 `oauth2ResourceServer` 的标准 JWT 支持，二者都挂在同一条 `SecurityFilterChain` 上。\n\n令牌本身是 `Header.Payload.Signature` 三段 base64url。**签名保证不可篡改，不保证不可读**：payload 任何人拿到都能解开，所以不要放手机号、身份证、密码等敏感信息。`exp` 是最主要的失效手段，想“立刻踢下线”只能靠短 TTL 加黑名单或令牌版本号。\n\nSpring Security 6 有两种落地方式。自写 `OncePerRequestFilter`，解析令牌后写入 `SecurityContext`，用 `addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)` 插到正确位置；或者直接用 `oauth2ResourceServer(oauth2 -> oauth2.jwt(...))` 配 `NimbusJwtDecoder`，由框架完成验签、401 与权限映射。前者灵活，后者代码更少、错误处理更标准。\n\n适用场景：SPA、小程序、多实例无会话粘滞、多个服务共享同一套身份。不适合：需要“立刻踢下线”的高敏感后台、需要设备绑定或强会话控制的场景——这些要么加黑名单，要么回到服务端会话。\n\n常见误区：把 JWT 当加密用；只解析不验签或接受 `alg=none`；把角色写进 claims 后长期不刷新，导致降权不生效；关掉 CSRF 却仍用 Cookie 承载令牌；令牌塞进 URL 被日志记录；过滤器抛异常导致 500 而不是 401。",
   "concepts": [
     {
-      "term": "SecurityFilterChain",
-      "explanation": "请求经过一系列 Filter。配置哪些路径 permitAll，哪些 authenticated。"
+      "term": "JWT 结构",
+      "explanation": "由 Header、Payload、Signature 三段 base64url 组成，用点分隔。Header 声明算法，Payload 放 claims，Signature 对前两段签名，三段都不是加密的。"
     },
     {
-      "term": "Authentication",
-      "explanation": "你是谁。用户名密码或 JWT 解析后的主体。"
+      "term": "签名与验签",
+      "explanation": "HS256 用同一密钥签发和验证，适合单体；RS256 用私钥签、公钥验，适合多服务与第三方。验签必须固定算法，不能信任令牌自称的 alg。"
     },
     {
-      "term": "Authorization",
-      "explanation": "你能做什么。角色或权限注解。"
+      "term": "标准声明",
+      "explanation": "sub 标识主体，exp 过期时间，iat 签发时间，nbf 生效时间，jti 唯一编号。服务端至少要校验签名与 exp，nbf 用来容忍时钟偏差。"
     },
     {
-      "term": "JWT",
-      "explanation": "Header.Payload.Signature。服务端用密钥验签。撤销困难，故过期要短。"
+      "term": "Bearer 令牌",
+      "explanation": "放在 Authorization: Bearer <token> 头里，不放 URL、Cookie 或自定义头。任何拿到令牌的人都被当作持有者，所以传输必须走 HTTPS。"
+    },
+    {
+      "term": "OncePerRequestFilter",
+      "explanation": "Spring 提供的过滤器基类，保证一次请求只执行一次。适合做令牌解析：无令牌直接放行，交给后续授权规则决定是否 401。"
+    },
+    {
+      "term": "SecurityContext 写入",
+      "explanation": "验签成功后构造 UsernamePasswordAuthenticationToken，setAuthentication 到 SecurityContextHolder，后续 Controller 才能取到当前用户。"
+    },
+    {
+      "term": "资源服务器模式",
+      "explanation": "oauth2ResourceServer 加 JwtDecoder 由框架完成解析、验签与 401；用 JwtAuthenticationConverter 把 role 或 scope 声明映射成 GrantedAuthority。"
+    },
+    {
+      "term": "刷新令牌",
+      "explanation": "access 短（15 到 30 分钟），refresh 长且只存哈希、可撤销、一次一换。刷新时轮换并作废旧 refresh，能尽早发现令牌被盗用。"
+    },
+    {
+      "term": "吊销难题",
+      "explanation": "无状态意味着没有天然登出。可行方案包括 jti 黑名单、用户级令牌版本号，或把 access TTL 压到分钟级，用 refresh 控制会话长度。"
+    },
+    {
+      "term": "算法混淆攻击",
+      "explanation": "攻击者把 alg 改成 none 或 HS256 并用公钥当密钥。防御是服务端指定算法与密钥类型，拒绝未知 alg，绝不解析未验签的 claims。"
     }
   ],
   "pathSteps": [
     {
-      "title": "默记过滤器链",
-      "goal": "画出请求从 HttpSecurity 到控制器的路径。",
-      "hours": 2,
-      "resources": [
-        "官方架构图"
-      ]
-    },
-    {
-      "title": "先 permitAll",
-      "goal": "理解本项目为何一期不引入 Security 依赖。",
+      "title": "手工拆一个 JWT",
+      "goal": "用 base64 解码 header 与 payload，看清 alg、sub、exp 分别长什么样。",
       "hours": 1,
       "resources": [
-        "本仓库"
+        "jwt.io Debugger",
+        "本页 bash 示例"
       ]
     },
     {
-      "title": "写验签伪代码",
-      "goal": "Authorization: Bearer 解析、过期校验、设置 SecurityContext。",
-      "hours": 4,
+      "title": "签发与验签",
+      "goal": "用 JJWT 或 Nimbus 写一个能签发、能校验过期与签名的服务类。",
+      "hours": 2,
       "resources": [
-        "本页示例"
+        "jjwt 文档",
+        "本项目 JwtService"
       ]
     },
     {
-      "title": "列威胁",
-      "goal": "XSS 偷令牌、CSRF 对 cookie 方案、算法 none 攻击。",
-      "hours": 3,
+      "title": "接进过滤器链",
+      "goal": "把解析逻辑放进 OncePerRequestFilter，插到正确位置，并解释无令牌时为何要放行。",
+      "hours": 2,
       "resources": [
-        "OWASP"
+        "官方文档 Servlet 过滤器",
+        "本项目 UserAuthFilter"
+      ]
+    },
+    {
+      "title": "改成资源服务器模式",
+      "goal": "用 oauth2ResourceServer 与 NimbusJwtDecoder 替换手写过滤器，对比两种写法的取舍。",
+      "hours": 1.5,
+      "resources": [
+        "官方文档 OAuth2 Resource Server JWT"
+      ]
+    },
+    {
+      "title": "过期、时钟偏移与刷新",
+      "goal": "设计 access 与 refresh 两种令牌，处理 exp 失效与刷新轮换。",
+      "hours": 1.5,
+      "resources": [
+        "OWASP JWT Cheat Sheet",
+        "jwt-auth-practice 学习项"
+      ]
+    },
+    {
+      "title": "吊销与登出",
+      "goal": "实现 jti 黑名单或用户令牌版本号，让“改密码即下线”成为可能。",
+      "hours": 1,
+      "resources": [
+        "本项目 AuthService",
+        "redis 学习项"
+      ]
+    },
+    {
+      "title": "威胁建模与测试",
+      "goal": "覆盖篡改签名、过期令牌、alg 替换、无令牌访问四类用例，断言都返回 401。",
+      "hours": 1,
+      "resources": [
+        "OWASP JWT Cheat Sheet",
+        "spring-security-test"
       ]
     }
   ],
   "samples": [
     {
-      "title": "二期过滤器链草案",
+      "title": "自定义 JWT 认证过滤器",
       "language": "java",
-      "description": "公开读接口放行，/api/v1/admin/** 要认证。当前未启用。",
-      "code": "@Bean\nSecurityFilterChain chain(HttpSecurity http) throws Exception {\n    return http\n        .csrf(csrf -> csrf.disable())\n        .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))\n        .authorizeHttpRequests(auth -> auth\n            .requestMatchers(\"/api/v1/topics/**\", \"/api/v1/tracks/**\", \"/actuator/health\").permitAll()\n            .requestMatchers(\"/api/v1/admin/**\").authenticated()\n            .anyRequest().denyAll())\n        .build();\n}"
+      "description": "基于 jakarta.servlet 的 OncePerRequestFilter：无令牌放行，验签失败返回 401，成功则写入 SecurityContext。",
+      "code": "@Component\npublic class JwtAuthenticationFilter extends OncePerRequestFilter {\n\n    private final JwtDecoder decoder;\n    private final ObjectMapper objectMapper;\n\n    public JwtAuthenticationFilter(JwtDecoder decoder, ObjectMapper objectMapper) {\n        this.decoder = decoder;\n        this.objectMapper = objectMapper;\n    }\n\n    @Override\n    protected void doFilterInternal(HttpServletRequest request,\n                                    HttpServletResponse response,\n                                    FilterChain chain) throws ServletException, IOException {\n        String header = request.getHeader(HttpHeaders.AUTHORIZATION);\n        if (header == null || !header.startsWith(\"Bearer \")) {\n            chain.doFilter(request, response);\n            return;\n        }\n        try {\n            Jwt jwt = decoder.decode(header.substring(7));\n            var authorities = List.of(\n                    new SimpleGrantedAuthority(\"ROLE_\" + jwt.getClaimAsString(\"role\")));\n            var auth = new UsernamePasswordAuthenticationToken(jwt.getSubject(), null, authorities);\n            SecurityContextHolder.getContext().setAuthentication(auth);\n            chain.doFilter(request, response);\n        } catch (JwtException ex) {\n            SecurityContextHolder.clearContext();\n            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);\n            response.setContentType(MediaType.APPLICATION_JSON_VALUE);\n            objectMapper.writeValue(response.getOutputStream(), ApiError.unauthorized());\n        }\n    }\n}"
+    },
+    {
+      "title": "资源服务器模式配置",
+      "language": "java",
+      "description": "用 HS256 密钥构建 NimbusJwtDecoder，交给 oauth2ResourceServer 完成验签与 401。",
+      "code": "@Bean\nSecurityFilterChain apiChain(HttpSecurity http) throws Exception {\n    http\n        .csrf(AbstractHttpConfigurer::disable)\n        .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))\n        .authorizeHttpRequests(auth -> auth\n            .requestMatchers(\"/api/v1/auth/**\", \"/actuator/health\").permitAll()\n            .requestMatchers(\"/api/v1/admin/**\").hasRole(\"ADMIN\")\n            .anyRequest().authenticated())\n        .oauth2ResourceServer(oauth2 -> oauth2\n            .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter())))\n        .exceptionHandling(ex -> ex\n            .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint()));\n    return http.build();\n}\n\n@Bean\nJwtDecoder jwtDecoder(@Value(\"${learn-hub.jwt-secret}\") String secret) {\n    var key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), \"HmacSHA256\");\n    return NimbusJwtDecoder.withSecretKey(key)\n            .macAlgorithm(MacAlgorithm.HS256)\n            .build();\n}\n\n@Bean\nConverter<Jwt, AbstractAuthenticationToken> jwtAuthConverter() {\n    var converter = new JwtAuthenticationConverter();\n    converter.setJwtGrantedAuthoritiesConverter(jwt ->\n            List.of(new SimpleGrantedAuthority(\"ROLE_\" + jwt.getClaimAsString(\"role\"))));\n    return converter;\n}"
+    },
+    {
+      "title": "解码与篡改验证",
+      "language": "bash",
+      "description": "先看 payload 是否泄露敏感信息，再用篡改后的令牌确认服务端验签生效。",
+      "code": "# 1) 登录拿令牌\nTOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"demo\",\"password\":\"demo1234\"}' | jq -r .token)\n\n# 2) 解码 payload：JWT 默认只签名不加密，任何人都能看\nPAYLOAD=$(echo $TOKEN | cut -d. -f2 | tr '_-' '/+')\necho $PAYLOAD | base64 -d 2>/dev/null | jq .\n\n# 3) 检查 header 里的 alg，出现 none 或未预期算法一律拒绝\nHEADER=$(echo $TOKEN | cut -d. -f1 | tr '_-' '/+')\necho $HEADER | base64 -d 2>/dev/null | jq -r .alg\n\n# 4) 正常访问应 200\ncurl -s -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $TOKEN\" http://localhost:8080/api/v1/me\n\n# 5) 只改 payload 不改签名：必须 401\nHEAD=$(echo $TOKEN | cut -d. -f1)\nSIG=$(echo $TOKEN | cut -d. -f3)\nFORGED=\"$HEAD.$(echo -n '{\"sub\":\"1\",\"role\":\"ADMIN\"}' | base64 -w0 | tr '+/' '-_' | tr -d '=').$SIG\"\ncurl -s -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $FORGED\" http://localhost:8080/api/v1/me"
     }
   ],
   "pitfalls": [
     {
-      "title": "csrf.disable 却用 Cookie 存 JWT",
-      "detail": "无状态 Bearer 可关 CSRF；Cookie 方案则要 CSRF 或 SameSite 策略。"
+      "title": "把 JWT 当成加密",
+      "detail": "现象是令牌被贴到日志或前端后，手机号、身份证号直接暴露；原因是 payload 只是 base64url 编码，签名只防篡改不防读取。规避办法是 claims 只放用户 ID 与稳定标识，敏感数据始终从服务端按权限查询。"
     },
     {
-      "title": "密钥写进仓库",
-      "detail": "用环境变量。本仓库禁止提交真实密钥。"
+      "title": "只解析不验签，或接受 alg=none",
+      "detail": "现象是改一下 sub 就能冒充管理员；原因是代码用了解析未签名令牌的方法，或把令牌头部的 alg 当作可信输入。规避办法是始终走验签接口、服务端硬编码允许的算法与密钥，拒绝未知 alg 与 none。"
     },
     {
-      "title": "令牌永不过期",
-      "detail": "泄露即永久访问。access 短、refresh 长且可撤销。"
+      "title": "无效令牌返回 500",
+      "detail": "现象是前端偶尔收到 500，日志里是 JwtException 堆栈；原因是解析异常直接抛出了过滤器，DispatcherServlet 之外的异常没有全局处理器兜底。规避办法是在过滤器内 catch 并用 ObjectMapper 写出 401 统一错误体。"
+    },
+    {
+      "title": "关掉 CSRF 但令牌存在 Cookie 里",
+      "detail": "现象是安全扫描判定 CSRF 风险；原因是 csrf().disable() 针对的是无状态 Bearer，而实现又把 JWT 放进 Cookie 自动携带。规避办法是 Bearer 头方案才关闭 CSRF，Cookie 方案保留 CSRF token 或至少 SameSite=Lax。"
+    },
+    {
+      "title": "把权限长期写死在 claims 里",
+      "detail": "现象是管理员被降权后仍能操作，直到令牌过期；原因是角色快照随令牌存活整个 TTL，服务端从不复查。规避办法是只放用户 ID，权限每次从缓存或库中读取，或把 TTL 压到分钟级并配合刷新。"
+    },
+    {
+      "title": "密钥硬编码且无法轮换",
+      "detail": "现象是换密钥后全量用户掉线，或密钥随仓库泄露；原因是单密钥写死在配置里，没有过渡方案。规避办法是密钥来自环境变量，令牌头带 kid，服务端同时接受新旧两把密钥一段时间。"
     }
   ],
   "repoPointers": [],
   "scenarios": [
     {
       "title": "前后端分离，需要无状态登录",
-      "signal": "多端（Web/小程序）共用 API，服务端不想维护 session",
-      "approach": "登录签发 JWT，客户端放在 Authorization 头；服务端校验签名和过期时间，从 claims 取用户身份"
+      "signal": "多端（Web、小程序）共用 API，服务端不想维护 session",
+      "approach": "登录签发 JWT，客户端放 Authorization 头；服务端验签并检查 exp，从 claims 取用户身份"
     },
     {
       "title": "接口要区分匿名、登录、管理员",
       "signal": "同一服务里既有公开接口又有敏感操作",
-      "approach": "用 SecurityFilterChain 按路径配置授权规则，方法级再加角色校验；默认拒绝，白名单显式放行"
+      "approach": "用 SecurityFilterChain 按路径配置授权，方法级再校验角色；默认拒绝，白名单显式放行"
+    },
+    {
+      "title": "多个服务共用一个身份",
+      "signal": "网关、订单、内容服务都要认同一张令牌",
+      "approach": "改为 RS256，授权服务持私钥签发，各资源服务用 JWKS 公钥验签，避免密钥到处分发"
+    },
+    {
+      "title": "降权或离职需要立即生效",
+      "signal": "运营改了角色，用户却还能操作到令牌过期",
+      "approach": "引入用户级令牌版本号或 jti 黑名单，鉴权时比对；同时把 access TTL 缩短到 15 分钟"
+    },
+    {
+      "title": "第三方要求标准协议接入",
+      "signal": "对方要求 OIDC 发现文档、授权码流程，而不是自定义登录接口",
+      "approach": "接 OAuth2/OIDC 授权服务器，本服务只做资源服务器，用 scope 或角色映射权限"
     }
   ]
 }

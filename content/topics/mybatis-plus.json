@@ -6,8 +6,11 @@
   "difficulty": "intermediate",
   "estimatedHours": 8,
   "tags": [
+    "mybatis-plus",
     "mybatis",
-    "sql"
+    "orm",
+    "sql",
+    "spring-boot"
   ],
   "status": "published",
   "integrationStatus": "docs_only",
@@ -21,92 +24,182 @@
   "relatedTopics": [
     "spring-data-jpa"
   ],
-  "overviewMd": "MyBatis 让你手写 SQL 或用注解 SQL；MyBatis-Plus 再给 BaseMapper、条件构造器、分页插件。和 JPA 不是谁取代谁：对象图用 JPA 省事，报表和动态条件用 MyBatis 更可控。\n\n本项目一期不引入 MyBatis 依赖，避免启动时强迫连库。",
+  "overviewMd": "MyBatis-Plus 是 MyBatis 的增强层，不是另一个 ORM：底层仍是 SqlSession、Mapper 接口和 XML/注解 SQL，Plus 在其上补齐单表 CRUD、条件构造器、分页、逻辑删除、乐观锁等常见能力，让简单 SQL 不必手写。\n\n核心模型是 Entity + Mapper + Wrapper + 插件：BaseMapper 提供按主键和实体的单表操作，LambdaQueryWrapper 用方法引用拼条件，MybatisPlusInterceptor 把分页、乐观锁等逻辑织入执行链，最终仍落到一条可打印的 SQL。\n\n该用：国内业务后台、单表 CRUD 多、动态筛选条件多、团队希望 SQL 可见可控的项目。不该用：领域对象图复杂、关联映射多、希望 Repository 屏蔽 SQL 的场景，JPA 更省代码；纯报表也可直接用 JdbcTemplate 或原生 SQL。\n\n和 JPA 的取舍不是宗教问题：以聚合根和对象关系为主选 JPA，以查询和表为中心选 MyBatis-Plus。同一模块只选一个主方案，避免两套映射同时写同一张表；本项目一期不引入依赖，二期落库时再按模块决定。\n\n版本注意：3.5.x 是当前主线，Spring Boot 3 要用 mybatis-plus-spring-boot3-starter；3.5.9 起分页所依赖的 JSqlParser 被拆到 mybatis-plus-jsqlparser，漏加会报类缺失。分页还必须注册 MybatisPlusInterceptor 并指定 DbType，否则 Page 可能退化成全量查询。",
   "concepts": [
     {
-      "term": "Mapper",
-      "explanation": "接口 + XML 或注解，方法对应一条 SQL。"
-    },
-    {
       "term": "BaseMapper",
-      "explanation": "Plus 提供按实体的 insert/selectById 等，减少简单 CRUD 的 XML。"
+      "explanation": "继承 BaseMapper<T> 获得 insert、selectById、updateById 等单表 CRUD；复杂 SQL 仍写 XML 保持可控。"
     },
     {
-      "term": "Wrapper",
-      "explanation": "QueryWrapper/LambdaQueryWrapper 拼接条件，注意不要拼出不可读的超长链式调用。"
+      "term": "IService 与 ServiceImpl",
+      "explanation": "IService 封装 saveBatch、page、lambdaQuery 等常用方法；它不是事务边界，事务仍由 @Transactional 控制。"
+    },
+    {
+      "term": "条件构造器",
+      "explanation": "LambdaQueryWrapper 用方法引用取列名，可重构且避免手写字符串；boolean 参数能按需决定是否拼条件。"
     },
     {
       "term": "分页插件",
-      "explanation": "拦截 SQL 加 LIMIT；要清楚它改的是 SQL 而不是内存切片。"
+      "explanation": "PaginationInnerInterceptor 负责 COUNT 与 LIMIT；注册拦截器并指定 DbType，Page 才有 total。"
+    },
+    {
+      "term": "逻辑删除",
+      "explanation": "@TableLogic 让 delete 变 UPDATE，select 自动加未删除条件；唯一索引要包含删除状态，否则删后无法重建同键。"
+    },
+    {
+      "term": "乐观锁",
+      "explanation": "@Version 与乐观锁插件配合，updateById 会带 version 条件并自增；影响行数为 0 即冲突，应重试或返回 409。"
+    },
+    {
+      "term": "批量操作",
+      "explanation": "saveBatch 走 JDBC 批处理，但网络往返仍会拖慢；每批 500 到 1000 条并开启 MySQL 批处理重写。"
+    },
+    {
+      "term": "自动填充",
+      "explanation": "MetaObjectHandler 统一填充 createdAt、updatedAt 等审计字段，@TableField(fill=...) 声明填充时机。"
+    },
+    {
+      "term": "与 JPA 的取舍",
+      "explanation": "对象图与常规 CRUD 用 JPA 更省代码；动态条件、多表报表、需逐条审 SQL 时 Plus 更可控，同模块只选一个。"
+    },
+    {
+      "term": "#{} 与 ${}",
+      "explanation": "值用 #{} 预编译，不拼进 SQL；${} 只用于可信的表名列名白名单，Wrapper 的 last/apply 也要审查。"
     }
   ],
   "pathSteps": [
     {
-      "title": "对照心智模型",
-      "goal": "同一「按分类查已发布」分别用 JPA 方法名和 Plus Wrapper 写一遍。",
-      "hours": 2,
+      "title": "搭最小工程",
+      "goal": "新建 Spring Boot 3 模块，引入 mybatis-plus-spring-boot3-starter、MySQL 驱动和 flyway-mysql，配置数据源并确认应用能启动。",
+      "hours": 1,
       "resources": [
-        "spring-data-jpa"
+        "spring-boot-fundamentals",
+        "mysql-basics"
       ]
     },
     {
-      "title": "读 XML",
-      "goal": "理解 #{} 与 ${} 的差别（后者是拼接，有注入风险）。",
-      "hours": 2,
+      "title": "实体与 Mapper",
+      "goal": "用 @TableName、@TableId 映射 topic 表，写一个继承 BaseMapper 的接口，跑通 selectById 与 insert。",
+      "hours": 1,
       "resources": [
-        "MyBatis 文档"
+        "mybatis-plus"
       ]
     },
     {
-      "title": "分页",
-      "goal": "看 Page 对象如何同时查 count 与 list。",
-      "hours": 2,
+      "title": "条件构造器",
+      "goal": "用 LambdaQueryWrapper 实现按状态、分类、关键字动态筛选，确认空参数不会拼进 WHERE。",
+      "hours": 1.5,
       "resources": [
-        "Plus 分页插件"
+        "mybatis-plus"
       ]
     },
     {
-      "title": "决定本项目二期",
-      "goal": "学习项主数据建议 JPA；复杂检索可再加 Mapper。",
-      "hours": 2,
+      "title": "分页与排序",
+      "goal": "注册分页插件并指定 DbType，观察 COUNT 与 LIMIT 两条 SQL；验证 page 越界和 total 是否正确。",
+      "hours": 1,
       "resources": [
-        "本仓库 PRD"
+        "mybatis-plus"
+      ]
+    },
+    {
+      "title": "逻辑删除、乐观锁、填充",
+      "goal": "给实体加 @TableLogic 与 @Version，实现 MetaObjectHandler，验证删除自动改 UPDATE、版本冲突返回 0。",
+      "hours": 1.5,
+      "resources": [
+        "mybatis-plus"
+      ]
+    },
+    {
+      "title": "批量与事务",
+      "goal": "对比循环 insert 与 saveBatch 的执行次数，开启 rewriteBatchedStatements，测试批量失败时的回滚边界。",
+      "hours": 1,
+      "resources": [
+        "mybatis-plus",
+        "integration-testing"
+      ]
+    },
+    {
+      "title": "和 JPA 做一次对照",
+      "goal": "同一列表查询分别用 JPA 派生方法和 Plus Wrapper 实现，记录 SQL、代码量与可维护性差异，按模块定主方案。",
+      "hours": 1,
+      "resources": [
+        "spring-data-jpa",
+        "flyway"
       ]
     }
   ],
   "samples": [
     {
-      "title": "Lambda 条件查询草案",
+      "title": "实体映射与审计字段",
       "language": "java",
-      "description": "仅作对照，当前模块未接入运行时。",
-      "code": "LambdaQueryWrapper<TopicEntity> q = new LambdaQueryWrapper<TopicEntity>()\n        .eq(TopicEntity::getStatus, \"published\")\n        .eq(category != null, TopicEntity::getCategory, category)\n        .like(keyword != null, TopicEntity::getTitle, keyword);\nList<TopicEntity> rows = topicMapper.selectList(q);"
+      "description": "3.5.x 注解：逻辑删除、乐观锁、创建/更新时间自动填充。",
+      "code": "package com.example.topic.persistence;\n\nimport com.baomidou.mybatisplus.annotation.FieldFill;\nimport com.baomidou.mybatisplus.annotation.IdType;\nimport com.baomidou.mybatisplus.annotation.TableField;\nimport com.baomidou.mybatisplus.annotation.TableId;\nimport com.baomidou.mybatisplus.annotation.TableLogic;\nimport com.baomidou.mybatisplus.annotation.TableName;\nimport com.baomidou.mybatisplus.annotation.Version;\n\nimport java.time.LocalDateTime;\n\n@TableName(\"topic\")\npublic class TopicEntity {\n\n    @TableId(type = IdType.AUTO)\n    private Long id;\n    private String slug;\n    private String title;\n    private String category;\n    private String status;\n    @TableLogic\n    private Integer deleted;\n    @Version\n    private Integer version;\n    @TableField(fill = FieldFill.INSERT)\n    private LocalDateTime createdAt;\n    @TableField(fill = FieldFill.INSERT_UPDATE)\n    private LocalDateTime updatedAt;\n\n    // getter / setter 省略\n}"
+    },
+    {
+      "title": "分页与乐观锁拦截器",
+      "language": "java",
+      "description": "必须注册 MybatisPlusInterceptor；3.5.9+ 还要显式引入 mybatis-plus-jsqlparser。",
+      "code": "package com.example.topic.config;\n\nimport com.baomidou.mybatisplus.annotation.DbType;\nimport com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;\nimport com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;\nimport com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;\nimport org.mybatis.spring.annotation.MapperScan;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.context.annotation.Configuration;\n\n@Configuration\n@MapperScan(\"com.example.topic.persistence\")\npublic class MybatisPlusConfig {\n\n    @Bean\n    public MybatisPlusInterceptor mybatisPlusInterceptor() {\n        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();\n        PaginationInnerInterceptor pagination =\n                new PaginationInnerInterceptor(DbType.MYSQL);\n        pagination.setMaxLimit(500L);\n        pagination.setOverflow(false);\n        interceptor.addInnerInterceptor(pagination);\n        interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());\n        return interceptor;\n    }\n}"
+    },
+    {
+      "title": "分页查询与版本号更新",
+      "language": "java",
+      "description": "selectPage 返回 records/total；updateById 带 version 条件，影响行数为 0 即冲突。",
+      "code": "package com.example.topic.application;\n\nimport com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;\nimport com.baomidou.mybatisplus.extension.plugins.pagination.Page;\nimport com.example.topic.persistence.TopicEntity;\nimport com.example.topic.persistence.TopicMapper;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class TopicService {\n\n    private final TopicMapper topicMapper;\n\n    public TopicService(TopicMapper topicMapper) {\n        this.topicMapper = topicMapper;\n    }\n\n    public Page<TopicEntity> pagePublished(String category, long current, long size) {\n        LambdaQueryWrapper<TopicEntity> query = new LambdaQueryWrapper<TopicEntity>()\n                .eq(TopicEntity::getStatus, \"published\")\n                .eq(category != null && !category.isBlank(),\n                        TopicEntity::getCategory, category)\n                .orderByDesc(TopicEntity::getUpdatedAt);\n        return topicMapper.selectPage(new Page<>(current, size), query);\n    }\n\n    public boolean rename(Long id, String title, int expectedVersion) {\n        TopicEntity patch = new TopicEntity();\n        patch.setId(id);\n        patch.setTitle(title);\n        patch.setVersion(expectedVersion);\n        return topicMapper.updateById(patch) == 1;\n    }\n}"
     }
   ],
   "pitfalls": [
     {
-      "title": "${} 拼接",
-      "detail": "order by ${column} 一类写法可被注入。排序字段必须白名单。"
+      "title": "分页插件没生效",
+      "detail": "现象：Page 返回全部数据，或 total 为 0、LIMIT 没出现。原因：没注册 MybatisPlusInterceptor、没指定 DbType，3.5.9+ 漏了 mybatis-plus-jsqlparser。规避：检查拦截器 Bean 与依赖树，打开 SQL 日志确认 COUNT 与 LIMIT。"
     },
     {
-      "title": "全用 Wrapper 放弃 XML",
-      "detail": "复杂 join 用 XML 更可读。工具不是教条。"
+      "title": "逻辑删除撞唯一索引",
+      "detail": "现象：删除后重建同一个 slug 报 Duplicate entry。原因：逻辑删除只把 deleted 置 1，唯一索引仍包含旧行。规避：唯一索引加入 deleted 列并用时间戳/ID 填充，或改用可空删除标记，恢复时注意冲突。"
     },
     {
-      "title": "和 JPA 同时操作同一实体又不分层",
-      "detail": "两套会话/缓存容易晕。按模块选一个主方案。"
+      "title": "乐观锁静默失效",
+      "detail": "现象：并发更新都成功，后写的覆盖先写的。原因：实体 version 为 null、用了 Wrapper 更新却没带版本条件，或没注册拦截器。规避：更新前必须带 version，检查影响行数，冲突时重读重试或返回 409。"
+    },
+    {
+      "title": "批量插入慢且事务过长",
+      "detail": "现象：导入一万行耗时数分钟，期间锁等待明显。原因：循环单条 insert、未开批处理、整个导入放一个大事务。规避：saveBatch 分批 500 到 1000 条，JDBC URL 加 rewriteBatchedStatements=true，按批提交。"
+    },
+    {
+      "title": "${}、last 与 apply 注入",
+      "detail": "现象：排序参数能改变 SQL 结构，甚至拖库。原因：把用户输入直接拼进 ${}、last 里拼 order by 或 apply。规避：排序字段用枚举白名单映射，值一律走 #{}，Wrapper 的动态片段必须来自可信代码。"
+    },
+    {
+      "title": "JPA 与 Plus 混写同一张表",
+      "detail": "现象：同一行在两边读到不同值，更新时间互相覆盖。原因：两套映射、缓存和事务边界不一致。规避：按模块选一个主方案；确需共存时划清读写边界，禁用双写，并用集成测试覆盖。"
     }
   ],
   "repoPointers": [],
   "scenarios": [
     {
-      "title": "大量单表 CRUD，写烦了",
-      "signal": "简单的增删改查占了大部分 Mapper，SQL 重复且容易写错字段",
-      "approach": "继承 BaseMapper + IService，用条件构造器拼 where；复杂查询仍写 XML，保持 SQL 可控"
+      "title": "后台列表有十几个筛选条件",
+      "signal": "Controller 里堆满 if 拼 SQL，新增一个可选条件就要改 Mapper XML。",
+      "approach": "用 LambdaQueryWrapper 的 boolean 条件重载按需拼 WHERE，排序字段走白名单；先确认对应联合索引，再用 Page 分页，避免 Wrapper 变成不可读的长链。"
     },
     {
-      "title": "报表 SQL 需要精确控制",
-      "signal": "多表关联、窗口函数、批量更新，ORM 生成的结果不理想",
-      "approach": "用 MyBatis-Plus 的自定义 SQL / XML，配合分页插件；把复杂查询和领域模型分开"
+      "title": "删除后无法重新创建同 slug",
+      "signal": "逻辑删除学习项后，再用相同 slug 新增，数据库报唯一键冲突。",
+      "approach": "检查 uk_topic_slug 是否只包含 slug；把删除标记纳入唯一键（如 deleted 存时间戳），或新增可空 deleted_at 列，让未删除行保持唯一。"
+    },
+    {
+      "title": "两人同时编辑同一条记录",
+      "signal": "运营 A 保存后，运营 B 的旧页面再保存，A 的修改被静默覆盖。",
+      "approach": "实体加 @Version 并注册乐观锁拦截器，前端提交 version；updateById 返回 0 时返回 409 和最新数据，让用户合并后重试。"
+    },
+    {
+      "title": "Excel 导入几万行超时",
+      "signal": "导入接口在网关超时，数据库出现大量单条 insert，事务日志暴涨。",
+      "approach": "解析与写库分离，按 500 到 1000 条 saveBatch，开启 rewriteBatchedStatements；失败行单独收集，避免一个大事务拖住整张表。"
+    },
+    {
+      "title": "复杂报表 SQL 难以维护",
+      "signal": "多表 join、窗口函数、动态聚合用 Wrapper 写不出来，或生成 SQL 不可读。",
+      "approach": "复杂查询改用 XML/注解写原生 SQL，返回 DTO 投影；分页仍交给 PaginationInnerInterceptor，但要用 EXPLAIN 验证 count 语句和索引。"
     }
   ]
 }

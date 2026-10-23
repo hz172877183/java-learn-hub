@@ -1,0 +1,208 @@
+{
+  "slug": "linux-basics",
+  "title": "Linux 基础（命令行与排障）",
+  "category": "engineering",
+  "summary": "从文件权限、进程信号到 systemd 与四类资源问题定位，把命令行变成日常排障工具。",
+  "difficulty": "beginner",
+  "estimatedHours": 6,
+  "tags": [
+    "linux",
+    "shell",
+    "systemd",
+    "troubleshooting",
+    "ops"
+  ],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://man7.org/linux/man-pages/",
+  "prerequisites": [],
+  "nextTopics": [
+    "nginx-basics",
+    "kubernetes-basics"
+  ],
+  "relatedTopics": [
+    "docker-basics",
+    "network-basics"
+  ],
+  "overviewMd": "Linux 是这套技术栈的默认运行环境：容器底层、CI 流水线、云主机、Nginx 都跑在它上面。本节不追求把命令背全，目标很具体——拿到一台陌生机器，能回答「服务为什么起不来、磁盘为什么满、端口为什么连不通」，而不是遇事先 reboot。Windows 上用 WSL2、Docker Desktop 或任意云主机都能练，命令与本文一致。\n\n核心心智模型只有三条。文件系统是单根树，配置在 /etc、日志在 /var/log、内核状态在 /proc 与 /sys；权限由 rwx 三组位和属主决定，目录的 x 位决定能否进入，umask 决定新建文件的默认值。进程由 PID 标识、靠信号通信，systemd 作为 1 号进程托管服务，cron 负责定时任务，环境变量与 PATH 决定命令怎么被找到。把这三条串起来，多数「玄学问题」都能落到具体位置上。\n\n排障要按层收敛，而不是逐个命令试。CPU 先用 top 或 ps 找进程，再用 pidstat、top -Hp 找线程；内存看 free -h 与 dmesg 里的 OOM 记录；磁盘先 df -h 和 df -i 分清空间还是 inode，再用 du 逐层下钻、lsof +L1 找已删除但句柄未释放的文件；网络先 ss -lntp 确认监听地址，再查防火墙与连通性。日志用 journalctl -u 与 tail -f 配合 grep -n -C 看上下文，重定向与管道决定这些输出到底落在屏幕还是文件里。\n\n要说清边界：本文只覆盖单机日常操作与排查。批量配置、集群编排、监控告警分别属于 Ansible、Kubernetes 和 Prometheus；协议层细节（握手、TLS、DNS）交给 network-basics；容器里排障还要叠加 namespace 与 cgroup 视角，docker exec 看到的进程树、PID 和主机并不相同。\n\n与仓库的关系：示例按 bash 5、coreutils、procps-ng、iproute2 与 systemd 249+ 编写，主流发行版可直接运行；Java 自检样例对应本仓库 Spring Boot 服务的部署检查。所有涉及删除和改权限的演示都放在 /tmp 下，先在小环境练熟再上生产，读到 rm -rf 一类命令时先 echo 出目标路径确认。",
+  "concepts": [
+    {
+      "term": "单根文件系统",
+      "explanation": "/ 是唯一根，一切皆文件；/etc 放配置、/var/log 放日志、/proc 暴露内核与进程状态，df 看挂载点而不只是容量。"
+    },
+    {
+      "term": "权限位与属主",
+      "explanation": "rwx 按属主、组、其他分三组，chmod 640、chown user:group 是最小权限写法；目录的 x 位决定能否进入，umask 决定新建文件默认值。"
+    },
+    {
+      "term": "软链接与硬链接",
+      "explanation": "软链接是存路径的独立文件，可跨分区、源删除即断链；硬链接与源共用 inode，只能同分区且不能指向目录，删除任一名字不影响数据。"
+    },
+    {
+      "term": "进程与信号",
+      "explanation": "ps 看快照、top 看实时；SIGTERM 请求退出可被捕获，SIGKILL 由内核直接终止无法捕获，先 15 后 9 才是优雅停机的顺序。"
+    },
+    {
+      "term": "systemd 单元",
+      "explanation": "systemctl 托管服务，unit 文件写 ExecStart、User、Restart 与 Environment；改完要 daemon-reload，日志用 journalctl -u 查看。"
+    },
+    {
+      "term": "cron 定时任务",
+      "explanation": "五段式分时日月周，最小粒度一分钟；cron 环境极简、不加载登录 shell 配置，脚本里要写绝对路径并显式导出 PATH。"
+    },
+    {
+      "term": "环境变量与 PATH",
+      "explanation": "PATH 按从左到右的顺序查找可执行文件；export 只影响当前 shell 及其子进程，登录环境由 /etc/profile 与 ~/.bashrc 决定。"
+    },
+    {
+      "term": "管道与重定向",
+      "explanation": "| 把 stdout 交给下一个命令，> 覆盖、>> 追加、2>&1 合并错误输出；管道不传退出码，脚本里要看 PIPESTATUS 或 set -o pipefail。"
+    },
+    {
+      "term": "日志与轮转",
+      "explanation": "应用日志在 /var/log 与 journalctl，tail -f 跟实时输出，grep 加 -n 与 -C 看上下文；logrotate 负责切割，配置不当会撑爆磁盘。"
+    },
+    {
+      "term": "四类资源问题",
+      "explanation": "CPU 看 top 与 pidstat，内存看 free 与 OOM 记录，磁盘看 df/du/inode，网络看 ss 与 lsof；先定层再深挖，避免同时改多处。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "文件系统与权限",
+      "goal": "在 /tmp 下建目录、按 750/640 设权限、创建软硬链接，并用 stat 与 ls -li 验证 inode 和属主。",
+      "hours": 1,
+      "resources": [
+        "man 7 path_resolution",
+        "本页权限与链接示例"
+      ]
+    },
+    {
+      "title": "检索与阅读命令",
+      "goal": "熟练组合 ls -li、find -name/-mtime/-size、grep -rn 与 tail -f，在指定目录里定位文件与报错行。",
+      "hours": 1,
+      "resources": [
+        "man find",
+        "man grep"
+      ]
+    },
+    {
+      "title": "进程、信号与 systemd",
+      "goal": "用 ps/top 找到目标进程，先发 SIGTERM 观察优雅退出，再写一个 user unit 让它 systemctl enable 开机自启。",
+      "hours": 1,
+      "resources": [
+        "systemd.service 手册",
+        "本页进程示例"
+      ]
+    },
+    {
+      "title": "cron 与环境变量",
+      "goal": "用 crontab -e 每分钟写一次时间戳到文件，脚本内显式设置 PATH，并验证 cron 环境与登录 shell 的差异。",
+      "hours": 1,
+      "resources": [
+        "man 5 crontab",
+        "man 7 environ"
+      ]
+    },
+    {
+      "title": "管道、重定向与脚本",
+      "goal": "写一个带 set -euo pipefail 的巡检脚本，用 | tee 保存输出、2>&1 合并错误，并返回非零退出码。",
+      "hours": 1,
+      "resources": [
+        "Bash Reference Manual",
+        "ShellCheck"
+      ]
+    },
+    {
+      "title": "四类问题定位",
+      "goal": "人为制造 CPU 占用、磁盘写满、端口占用各一次，按 CPU→内存→磁盘→网络顺序用 top/df/du/ss 复现并记录判断依据。",
+      "hours": 0.5,
+      "resources": [
+        "本页资源定位示例"
+      ]
+    },
+    {
+      "title": "ssh、scp 与日志排查",
+      "goal": "配置免密登录，用 scp/rsync 传包到目标机，结合 journalctl -u 与 tail -f 完成一次远程排障演练。",
+      "hours": 0.5,
+      "resources": [
+        "man ssh",
+        "man journalctl"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "权限、链接与磁盘占用实操",
+      "language": "bash",
+      "description": "覆盖 chmod/umask、软硬链接的 inode 差异，以及 df 与 du 的分工；全部在 /tmp 下操作，可直接粘贴执行。",
+      "code": "# 1. 建目录：目录的 x 位决定能否进入，文件靠 r 位读取\nmkdir -p /tmp/learnhub/logs\nchmod 750 /tmp/learnhub\nchown \"$USER\":\"$USER\" /tmp/learnhub\numask 027                        # 新文件 640，新目录 750\n\nstat -c '%A %U:%G %n' /tmp/learnhub\nls -li /tmp/learnhub             # -i 看 inode\n\n# 2. 软链接可跨分区、源删除即断；硬链接共用 inode\necho hello > /tmp/learnhub/logs/app.log\nln -s /tmp/learnhub/logs/app.log /tmp/app.soft\nln /tmp/learnhub/logs/app.log /tmp/app.hard\nstat -c '%i %h %n' /tmp/learnhub/logs/app.log /tmp/app.hard\n\n# 3. 空间与 inode 是两回事，都要看\ndf -h /tmp\ndf -i /tmp\ndu -xh --max-depth=1 /var/log 2>/dev/null | sort -rh | head -5\n\n# 4. 找文件与找内容\nfind /var/log -name '*.log' -mtime -1 -size +10M 2>/dev/null\ngrep -rn --include='*.log' -E 'OutOfMemory|No space left' /var/log | tail -20"
+    },
+    {
+      "title": "四类资源问题一页定位",
+      "language": "bash",
+      "description": "CPU、内存、磁盘、网络各留一段最小命令集，先看机器整体再下钻到进程与端口，适合贴到值班手册。",
+      "code": "# 0. 先看整体：负载、内存、谁在跑\nuptime && free -h\ntop -b -n1 | head -15\n\n# 1. CPU：进程 → 线程 → 系统调用\nps -eo pid,ppid,pcpu,pmem,stat,comm --sort=-pcpu | head -10\npidstat -u 1 3\ntop -Hp \"$(pgrep -f topic-service | head -1)\"   # 线程级\n\n# 2. 内存：可用量、swap、OOM 记录\nfree -h\ndmesg -T | grep -i -E 'out of memory|oom-kill' | tail -5\nps -eo pid,rss,comm --sort=-rss | head -5\n\n# 3. 磁盘：空间、inode、已删除但未释放的句柄\ndf -h; df -i\ndu -xh --max-depth=1 /var/log | sort -rh | head -5\nlsof +L1 | head                  # deleted 仍被打开\n\n# 4. 网络：监听、连接状态、端口归属\nss -lntp                         # 谁在监听，监听在哪个地址\nss -s                            # 按状态汇总\nss -tn state established '( dport = :3306 )' | head\nlsof -i :8080 -P -n              # 端口被哪个进程占用"
+    },
+    {
+      "title": "Java 服务启动自检",
+      "language": "java",
+      "description": "部署到新机器后先跑一次，确认工作目录、PATH、配置环境变量和日志目录权限，避免启动即失败却只看到一行 No such file。",
+      "code": "import java.nio.file.Files;\nimport java.nio.file.Path;\nimport java.util.Map;\n\n/** 部署后自检：工作目录、环境变量、日志目录可写性。 */\npublic final class EnvCheck {\n    public static void main(String[] args) throws Exception {\n        System.out.println(\"user.dir = \" + System.getProperty(\"user.dir\"));\n        System.out.println(\"java.home = \" + System.getProperty(\"java.home\"));\n        System.out.println(\"PATH = \" + System.getenv(\"PATH\"));\n        System.out.println(\"SPRING_PROFILES_ACTIVE = \" + System.getenv(\"SPRING_PROFILES_ACTIVE\"));\n\n        Map<String, String> env = System.getenv();\n        env.keySet().stream()\n           .filter(k -> k.startsWith(\"LEARNHUB_\"))\n           .sorted()\n           .forEach(k -> System.out.println(k + \"=\" + env.get(k)));\n\n        Path logDir = Path.of(System.getProperty(\"learnhub.log.dir\", \"logs\"));\n        Files.createDirectories(logDir);\n        System.out.printf(\"logDir=%s writable=%s%n\", logDir.toAbsolutePath(), Files.isWritable(logDir));\n\n        Path probe = logDir.resolve(\"env-check.tmp\");\n        Files.writeString(probe, \"ok\");\n        Files.delete(probe);\n\n        String path = env.getOrDefault(\"PATH\", \"\");\n        if (!path.contains(\"/usr/bin\")) {\n            System.err.println(\"WARN: PATH 缺少 /usr/bin，cron 与 systemd 下最常见\");\n        }\n        System.out.println(\"OK\");\n    }\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "chmod -R 777 一把梭",
+      "detail": "现象是服务能跑了、但任何用户都能改配置与脚本。原因是跳过了权限模型，把「读不到」当成权限位不够。规避：按最小权限给 750/640，属主指向专用运行账号，目录与文件分开设。"
+    },
+    {
+      "title": "把 kill -9 当默认手段",
+      "detail": "现象是进程被杀后连接未关、临时文件残留、下次启动变慢。原因是 SIGKILL 无法捕获，跳过了刷盘与优雅停机。规避：默认发 SIGTERM，等待优雅停机窗口，超时再补 -9，并让服务在 systemd 里配好 TimeoutStopSec。"
+    },
+    {
+      "title": "cron 里命令找不到",
+      "detail": "现象是脚本手工执行正常，定时执行报 command not found。原因是 cron 的 PATH 只有 /usr/bin:/bin 且不加载 ~/.bashrc。规避：脚本头部显式 export PATH，命令写绝对路径，输出重定向到日志便于对照。"
+    },
+    {
+      "title": "df 有余量却写不进去",
+      "detail": "现象是报 No space left on device，但 df -h 还有空间。原因通常是 inode 被大量小文件耗尽，或进程仍持有已删除文件的句柄。规避：先 df -i 看 IUse%，再 lsof +L1 找 deleted 文件，重启对应进程或截断句柄。"
+    },
+    {
+      "title": "只看日志最后十行",
+      "detail": "现象是报错上下文被截断，根因判断跑偏。原因是 tail 默认只取 10 行，且 logrotate 切走后当前文件已换。规避：用 tail -n 200 配 grep -n -C 5 定位堆栈，跨文件时用 journalctl --since 按时间窗过滤。"
+    },
+    {
+      "title": "发版时 cp 覆盖了软链接",
+      "detail": "现象是原本指向 release 目录的软链接变成普通文件，回滚切链接失效。原因是 cp 默认跟随符号链接写入目标。规避：发布用 mv 或原子替换目录再切链接，必要时 cp --remove-destination，发版后 stat 确认链接仍在。"
+    }
+  ],
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "磁盘告警，日志写不进去",
+      "signal": "df 到 95%，应用开始报 IOException，接口出现 5xx",
+      "approach": "先用 df -h 与 df -i 分清空间还是 inode，再 du -x 逐层下钻定位大目录，lsof +L1 查已删除但未释放的句柄；止血先压缩或清理历史日志，随后补 logrotate 策略与容量告警，避免下次复发。"
+    },
+    {
+      "title": "服务起不来，端口没监听",
+      "signal": "systemctl start 后立刻 failed，ss -lntp 看不到端口",
+      "approach": "用 systemctl status 与 journalctl -u 看退出码和最后几行错误，核对 ExecStart 的路径、User 权限与 Environment；改 unit 文件后 daemon-reload 再重启，别用 nohup 绕过服务管理。"
+    },
+    {
+      "title": "定时任务到点没跑",
+      "signal": "备份脚本手工执行正常，凌晨没有产物",
+      "approach": "对照 crontab -l 的触发时间与 /var/log/cron 记录，确认 cron 服务在跑；脚本内改绝对路径、显式 export PATH，并把 stdout 与 stderr 重定向到固定日志，下次失败能直接看到原因。"
+    },
+    {
+      "title": "端口连不上，进程还活着",
+      "signal": "curl 报 connection refused，但 ps 能查到 Java 进程",
+      "approach": "先用 ss -lntp 看监听地址是 127.0.0.1 还是 0.0.0.0，很多「连不上」其实是只监听了回环；再确认 lsof -i :8080 的归属进程，最后查防火墙与云安全组规则。"
+    },
+    {
+      "title": "换机器部署 Java 服务",
+      "signal": "迁移到新云主机，JDK 路径、目录权限、启动用户都和原来不同",
+      "approach": "用 ssh key 免密登录，rsync/scp 传包并保持属主；用 systemd unit 固定 User、WorkingDirectory 与 EnvironmentFile，启动前先跑环境自检，确认日志目录可写、PATH 正确再拉起服务。"
+    }
+  ]
+}

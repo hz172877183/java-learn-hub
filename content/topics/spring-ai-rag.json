@@ -1,0 +1,225 @@
+{
+  "slug": "spring-ai-rag",
+  "title": "Spring AI 与 RAG 应用",
+  "category": "ai",
+  "summary": "提示词到结构化输出的链路、ChatClient 与 VectorStore 抽象，以及 RAG 的召回、重排与评测治理。",
+  "difficulty": "practical",
+  "estimatedHours": 8,
+  "tags": [
+    "spring-ai",
+    "rag",
+    "vector-database",
+    "llm",
+    "tool-calling",
+    "prompt-injection"
+  ],
+  "status": "published",
+  "integrationStatus": "snippet",
+  "officialDocsUrl": "https://docs.spring.io/spring-ai/reference/",
+  "prerequisites": [
+    "spring-boot-fundamentals",
+    "elasticsearch"
+  ],
+  "nextTopics": [
+    "observability-prometheus"
+  ],
+  "relatedTopics": [
+    "redis",
+    "mysql-tuning"
+  ],
+  "overviewMd": "大模型应用不是「接个接口」，而是一条可观测的链路：提示词组装 → 模型调用 → 结构化输出。Spring AI 把这三种角色抽象成 ChatClient、EmbeddingModel、VectorStore，让它们成为可注入、可替换的 Bean；换供应商时改配置而不是改业务代码。\n\n核心心智模型：RAG = 切分 → 嵌入 → 检索 → 重排 → 生成。切分决定召回上限，嵌入决定语义能否对上，检索（topK + 相似度阈值 + 元数据过滤）决定喂给模型什么，重排与提示词决定模型听不听。检索质量是天花板，模型再强也补不回「该片段根本没被召回」。\n\n该用时：答案散落在自有文档里、术语与流程只有内部人才知道、且需要标注出处。不该用时：通用知识（模型本来就会）、精确统计（写 SQL 或交给工具）、数据量小到能整段塞进上下文、以及要求强一致的实时交易。RAG 是检索增强，不是数据库替代。\n\n版本注意点：Spring AI 1.0 起 GA，坐标在 Maven Central，不用再配 milestone 仓库；1.1 补充了 Rerank 与更完整的 Tool 支持，2.0 已发布但 API 有调整，先读迁移说明再升。1.x 里检索请求用 `SearchRequest.builder()`，工具用 `@Tool` 加 `.tools(...)`，0.8 时代的 `FunctionCallback` 写法抄过来会编译不过。\n\n放回本仓库看：`content/topics/*.json` 本身就是一份带 slug 与 tags 的结构化语料，最适合当 RAG 的第一套评测集。先在离线脚本里跑通切分、嵌入与召回率，再决定是否给 backend 引入 spring-ai 依赖——多数团队卡住的不是接模型，而是没人量过检索到底准不准。",
+  "concepts": [
+    {
+      "term": "大模型应用三段链路",
+      "explanation": "提示词进、模型出、结构化回来：prompt 定义任务与约束，模型只负责生成，最后用 record 把自然语言收敛成可校验的数据。"
+    },
+    {
+      "term": "ChatClient 与 Advisor",
+      "explanation": "ChatClient 是提示词组装与调用的门面；Advisor 在请求前后插桩，记忆、检索、日志、重试都挂这一层，别在业务代码里手拼消息。"
+    },
+    {
+      "term": "Embedding 与维度",
+      "explanation": "EmbeddingModel 把文本压成定长向量，语义相近则距离相近；换模型等于换维度，旧索引必须重建，否则检索结果全乱。"
+    },
+    {
+      "term": "VectorStore 与相似度",
+      "explanation": "VectorStore 存向量加元数据，按相似度取 topK；cosine 看方向、L2 看距离，阈值比单纯调大 topK 更能挡住不相关片段。"
+    },
+    {
+      "term": "切分与元数据",
+      "explanation": "切分决定召回上限：按标题切优于定长硬切，800 字左右配 10% 重叠，metadata 存 slug、租户、版本，供过滤与引用。"
+    },
+    {
+      "term": "检索、重排与生成",
+      "explanation": "召回片段先重排再拼提示词，只保留能支撑答案的三五段；上下文越长越贵，也越容易稀释模型对关键句的注意力。"
+    },
+    {
+      "term": "Tool Calling",
+      "explanation": "模型输出工具名与 JSON 参数，框架反序列化后调用本地方法，结果回填给模型；参数必须当不可信输入做校验与鉴权。"
+    },
+    {
+      "term": "流式输出",
+      "explanation": "stream() 返回 Flux，首字延迟从数秒降到数百毫秒；但结构化输出与工具调用要完整响应，别在同一次调用里既要流式又要 entity。"
+    },
+    {
+      "term": "多轮会话记忆",
+      "explanation": "ChatMemory 按 conversationId 维护消息窗口，超窗后截断或摘要；多实例部署要落到 Redis，否则会话会随实例漂移。"
+    },
+    {
+      "term": "提示词注入与越权",
+      "explanation": "检索内容和用户输入都可能是指令；system 声明资料只是数据，检索按身份过滤，工具按登录身份鉴权，三层缺一层就能被越权。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "跑通一次最小对话",
+      "goal": "用 ChatClient 完成 system 加 user 的第一次调用，打印原始文本与 token 用量，确认 key 只从环境变量读取。",
+      "hours": 1,
+      "resources": [
+        "Spring AI ChatClient 文档",
+        "backend/src/main/resources/application.yml"
+      ]
+    },
+    {
+      "title": "把输出变成可校验的结构",
+      "goal": "用 record 加 entity() 拿到结构化结果，故意让模型漏字段，观察反序列化与校验失败时抛什么异常。",
+      "hours": 1,
+      "resources": [
+        "本页示例",
+        "Spring AI Structured Output 文档"
+      ]
+    },
+    {
+      "title": "切分语料并写入向量库",
+      "goal": "取 content/topics 下 5 个 JSON 的 overviewMd 与 concepts，按标题切成 800 字片段，写入 VectorStore 并核对条数与维度。",
+      "hours": 1.5,
+      "resources": [
+        "content/topics",
+        "Spring AI ETL Pipeline 文档"
+      ]
+    },
+    {
+      "title": "补上检索与重排",
+      "goal": "用 SearchRequest 做 topK、阈值与 metadata 过滤，对比有无过滤、有无重排时的召回差异，记录命中率。",
+      "hours": 1.5,
+      "resources": [
+        "本页示例",
+        "Spring AI VectorStore 文档"
+      ]
+    },
+    {
+      "title": "流式与多轮会话",
+      "goal": "用 stream() 把首字延迟压下来，再用 MessageChatMemoryAdvisor 加 conversationId 让三轮追问保持上下文。",
+      "hours": 1,
+      "resources": [
+        "Spring AI Chat Memory 文档",
+        "本页示例"
+      ]
+    },
+    {
+      "title": "给模型加一个只读工具",
+      "goal": "用 @Tool 暴露一个按登录用户查询订单的方法，验证模型只在需要时调用，并拒绝模型传入的越权 userId。",
+      "hours": 1,
+      "resources": [
+        "Spring AI Tool Calling 文档",
+        "backend/src/main/java/com/learn/hub"
+      ]
+    },
+    {
+      "title": "做一版能上线的评测",
+      "goal": "整理 30 条问题与标准答案，统计召回命中率、引用准确率、拒答率与 p95 延迟，形成一页可与上个版本对比的表。",
+      "hours": 1,
+      "resources": [
+        "content/topics",
+        "Spring AI 可观测性文档"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "带引用的 RAG 问答服务",
+      "language": "java",
+      "description": "ChatClient 加 VectorStore 的最小闭环：按 topic 元数据过滤检索（slug 需来自受控路由并校验），把片段拼进用户消息，再用 entity() 输出带引用 id 的 record。",
+      "code": "package com.learn.hub.ai;\n\nimport java.util.List;\n\nimport org.springframework.ai.chat.client.ChatClient;\nimport org.springframework.ai.vectorstore.SearchRequest;\nimport org.springframework.ai.vectorstore.VectorStore;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class RagAnswerService {\n\n    private final ChatClient chatClient;\n    private final VectorStore vectorStore;\n\n    public RagAnswerService(ChatClient.Builder builder, VectorStore vectorStore) {\n        this.chatClient = builder\n                .defaultSystem(\"你只根据资料回答，资料不足就说「资料中没有」。\")\n                .build();\n        this.vectorStore = vectorStore;\n    }\n\n    public Answer ask(String question, String topicSlug) {\n        SearchRequest request = SearchRequest.builder()\n                .query(question)\n                .topK(5)\n                .similarityThreshold(0.65)\n                .filter(\"topic == '\" + topicSlug + \"'\")\n                .build();\n        String context = vectorStore.similaritySearch(request).stream()\n                .map(hit -> \"[\" + hit.getMetadata().get(\"chunk_no\") + \"] \" + hit.getText())\n                .reduce(\"\", (a, b) -> a + \"\\n---\\n\" + b);\n\n        return chatClient.prompt()\n                .user(spec -> spec.text(\"资料：\\n{context}\\n\\n问题：{question}\")\n                        .param(\"context\", context)\n                        .param(\"question\", question))\n                .call()\n                .entity(Answer.class);\n    }\n\n    public record Answer(String conclusion, List<String> citations, double confidence) {\n    }\n}"
+    },
+    {
+      "title": "模型与向量库配置",
+      "language": "yaml",
+      "description": "api-key 走环境变量；embedding 模型换掉时 dimensions 必须同步重建索引，top-k 与阈值放到业务配置里，方便按评测调。",
+      "code": "spring:\n  ai:\n    openai:\n      api-key: ${OPENAI_API_KEY}\n      chat:\n        options:\n          model: gpt-4o-mini\n          temperature: 0.2\n          max-tokens: 800\n      embedding:\n        options:\n          model: text-embedding-3-small\n    vectorstore:\n      elasticsearch:\n        initialize-schema: true\n        index-name: learnhub-rag\n        dimensions: 1536\n        similarity: cosine\n\nlearn-hub:\n  rag:\n    top-k: 5\n    similarity-threshold: 0.65\n    chunk-size: 800\n    chunk-overlap: 120"
+    },
+    {
+      "title": "分块表与相似度检索",
+      "language": "sql",
+      "description": "以 pgvector 说明向量表与 HNSW 近似索引；换成 Elasticsearch 就是 dense_vector 加 knn，维度、距离度量、过滤条件三件事必须对齐。",
+      "code": "CREATE EXTENSION IF NOT EXISTS vector;\n\nCREATE TABLE rag_chunk (\n    id         bigserial PRIMARY KEY,\n    topic_slug text        NOT NULL,\n    chunk_no   int         NOT NULL,\n    content    text        NOT NULL,\n    embedding  vector(1536) NOT NULL,\n    updated_at timestamptz NOT NULL DEFAULT now(),\n    UNIQUE (topic_slug, chunk_no)\n);\n\nCREATE INDEX idx_rag_chunk_embedding ON rag_chunk\n    USING hnsw (embedding vector_cosine_ops)\n    WITH (m = 16, ef_construction = 64);\n\n-- 余弦距离 <=> 越小越相似；先按主题过滤再排序取 topK，避免跨租户召回\nSELECT id, topic_slug, chunk_no, content,\n       1 - (embedding <=> :query_vec) AS score\nFROM rag_chunk\nWHERE topic_slug = :topic_slug\nORDER BY embedding <=> :query_vec\nLIMIT :top_k;"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "向量维度与索引对不上",
+      "detail": "现象：写入报 dimension mismatch，或检索结果全是无关片段。原因：换了 embedding 模型（1536 到 3072）却没重建索引。规避：模型名与维度写在同一份配置里并启动校验，换模型时建新索引、重灌数据、双跑对比后再切换。"
+    },
+    {
+      "title": "切碎了语义，召回自然差",
+      "detail": "现象：文档里明明有答案，模型却说没有。原因：定长硬切把一段结论劈成两半，或 topK 太小、阈值过高。规避：按标题与段落切，chunk 800 字左右加 10% 重叠，用召回率反推 topK 与阈值，而不是凭感觉调。"
+    },
+    {
+      "title": "把检索内容当指令执行",
+      "detail": "现象：用户留言里写「忽略以上规则」，模型照做并输出了别家租户的数据。原因：外部文本与系统指令混在一层，检索也没做身份过滤。规避：system 明确资料只是数据，用分隔符包裹片段，检索强制 tenant 过滤，工具按登录身份鉴权。"
+    },
+    {
+      "title": "照抄 0.x 的 FunctionCallback",
+      "detail": "现象：编译不过，找不到 FunctionCallback，或 prompt 上没有 tools 方法。原因：1.x 用 @Tool 与 ToolCallback 取代了旧的函数注册方式。规避：方法加 @Tool(description)，用 .tools(new XxxTools()) 注册，参数用 record 描述并在方法内自行校验。"
+    },
+    {
+      "title": "幻觉被当成结论",
+      "detail": "现象：答案语气笃定，但引用的片段里根本没有这句话。原因：没强制引用，也没评测集，只靠人肉抽查。规避：要求返回结论加引用 id，检索为空时允许拒答；维护 30 到 50 条带标准答案的评测集，改提示词或换模型先跑一遍。"
+    },
+    {
+      "title": "成本与延迟失控",
+      "detail": "现象：单次问答 8 秒、账单翻十倍。原因：每请求重复嵌入、上下文塞十几段、失败没有缓存与重试上限。规避：问题向量缓存、按 token 预算截断上下文、用流式先出首字、给超时与重试设上限，并记录每次调用的 token 与耗时。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "知识库语料",
+      "path": "content/topics/spring-ai-rag.json"
+    },
+    {
+      "label": "内容加载器",
+      "path": "backend/src/main/java/com/learn/hub/content/ContentLoader.java"
+    },
+    {
+      "label": "随堂题",
+      "path": "content/quizzes/spring-ai-rag.json"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "内部规范问答",
+      "signal": "答案分散在 wiki 和制度文档里，新人反复问同样的问题，且必须给出处",
+      "approach": "先做切分与 metadata（文档 id、版本、密级），检索按用户权限过滤；回答强制带来源链接，召回为空时回退到人工入口而不是让模型硬编。"
+    },
+    {
+      "title": "精确统计与实时数据",
+      "signal": "用户问「本月退款率多少」，模型开始编数字，或数据每天在变",
+      "approach": "不要扩 RAG，改走 Tool Calling：模型只负责选工具与填参数，SQL 由服务端按登录身份执行，数字由数据库给出，模型只做解释。"
+    },
+    {
+      "title": "工单分类与字段抽取",
+      "signal": "非结构化文本要变成可入库的结构化字段，且字段有固定取值范围",
+      "approach": "用 ChatClient 的 entity() 做结构化输出，配 record 与 jakarta 校验；这属于提示词加模型加 schema 的链路，不需要向量检索。"
+    },
+    {
+      "title": "客服多轮对话",
+      "signal": "用户追问「那退款呢」时模型忘了上文，或把上一位用户的信息串进来",
+      "approach": "ChatMemory 按 conversationId 存窗口并落 Redis；检索过滤与工具调用都带同一个身份，会话隔离和权限校验分开做。"
+    },
+    {
+      "title": "上线前灰度与评测",
+      "signal": "换了模型或改了提示词，团队没人能说清是变好还是变坏",
+      "approach": "固定评测集，看召回命中率、引用准确率、拒答率与 p95 延迟四项；新版本先影子流量对比，再按比例放量并盯 token 成本。"
+    }
+  ]
+}

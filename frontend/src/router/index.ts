@@ -8,7 +8,7 @@ const router = createRouter({
     { path: '/', name: 'home', component: HomeView },
     { path: '/catalog', name: 'catalog', component: () => import('@/views/CatalogView.vue') },
     { path: '/topics/:slug', name: 'topic', component: () => import('@/views/TopicDetailView.vue') },
-    { path: '/track', name: 'track', component: () => import('@/views/TrackView.vue') },
+    { path: '/track/:slug?', name: 'track', component: () => import('@/views/TrackView.vue') },
     { path: '/interview', name: 'interview', component: () => import('@/views/InterviewView.vue') },
     { path: '/about', name: 'about', component: () => import('@/views/AboutView.vue') },
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },

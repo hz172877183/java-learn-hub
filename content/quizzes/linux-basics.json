@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "进程收到 SIGTERM 与 SIGKILL 的区别，下列描述正确的是？",
+    "options": [
+      "两者都能被进程捕获，只是信号编号不同",
+      "SIGKILL 会先触发优雅停机，再强制退出",
+      "SIGTERM 可被捕获用于优雅退出，SIGKILL 无法捕获也不能忽略",
+      "SIGTERM 只能由 root 发送，SIGKILL 任何用户都能发"
+    ],
+    "correctIndex": 2,
+    "explanation": "SIGTERM(15) 是请求退出，进程可以注册钩子完成刷盘、关闭连接和注销；SIGKILL(9) 由内核直接终止，不可捕获或忽略，会跳过所有清理。因此默认先发 15，等优雅停机窗口用完再补 9。"
+  },
+  {
+    "type": "choice",
+    "stem": "同一个脚本手工执行正常，放进 crontab 后却报 command not found，最可能的原因是？",
+    "options": [
+      "cron 使用的 PATH 与登录 shell 不同，且不会加载 ~/.bashrc 等配置",
+      "cron 只允许执行二进制，不允许执行 shell 脚本",
+      "脚本没有可执行权限，cron 会静默跳过该任务",
+      "crontab 中的命令必须写成相对路径"
+    ],
+    "correctIndex": 0,
+    "explanation": "cron 启动任务时环境极简，PATH 通常只有 /usr/bin:/bin，也不会读取 ~/.bashrc 或 /etc/profile。做法是在脚本头部显式 export PATH，命令写绝对路径，并把输出重定向到日志，失败时才看得到原因。"
+  },
+  {
+    "type": "text",
+    "stem": "磁盘明明还有剩余空间，应用写日志却报 No space left on device。说明两种常见原因及各自的排查命令。",
+    "options": [],
+    "referenceAnswer": "一是 inode 用尽：大量小文件耗尽索引节点，df -h 看着有余量，但 df -i 的 IUse% 已达 100%，需要清理小文件或把目录迁到其他挂载点。二是进程仍持有已删除文件的句柄：rm 之后空间没有释放，用 lsof +L1（或 lsof | grep deleted）找到进程，重启进程或截断该文件。排查时还要先确认写入的是哪个挂载点（df -h 目标目录），排除只读挂载与磁盘配额限制。",
+    "explanation": "df 统计的是块，df -i 统计的是 inode，lsof +L1 看的是已删除但仍被打开的文件；三者都查过，才能判断是容量问题、文件数问题还是句柄未释放。"
+  }
+]

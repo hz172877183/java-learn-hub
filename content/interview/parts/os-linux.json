@@ -1,0 +1,252 @@
+[
+  {
+    "category": "os-linux",
+    "level": "junior",
+    "type": "choice",
+    "stem": "同一台 Linux 机器上，进程和线程最本质的区别是什么？",
+    "options": [
+      "线程共享进程的地址空间与文件描述符表，但各自有独立栈",
+      "线程拥有独立地址空间和页表，进程内线程之间互不影响",
+      "进程是 CPU 调度的基本单位，线程是资源分配的基本单位",
+      "创建线程必须调用 fork，开销和创建新进程基本相同"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "进程是资源分配单位，线程是 CPU 调度单位：同进程线程共享地址空间、堆、全局变量和 fd 表，只有栈、寄存器和 TLS 私有。fork 创建的是进程，clone 带 CLONE_VM 才是线程，选项把两者说反了。"
+  },
+  {
+    "category": "os-linux",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于软链接和硬链接的区别，下列说法正确的是？",
+    "options": [
+      "硬链接可以跨文件系统创建，软链接只能在同一文件系统内",
+      "硬链接与原文件共用同一 inode，删除原文件后数据仍可访问",
+      "软链接与原文件共用 inode，修改软链接内容即修改原文件",
+      "删除软链接会连带删除原文件，删除硬链接也会释放数据"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "硬链接只是目录项指向同一 inode，link count 减到 0 且无进程打开时才真正释放数据；软链接是独立 inode 的文件，内容只是路径字符串，可跨文件系统，源文件删除后成为断链。硬链接不能跨文件系统，也不能指向目录。"
+  },
+  {
+    "category": "os-linux",
+    "level": "junior",
+    "type": "choice",
+    "stem": "运维让你停掉一个 Java 服务，kill 和 kill -9 的区别是什么？",
+    "options": [
+      "SIGTERM 无法被忽略，SIGKILL 可以被捕获后做优雅退出",
+      "两者都能被捕获，只是 SIGKILL 的调度优先级更高一些",
+      "SIGTERM 可被捕获或忽略，SIGKILL 不可捕获且不给清理机会",
+      "SIGKILL 会先执行 JVM 的 shutdown hook，再强制结束进程"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "kill 默认发 SIGTERM(15)，进程可注册 handler 或 shutdown hook 做优雅停机；kill -9 发 SIGKILL(9)，由内核直接终止，不可捕获、不可阻塞、不可忽略，也不会执行 shutdown hook，容易丢未落盘数据。应先 TERM 并等待，超时再 KILL。"
+  },
+  {
+    "category": "os-linux",
+    "level": "junior",
+    "type": "choice",
+    "stem": "Java 服务报 Too many open files，关于文件描述符和 ulimit 的说法哪个正确？",
+    "options": [
+      "每打开一个文件就占用一个 fd，fd 编号从 1 开始逐个递增",
+      "ulimit -n 修改后对所有已运行进程立即生效，无需重启服务",
+      "socket 连接不占用文件描述符，只占用内核的端口资源表项",
+      "fd 是进程内非负整数索引，上限受 ulimit -n 与 fs.file-max 约束"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "fd 是进程内从 0 开始分配的非负整数（0/1/2 为标准输入输出错误），索引到内核打开文件表；上限受进程 rlimit（ulimit -n）与系统级 fs.file-max、nr_open 共同约束。ulimit 只对新进程生效，运行中进程需重启或 setrlimit，socket 同样占 fd。"
+  },
+  {
+    "category": "os-linux",
+    "level": "junior",
+    "type": "text",
+    "stem": "Linux 上 rwx 三个权限位对文件和目录的含义有什么不同？umask 022 时新建目录和新建文件的默认权限分别是多少？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 文件：r 读内容、w 改内容、x 可执行；目录：r 可列出条目、w 可增删文件、x 可进入并访问其中文件，只有 r 没有 x 时连 stat 都做不了。② 权限用八进制表示，755 即 rwxr-xr-x。③ umask 是屏蔽位：目录基准 777 减 022 得 755；普通文件基准 666，得 644，默认不给 x。④ umask 只影响新建对象，存量文件要用 chmod 调整。",
+    "explanation": "考点是目录 x 位与文件 x 位的区别，以及 umask 是'屏蔽位'而非直接赋值；常见错误是把文件默认权限也按 777 计算，从而错答成 755。"
+  },
+  {
+    "category": "os-linux",
+    "level": "junior",
+    "type": "text",
+    "stem": "线上机器变慢，你会用 ps、top、ss、lsof、df、du、free 中的哪些命令、按什么顺序看？说明每个命令主要解决什么问题。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① top 看整体负载、CPU/内存与 %wa，先判断是 CPU、内存还是 IO 问题。② ps -ef 与 ps -L 看进程和线程详情，ps aux --sort=-%mem 排序。③ free -h 看 available 与 swap，注意 buff/cache 可回收。④ df -h、df -i 看分区与 inode，du -sh 逐层定位大目录。⑤ ss -antp 看连接状态与端口，lsof -p 看进程打开的文件和 socket。⑥ 需要细化时再上 iostat、vmstat、pidstat。",
+    "explanation": "考察命令分工与排查顺序：先定方向（CPU/内存/IO/连接）再细化定位；能说出 buff/cache 可回收、du 不跨挂载点这类细节比背参数更有说服力。"
+  },
+  {
+    "category": "os-linux",
+    "level": "mid",
+    "type": "choice",
+    "stem": "用 ps 看到某进程处于 D 状态且 kill 不掉，下列解释最准确的是？",
+    "options": [
+      "D 是不可中断睡眠，多在等磁盘或 NFS IO，信号要等唤醒后才处理",
+      "D 是僵尸状态，父进程未回收，需要 kill 父进程才能清理",
+      "D 是停止状态，进程被 SIGSTOP 挂起，kill -CONT 即可恢复",
+      "D 是运行态，进程正占用 CPU，kill 需排队等时间片结束"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "Linux 进程状态：R 运行或就绪、S 可中断睡眠、D 不可中断睡眠、T 停止、Z 僵尸。D 态在等 IO 且不响应信号，kill -9 也要等 IO 返回或超时；僵尸是 Z 态、由父进程 wait 回收，两者常被混为一谈。"
+  },
+  {
+    "category": "os-linux",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于 x86-64 Linux 的虚拟内存与页表，下列说法正确的是？",
+    "options": [
+      "每个进程共用一张全局页表，因此进程间可以直接读写对方内存",
+      "虚拟地址经多级页表映射到物理页，各进程持有独立页表",
+      "页表把物理地址映射为虚拟地址，TLB 未命中就会触发缺页中断",
+      "虚拟地址空间等于物理内存大小，超出部分必须换出到 swap"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "页表方向是虚拟地址到物理地址，选项故意说反；每个进程有独立 mm_struct 与页表，这才有地址空间隔离；虚拟空间可远大于物理内存，缺页时才分配或换入。TLB miss 只是查页表变慢，只有页表项无效或页不在内存才是缺页异常。"
+  },
+  {
+    "category": "os-linux",
+    "level": "mid",
+    "type": "choice",
+    "stem": "把一个文件通过 socket 发出去，sendfile 相比 read + write 减少了什么开销？",
+    "options": [
+      "省掉了 DMA 拷贝，全程只有 CPU 参与一次数据搬运",
+      "省掉了内核页缓存，数据从磁盘直接进网卡不再被缓存",
+      "省掉用户态缓冲区这一次 CPU 拷贝和两次系统调用切换",
+      "省掉 TCP 校验和计算与协议栈封装，由网卡完全代劳"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "传统 read+write 有 4 次上下文切换、4 次拷贝（2 次 DMA、2 次 CPU）；sendfile 让数据在内核页缓存与 socket 缓冲区之间传递，配合 SG-DMA 可做到 0 次 CPU 拷贝、2 次切换，但数据仍经过页缓存，也仍走协议栈。"
+  },
+  {
+    "category": "os-linux",
+    "level": "mid",
+    "type": "choice",
+    "stem": "系统内存耗尽时 Linux OOM Killer 选择杀哪个进程，主要依据是什么？",
+    "options": [
+      "总是杀掉占用内存绝对值最大的进程，与进程权限无关",
+      "优先杀掉 root 进程，因为 root 进程通常占用资源更多",
+      "按进程启动时间排序，越晚启动的进程越先被内核回收",
+      "按 oom_score 打分，占用多且 oom_score_adj 高的更易被杀"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "内核按 badness 打分（oom_score），综合 RSS、swap 占用、页表大小、运行时长与 oom_score_adj，分数最高者被杀；root 进程只有轻微保护而非绝对。oom_score_adj 取值 -1000 到 1000，关键进程应调低，但更应排查内存增长根因。"
+  },
+  {
+    "category": "os-linux",
+    "level": "mid",
+    "type": "text",
+    "stem": "什么是缺页中断？什么情况下会用到 swap？swap 使用率高就一定说明内存不够吗？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 缺页中断：访问的虚拟页没有有效页表项或不在物理内存时触发，文件页从磁盘或 page cache 读入，匿名页从 swap 换入，写时复制也会触发。② 内存紧张时内核把不活跃匿名页换出到 swap，为 page cache 和活跃页腾空间，属正常回收。③ 不一定：swap used 高可能只是历史残留，要看 vmstat 的 si/so 是否持续非零、major fault 是否上升。④ swappiness 控制换出倾向，数据库类服务通常调低。",
+    "explanation": "要区分 minor fault 与 major fault，并用 si/so 判断是否真的在换入换出；只看到 swap used 高就下'内存不足'结论是常见误判，应结合 free 的 available 一起看。"
+  },
+  {
+    "category": "os-linux",
+    "level": "mid",
+    "type": "text",
+    "stem": "阻塞 IO、非阻塞 IO、IO 多路复用的核心区别是什么？epoll 相比 select 改进了哪里？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 阻塞 IO：read 未就绪时线程睡眠，一连接一线程，连接多则线程爆炸。② 非阻塞 IO：未就绪立即返回 EAGAIN，需应用自己轮询，空转耗 CPU。③ 多路复用：select/poll/epoll 由内核返回就绪 fd，单线程管理大量连接，就绪后再同步读写。④ epoll 用红黑树注册、就绪链表回调返回，无 fd 上限，不必每次全量拷贝和 O(n) 扫描，支持 ET/LT。注意多路复用只优化等待，读写仍是同步的。",
+    "explanation": "关键是点明多路复用没有改变读写同步的本质，因此不等于异步 IO；epoll 的改进在于注册机制、就绪回调与触发模式，而不是'用了更快的系统调用'。"
+  },
+  {
+    "category": "os-linux",
+    "level": "mid",
+    "type": "text",
+    "stem": "write 返回成功是否代表数据已经落盘？页缓存和脏页回写是怎么工作的，如何保证不丢数据？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 默认 write 只把数据拷进 page cache 并标记为脏页，返回成功不等于落盘，内核按 dirty_ratio、dirty_expire_centisecs 异步回写。② 掉电可能丢脏页，需 fsync/fdatasync 等待回写完成，O_SYNC 每次写都同步但吞吐低。③ 脏页比例过高会阻塞写入造成 IO 抖动，dirty_ratio 不宜过大。④ 想自管缓存或避免双缓存可用 O_DIRECT，但需按块对齐并自己做预读。",
+    "explanation": "考点是 write 语义与持久化的区别；只答'内核会刷盘'不够，要提到 fsync、脏页阈值与写放大，这是数据库和 MQ 持久化调优的常见追问方向。"
+  },
+  {
+    "category": "os-linux",
+    "level": "mid",
+    "type": "text",
+    "stem": "用 systemd 管理服务和用 crontab 跑定时任务各适合什么场景？systemd 服务启动失败你会怎么排查？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① systemd 适合常驻服务：unit 声明 ExecStart、Restart、After/Requires，由 PID 1 托管，journalctl 统一看日志，支持 socket 与 timer 激活。② cron 适合分钟级周期任务，配置简单但无依赖、无重试，环境变量极简，日志要自己重定向；复杂调度可用 systemd timer。③ 排查：systemctl status 看退出码，journalctl -u 服务名 -n 200 看日志，核对 ExecStart 路径权限，改 unit 后 daemon-reload 再 restart。",
+    "explanation": "对比点是托管能力、日志、依赖与重试，而不是新旧；cron 缺环境变量和 systemd 改完忘记 daemon-reload 是两类最高频的现场故障。"
+  },
+  {
+    "category": "os-linux",
+    "level": "mid",
+    "type": "text",
+    "stem": "df -h 显示分区已用 95%，但从根目录 du -sh 统计只有一半，可能是什么原因？怎么定位？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 最常见是已删除但被进程占用的文件：目录项没了 inode 未释放，du 统计不到而 df 会计入，用 lsof +L1 或 lsof | grep deleted 找到进程后重启或清空。② du 默认不跨挂载点，子目录被挂载覆盖时统计偏小，应 du -x 并对照 mount。③ 还可能是 inode 先耗尽、稀疏文件与预分配、ext4 保留块、/proc 与 tmpfs。④ 顺序：先 df -i，再 mount 对比，最后 lsof +L1 核对。",
+    "explanation": "现场最常考'已删除仍被打开的文件'，其次是 du 不跨挂载点与 inode 耗尽；只回答'日志文件太大'说明没有真正做过磁盘排查。"
+  },
+  {
+    "category": "os-linux",
+    "level": "senior",
+    "type": "choice",
+    "stem": "服务端 ss -ant 显示大量 CLOSE_WAIT，最可能的原因和处理方式是？",
+    "options": [
+      "应用收到 FIN 后没调用 close，需查连接池泄漏并正确关闭",
+      "客户端主动断开太频繁，应调大服务端 tcp_max_tw_buckets",
+      "内核 TIME_WAIT 回收太慢，应开启 tcp_tw_reuse 复用端口",
+      "SYN 队列被打满，应调大 tcp_max_syn_backlog 与 somaxconn"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "CLOSE_WAIT 表示本端已收到对端 FIN、但应用还没 close，堆积说明代码漏关连接（连接池未归还、异常分支未释放、读循环没退出），属应用问题；TIME_WAIT 是主动关闭方留下的，才与 tw_reuse 相关，两者不能混谈。"
+  },
+  {
+    "category": "os-linux",
+    "level": "senior",
+    "type": "choice",
+    "stem": "iostat -x 显示某数据盘 %util 接近 100%、await 很高但 r/s 很低，最合理的判断是？",
+    "options": [
+      "%util 接近 100% 说明队列空闲，瓶颈更可能在 CPU 而非磁盘",
+      "IO 已饱和且单次请求耗时长，需看 avgrq-sz 与队列，可能是慢盘或大 IO",
+      "r/s 低说明没有 IO 压力，await 高只是统计噪声可以忽略",
+      "应立即增大 nr_requests 队列深度，队列越深磁盘吞吐越高"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "%util 高说明设备几乎一直在处理请求，await 高代表排队加服务时间都长；r/s 低而 await 高常见于单次请求很大（avgrq-sz 大）或云盘、机械盘本身慢。盲目加深队列只会让 await 更高，应先定位大 IO 来源再优化。"
+  },
+  {
+    "category": "os-linux",
+    "level": "senior",
+    "type": "text",
+    "stem": "线上 Java 服务 CPU 使用率突然打到 100%，说说你的排查步骤和常用命令。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① top 看整体：%us 高查业务代码，%sy 高查系统调用、软中断与上下文切换，%wa 高说明瓶颈在 IO。② top -Hp <pid> 找最热线程，用 printf '%x' 把 TID 转成十六进制。③ jstack <pid> 抓栈，按 nid=0x.. 定位对应线程栈，重点看死循环、正则回溯、锁自旋。④ jstat -gcutil 排除频繁 GC，再用 async-profiler 或 arthas profiler 出火焰图定位热点方法。⑤ 结合 pidstat -t、线程数与 cgroup CPU limit 判断是代码问题还是资源不足。",
+    "explanation": "主线是'整体→线程→栈→代码或 GC'，并先区分用户态与内核态；只背 top 和 jstack 而不会做 TID 到十六进制的转换，是这道题最常见的失分点。"
+  },
+  {
+    "category": "os-linux",
+    "level": "senior",
+    "type": "text",
+    "stem": "Java 进程运行几天后 RSS 持续上涨直到被 OOM Killer 杀掉，但堆 dump 看起来正常，你接下来怎么查？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 先分堆内堆外：看 GC 日志与 jmap -histo，老年代是否持续增长；堆正常就查元空间、直接内存（NMT、BufferPool MXBean）、线程栈与 JNI。② pmap -x 或 /proc/pid/smaps 看 RSS 构成，匿名页涨多为 native 分配或 mmap 未释放；线程暴涨每线程约 1MB 栈。③ jcmd VM.native_memory 与 async-profiler alloc 采样定位分配点，检查 Netty ByteBuf、日志缓冲、glibc arena 碎片。④ 临时用 oom_score_adj 保护进程，根因仍需改代码。",
+    "explanation": "题眼是'堆正常但 RSS 涨'，必须想到堆外内存、线程栈、mmap 与 malloc 碎片；只答用 MAT 分析堆 dump，说明没有抓住排查方向。"
+  },
+  {
+    "category": "os-linux",
+    "level": "architect",
+    "type": "text",
+    "stem": "要设计一个每天处理大量中小文件的日志采集与转发服务，你会如何在 page cache、mmap、sendfile、O_DIRECT 之间取舍，并配套哪些内核参数与监控？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 采集端顺序读大文件用普通 read 依赖 page cache，热文件复用缓存；随机小读多可用 mmap 减少拷贝，但要防 SIGBUS 与页表开销。② 转发用 sendfile 或 splice，避免用户态中转，配合 TCP_CORK 减少小包。③ 写入若要求掉电一致或自管缓存用 O_DIRECT 加预分配，否则依赖 page cache 并调 dirty_ratio、dirty_expire_centisecs 抑制回写抖动。④ 参数与监控：nr_open、fs.file-max、somaxconn，盯 %util、await、脏页比例与 P99 延迟。⑤ 按文件大小分流，小文件先聚合再传，避免元数据与随机 IO 成为瓶颈。",
+    "explanation": "架构题看的是权衡依据而非名词罗列：读路径用缓存换吞吐、写路径用 O_DIRECT 换确定性，再用参数和指标兜住抖动；能说清'什么场景选哪个、代价是什么'才算过关。"
+  }
+]

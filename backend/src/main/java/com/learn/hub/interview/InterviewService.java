@@ -6,11 +6,17 @@ import com.learn.hub.topic.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -136,13 +142,31 @@ public class InterviewService {
     }
 
     /**
-     * 首次启动导入种子题目；全部校验通过才写入。
+     * 按内容版本同步种子题目：先删除旧种子题，再整批写入新种子题。
+     * 管理端手工创建（seedKey 为空）且题干不在种子中的题不会被删除。
      */
     @Transactional
-    public void seed(List<InterviewDtos.QuestionRequest> questions) {
+    public void syncSeeds(List<InterviewDtos.QuestionRequest> questions) {
+        List<InterviewDtos.QuestionRequest> values = questions.stream()
+                .map(this::validate)
+                .toList();
+
+        Set<String> legacyKeys = new HashSet<>();
+        for (InterviewDtos.QuestionRequest value : values) {
+            legacyKeys.add(seedKey(value.category(), value.stem()));
+        }
+
+        List<InterviewQuestionEntity> seeded = repository.findAll().stream()
+                .filter(item -> item.getSeedKey() != null
+                        || legacyKeys.contains(seedKey(item.getCategory(), item.getStem())))
+                .toList();
+        if (!seeded.isEmpty()) {
+            repository.deleteAllInBatch(seeded);
+        }
+
         LocalDateTime now = LocalDateTime.now();
-        for (int i = 0; i < questions.size(); i++) {
-            InterviewDtos.QuestionRequest value = validate(questions.get(i));
+        for (int i = 0; i < values.size(); i++) {
+            InterviewDtos.QuestionRequest value = values.get(i);
             repository.save(new InterviewQuestionEntity(
                     value.category(),
                     value.level(),
@@ -152,9 +176,20 @@ public class InterviewService {
                     value.correctIndex(),
                     value.referenceAnswer(),
                     value.explanation(),
+                    seedKey(value.category(), value.stem()),
                     i,
                     now
             ));
+        }
+    }
+
+    private String seedKey(String category, String stem) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest((category + "\u0000" + stem).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash, 0, 16);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 不可用", e);
         }
     }
 

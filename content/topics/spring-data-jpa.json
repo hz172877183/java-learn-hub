@@ -8,7 +8,10 @@
   "tags": [
     "jpa",
     "hibernate",
-    "orm"
+    "orm",
+    "spring-data",
+    "mysql",
+    "transaction"
   ],
   "status": "published",
   "integrationStatus": "snippet",
@@ -22,56 +25,109 @@
     "flyway"
   ],
   "relatedTopics": [
-    "mybatis-plus"
+    "flyway",
+    "integration-testing"
   ],
-  "overviewMd": "JPA 把表映射成 Java 对象。Spring Data 再把 `findByStatus` 这类方法名解析成查询。一期本项目还没有真正连库，但二期 Topic 落库会走这条路（或与 MyBatis 对照）。\n\n**该用时：** 领域对象清晰、关联不太变态、团队接受 ORM。\n\n**慎用：** 超复杂报表、大量动态 SQL、DBA 要逐条审 SQL 的环境——这时 MyBatis 更直观。",
+  "overviewMd": "Spring Data JPA 是 Jakarta Persistence 之上的仓储抽象：你声明接口，它生成实现，底层通常是 Hibernate。它解决的是「常规对象-表映射 + CRUD + 简单查询」，而不是所有 SQL 问题。把它当便捷入口，而不是数据库的通用替代品。\n\n核心心智模型要分清三样东西：实体负责映射与状态，持久化上下文负责一级缓存和脏检查，仓储负责查询派生。`save` 并不等于立刻发 SQL——事务提交或 flush 时才写库；托管实体只要字段被改，提交时就自动 UPDATE。理解了这一点，才能解释「日志里为什么没有 SQL」和「为什么我没调 save 数据也变了」。\n\n该用时：领域模型稳定、关联不复杂、CRUD 密集的业务，比如学习项、用户、进度这类表。不该用时：复杂报表与多表聚合、批量导数、大量动态拼接条件，或 DBA 要求逐条审 SQL 的环境——这些场景 MyBatis、JdbcTemplate 或原生 SQL 更直接，硬套 Criteria 只会让代码更难读。\n\n版本注意点：Boot 3 使用 Jakarta Persistence 3.1，所有 import 都是 `jakarta.persistence.*`，`javax.persistence` 已不可用。Hibernate 6 更换了部分方言与 ID 生成策略，`GenerationType.AUTO` 的行为和 5.x 不同，升级时要显式指定。数据库要求 MySQL 8 + utf8mb4，schema 由 Flyway 管理，`ddl-auto` 在生产只做 validate 或 none。\n\n放在本仓库里看：`TopicEntity` 与 `TopicRepository` 已经把学习项落到 MySQL，内容仍从 JSON 读入后写入；对照 `persistence` 包与 `db/migration` 下的脚本，能看清「实体、DDL、迁移」三者如何保持一致。",
   "concepts": [
     {
-      "term": "Entity",
-      "explanation": "@Entity 类对应一张表，@Id 对应主键。slug 可以作为业务主键。"
+      "term": "实体与 @Id",
+      "explanation": "@Entity 类映射一张表，@Id 指定主键；可以用自增 Long，也可以用 slug 这类业务键，但业务键一旦被外部引用就不该再改。"
     },
     {
-      "term": "Repository",
-      "explanation": "继承 JpaRepository 后，save/findById/分页都自带；还能按方法名派生查询。"
+      "term": "持久化上下文",
+      "explanation": "同一事务内两次 findById 只发一条 SQL 并返回同一对象；它是 Hibernate 的一级缓存，不是跨请求的应用缓存。"
+    },
+    {
+      "term": "脏检查与 flush",
+      "explanation": "托管实体的字段一改，提交时自动生成 UPDATE，不必显式 save；但要知道 flush 发生在提交前，而不是赋值那一刻。"
+    },
+    {
+      "term": "派生查询",
+      "explanation": "findByCategoryAndStatus 由方法名解析成 JPQL，名字写错在启动时就失败；比运行期才发现拼错字段友好得多。"
+    },
+    {
+      "term": "分页 Pageable",
+      "explanation": "Page 会额外执行 count，Slice 不 count 适合无限滚动；page、size、sort 统一由 Pageable 收口，别在 SQL 里手拼 limit。"
+    },
+    {
+      "term": "关联与 mappedBy",
+      "explanation": "双向关联用 mappedBy 指明非拥有方，只有拥有方维护外键；写错会多出无谓的更新语句，或外键一直是 null。"
     },
     {
       "term": "懒加载",
-      "explanation": "关联默认可能 LAZY，离开事务再访问会 LazyInitializationException。"
+      "explanation": "LAZY 关联在事务外被访问会抛 LazyInitializationException；应在事务内用 fetch join、EntityGraph 或投影取完所需数据。"
     },
     {
-      "term": "N+1",
-      "explanation": "列表里循环点关联会打出 N 条 SQL。用 join fetch 或实体图解决。"
+      "term": "N+1 查询",
+      "explanation": "列表里循环访问关联会打出 1+N 条 SQL；分页叠加集合 fetch join 还会变成内存分页，需要换抓取策略或二次查询。"
+    },
+    {
+      "term": "事务边界",
+      "explanation": "@Transactional 应加在 service 的公共方法上，只读查询加 readOnly；同类内部自调用不经过代理，事务不会生效。"
+    },
+    {
+      "term": "迁移与 ddl-auto",
+      "explanation": "update 只做加法且各环境会漂移；生产用 Flyway 管 DDL，应用启动只做 validate，让结构变更可评审、可回滚。"
     }
   ],
   "pathSteps": [
     {
-      "title": "写实体",
-      "goal": "按本页示例定义 TopicEntity（先不接入运行）。",
-      "hours": 2,
+      "title": "建实体与对应表",
+      "goal": "写 TopicEntity 和建表 SQL，让主键、唯一键、长度、非空三处对齐，不依赖自动建表。",
+      "hours": 1,
       "resources": [
-        "本页示例"
+        "本页示例",
+        "backend/src/main/java/com/learn/hub/persistence/TopicEntity.java"
       ]
     },
     {
-      "title": "派生查询",
-      "goal": "写出 findByCategoryAndStatus 并想象生成的 SQL。",
-      "hours": 2,
+      "title": "Repository 与派生查询",
+      "goal": "实现 findBySlug、existsBySlug 和带分页的分类查询，能说出每条方法名会生成什么 SQL。",
+      "hours": 1.5,
       "resources": [
-        "Spring Data 文档"
+        "Spring Data JPA 查询方法文档"
       ]
     },
     {
-      "title": "打开 SQL 日志",
-      "goal": "配置 show-sql 或 p6spy，对照自己的预期。",
-      "hours": 2,
+      "title": "事务与脏检查",
+      "goal": "在 service 上加 @Transactional，验证不调 save 也能更新，并观察 flush 与提交的时序。",
+      "hours": 1.5,
       "resources": [
-        "application.yml"
+        "Spring 事务管理文档",
+        "backend/src/main/java/com/learn/hub/topic/TopicService.java"
       ]
     },
     {
-      "title": "和 MyBatis 对比",
-      "goal": "同一列表查询用 XML/注解写一遍，体会差异。",
-      "hours": 4,
+      "title": "关联与懒加载",
+      "goal": "建一组一对多关联，在事务外访问复现 LazyInitializationException，再用 fetch join 修好。",
+      "hours": 1.5,
+      "resources": [
+        "Hibernate 用户指南"
+      ]
+    },
+    {
+      "title": "消除 N+1",
+      "goal": "打开 SQL 日志，把列表接口的 SQL 条数从 1+N 降到常数条，并说明用了哪种抓取策略。",
+      "hours": 2,
+      "resources": [
+        "本页示例",
+        "Hibernate @EntityGraph 文档"
+      ]
+    },
+    {
+      "title": "迁移与结构校验",
+      "goal": "用 Flyway 建表并切换 ddl-auto 为 validate，故意改错一个字段类型，观察启动直接失败。",
+      "hours": 1.5,
+      "resources": [
+        "flyway",
+        "backend/src/main/resources/db/migration"
+      ]
+    },
+    {
+      "title": "和 MyBatis 对照",
+      "goal": "同一列表查询用 MyBatis 写一遍，比较可读性、SQL 控制力和改动成本。",
+      "hours": 1,
       "resources": [
         "mybatis-plus"
       ]
@@ -79,37 +135,89 @@
   ],
   "samples": [
     {
-      "title": "实体与仓储草案",
+      "title": "带版本号的实体",
       "language": "java",
-      "description": "二期草案。当前运行时仍从 JSON 加载。",
-      "code": "@Entity\n@Table(name = \"topic\")\npublic class TopicEntity {\n    @Id\n    private String slug;\n    private String title;\n    private String category;\n    private String status;\n}\n\npublic interface TopicJpaRepository extends JpaRepository<TopicEntity, String> {\n    Page<TopicEntity> findByCategoryAndStatus(String category, String status, Pageable pageable);\n}"
+      "description": "沿用仓库里的 TopicEntity 结构，补上 @Version 与领域方法；字段名与 topic 表列名一一对应。",
+      "code": "package com.learn.hub.persistence;\n\nimport jakarta.persistence.Column;\nimport jakarta.persistence.Entity;\nimport jakarta.persistence.GeneratedValue;\nimport jakarta.persistence.GenerationType;\nimport jakarta.persistence.Id;\nimport jakarta.persistence.Table;\nimport jakarta.persistence.Version;\n\nimport java.time.LocalDateTime;\n\n@Entity\n@Table(name = \"topic\")\npublic class TopicEntity {\n\n    @Id\n    @GeneratedValue(strategy = GenerationType.IDENTITY)\n    private Long id;\n\n    @Column(nullable = false, unique = true, length = 120)\n    private String slug;\n\n    @Column(nullable = false, length = 200)\n    private String title;\n\n    @Column(nullable = false, length = 64)\n    private String category;\n\n    @Version\n    private long version;\n\n    @Column(name = \"updated_at\", nullable = false)\n    private LocalDateTime updatedAt;\n\n    protected TopicEntity() {\n    }\n\n    public void rename(String title, LocalDateTime now) {\n        this.title = title;\n        this.updatedAt = now;\n    }\n}"
+    },
+    {
+      "title": "仓储、派生查询与投影",
+      "language": "java",
+      "description": "列表页只需要 slug 与 title 时用投影，避免把 payload 等大字段拖进内存；分页与排序交给 Pageable。",
+      "code": "package com.learn.hub.persistence;\n\nimport org.springframework.data.domain.Page;\nimport org.springframework.data.domain.Pageable;\nimport org.springframework.data.jpa.repository.JpaRepository;\nimport org.springframework.data.jpa.repository.Query;\nimport org.springframework.data.repository.query.Param;\n\nimport java.util.List;\nimport java.util.Optional;\n\npublic interface TopicRepository extends JpaRepository<TopicEntity, Long> {\n\n    Optional<TopicEntity> findBySlug(String slug);\n\n    boolean existsBySlug(String slug);\n\n    Page<TopicEntity> findByCategoryAndStatus(String category, String status, Pageable pageable);\n\n    @Query(\"select t.slug as slug, t.title as title from TopicEntity t where t.category = :category\")\n    List<TopicSummaryView> findSummaries(@Param(\"category\") String category);\n\n    interface TopicSummaryView {\n        String getSlug();\n\n        String getTitle();\n    }\n}"
+    },
+    {
+      "title": "建表与幂等写入",
+      "language": "sql",
+      "description": "MySQL 8 的 DDL，唯一键与联合索引对应实际查询；种子数据用 ON DUPLICATE KEY 保证重复执行安全。",
+      "code": "CREATE TABLE topic (\n    id BIGINT NOT NULL AUTO_INCREMENT,\n    slug VARCHAR(120) NOT NULL,\n    title VARCHAR(200) NOT NULL,\n    category VARCHAR(64) NOT NULL,\n    status VARCHAR(16) NOT NULL,\n    version BIGINT NOT NULL DEFAULT 0,\n    created_at DATETIME(3) NOT NULL,\n    updated_at DATETIME(3) NOT NULL,\n    PRIMARY KEY (id),\n    UNIQUE KEY uk_topic_slug (slug),\n    KEY idx_topic_category_status (category, status)\n) ENGINE = InnoDB\n  DEFAULT CHARSET = utf8mb4\n  COLLATE = utf8mb4_0900_ai_ci;\n\nINSERT INTO topic (slug, title, category, status, version, created_at, updated_at)\nVALUES ('spring-data-jpa', 'Spring Data JPA', 'data', 'published', 0, NOW(3), NOW(3))\nON DUPLICATE KEY UPDATE title = VALUES(title), updated_at = NOW(3), version = version + 1;"
     }
   ],
   "pitfalls": [
     {
-      "title": "equals/hashCode 用自增 id",
-      "detail": "未持久化时 id 为 null，集合行为诡异。业务主键 slug 更稳，或只比较 id 且文档约定。"
+      "title": "equals/hashCode 依赖自增 id",
+      "detail": "现象：未保存的实体放进 HashSet 后取不出来，或保存后集合里重复。原因：id 从 null 变成有值，hashCode 跟着变。规避：用业务键 slug 参与计算，或固定 hashCode、只让 equals 比较稳定标识，并写进团队约定。"
     },
     {
-      "title": "open-in-view 默认为 true",
-      "detail": "请求期间 Session 不关，懒加载被「藏」住，生产上可能拖连接。理解后再决定是否关闭。"
+      "title": "open-in-view 掩盖懒加载",
+      "detail": "现象：接口能跑，但 SQL 散落在响应渲染阶段，连接被占用到请求结束。原因：Boot 默认 open-in-view=true 把 Session 开到响应完成。规避：显式设为 false，在 service 内取完数据并转成 DTO 再出事务。"
     },
     {
-      "title": "把实体直接返回给前端",
-      "detail": "会把懒加载关联和内部字段暴露出去。API 用 DTO/record。"
+      "title": "分页叠加集合 fetch join",
+      "detail": "现象：日志警告 firstResult/maxResults specified with collection fetch，分页结果条数不对。原因：Hibernate 只能在内存里分页。规避：先分页查主键再按 id 取关联；集合关联改用 @EntityGraph 或单独一条查询。"
+    },
+    {
+      "title": "列表接口 N+1",
+      "detail": "现象：返回 20 条数据却打了 41 条 SQL，响应随数据量线性变慢。原因：循环里访问 LAZY 关联，每条都补一次查询。规避：fetch join、@EntityGraph 或投影一次取回，并在测试里断言 SQL 条数。"
+    },
+    {
+      "title": "同类内部调用事务失效",
+      "detail": "现象：抛异常后数据没有回滚，或 readOnly 不生效。原因：自调用不经过 Spring 代理。规避：把事务方法拆到另一个 Bean，或让最外层被调用的公共方法本身带 @Transactional。"
+    },
+    {
+      "title": "ddl-auto=update 上生产",
+      "detail": "现象：字段被悄悄追加，各环境结构不一致，删列与改类型永远不生效。原因：update 只做增量且无法表达破坏性变更。规避：DDL 写进迁移脚本并评审，生产设置 validate 或 none；破坏性变更走两步发布。"
     }
   ],
-  "repoPointers": [],
+  "repoPointers": [
+    {
+      "label": "学习项实体",
+      "path": "backend/src/main/java/com/learn/hub/persistence/TopicEntity.java"
+    },
+    {
+      "label": "学习项仓储",
+      "path": "backend/src/main/java/com/learn/hub/persistence/TopicRepository.java"
+    },
+    {
+      "label": "建表迁移脚本",
+      "path": "backend/src/main/resources/db/migration/V1__init.sql"
+    }
+  ],
   "scenarios": [
     {
-      "title": "领域模型和数据库表结构要一起演进",
-      "signal": "实体关系多、CRUD 重复、希望用对象而不是拼 SQL",
-      "approach": "用 JPA 映射聚合和关联，Repository 提供常用查询；复杂报表另写查询，避免把 ORM 用成万能工具"
+      "title": "领域模型和表结构一起演进",
+      "signal": "CRUD 重复、关联较多、希望用对象而不是手拼 SQL",
+      "approach": "聚合用实体加 Repository，常规查询用派生方法，复杂查询单独写 @Query 或原生 SQL；结构变更走 Flyway，实体改动与迁移脚本同一次提交。"
     },
     {
       "title": "列表接口莫名执行了几十条 SQL",
-      "signal": "日志里同一请求出现大量 select，响应变慢",
-      "approach": "识别 N+1：用 fetch join / @EntityGraph / DTO 投影一次取回；分页时避免 join 集合"
+      "signal": "日志里同一请求出现大量 select，响应时间随数据量上涨",
+      "approach": "先数 SQL 再改：打开 SQL 日志定位循环访问的关联，改用 EntityGraph、fetch join 或投影，最后用测试断言查询条数为常数。"
+    },
+    {
+      "title": "报表导出需要复杂 SQL",
+      "signal": "多表聚合、窗口函数、动态条件，用 Criteria 写出来比 SQL 还长",
+      "approach": "别硬塞进 Repository 的派生查询；用 nativeQuery 或 JdbcTemplate/MyBatis 单独写，返回 record 投影，和领域模型彻底分开。"
+    },
+    {
+      "title": "并发编辑互相覆盖",
+      "signal": "两个人同时改同一条记录，后提交的把前一个的修改覆盖掉",
+      "approach": "加 @Version 乐观锁，冲突时返回 409 并提示重新加载；冲突极频繁的库存类场景再评估悲观锁或原子更新。"
+    },
+    {
+      "title": "从 Boot 2.x 升到 3.x",
+      "signal": "满屏 javax.persistence 找不到符号，或启动报方言、ID 生成策略异常",
+      "approach": "依赖升到 Hibernate 6，全局替换为 jakarta.persistence，重新确认 @GeneratedValue 策略，并用 Flyway 校验 DDL 与实体一致后跑集成测试。"
     }
   ]
 }

@@ -2,112 +2,210 @@
   "slug": "rabbitmq",
   "title": "RabbitMQ（主推消息队列）",
   "category": "messaging",
-  "summary": "AMQP：交换机、队列、路由键。本路线主推的消息中间件。",
+  "summary": "AMQP：交换机、队列、路由键。本路线主推的消息中间件，先把可靠投递与幂等跑通。",
   "difficulty": "intermediate",
   "estimatedHours": 8,
   "tags": [
     "rabbitmq",
     "amqp",
-    "async"
+    "message-queue",
+    "dead-letter",
+    "spring-amqp"
   ],
   "status": "published",
   "integrationStatus": "docs_only",
   "officialDocsUrl": "https://www.rabbitmq.com/docs",
   "prerequisites": [
-    "spring-boot-fundamentals"
+    "spring-boot-fundamentals",
+    "redis"
   ],
   "nextTopics": [
     "kafka"
   ],
   "relatedTopics": [
-    "kafka"
+    "kafka",
+    "redis",
+    "docker-basics"
   ],
-  "overviewMd": "拍板：教学主推 RabbitMQ。它的模型（exchange + queue + binding）适合把「发消息」和「谁来消费」解耦，国内中小业务与 Spring AMQP 资料多。\n\n一期不启动 Broker，避免本地依赖过重。",
+  "overviewMd": "RabbitMQ 是 AMQP 0-9-1 的 broker，核心价值是「路由」：生产者把消息发给 exchange，binding 按 routing key 把消息投进队列，消费者从队列取。vhost 做租户隔离，channel 是连接上的轻量会话且非线程安全，通常一个线程一个 channel、连接全局复用。\n\n可靠性由三段组成：publisher confirm 确认 broker 已接收，mandatory 加 return 发现路由不到队列的消息，durable 的 exchange/queue/message 才能扛重启；消费端手动 ack 才算处理完成。at-least-once 是常态，重复投递靠业务幂等消化，prefetch 限制未确认条数防止把消费者压垮。\n\n该用：任务异步化、延迟重试、按规则路由、中等量级削峰、最终一致。不该用：超大规模日志与流式重放、需要按 offset 回溯、十万级每秒以上的吞吐，这些是 Kafka 的场景；也不要把 MQ 当 RPC 同步等待，超时和链路追踪都会变难。\n\n版本注意：3.13 是 3.x 最后一个版本，仍支持经典队列镜像但已不推荐；4.0 起移除 classic mirrored queue，高可用统一用基于 Raft 的 quorum queue，要求 Erlang 26+，元数据存储开始从 Mnesia 迁往 Khepri。Spring Boot 3 使用 spring.rabbitmq.*，@RabbitListener 默认自动 ack，需要手动确认时必须显式配置。",
   "concepts": [
     {
-      "term": "Producer / Consumer",
-      "explanation": "生产者发到交换机，消费者从队列取。"
+      "term": "Producer、Exchange、Queue、Binding",
+      "explanation": "生产者只发到 exchange，binding 决定消息进入哪些队列，消费者只认队列；解耦来自这层间接，排查消息去向也要先看绑定。"
     },
     {
       "term": "Exchange 类型",
-      "explanation": "direct 精确路由键；topic 通配；fanout 广播。"
+      "explanation": "direct 按 routing key 精确匹配，topic 支持 * 与 #，fanout 广播，headers 按消息头匹配；按路由维度选型即可。"
     },
     {
-      "term": "ACK",
-      "explanation": "消费成功再确认。否则消息可重投，要注意幂等。"
+      "term": "vhost 与 Channel",
+      "explanation": "vhost 是带独立权限的逻辑隔离单元；channel 复用 TCP 连接但非线程安全，一个线程一个 channel，连接池化复用，避免频繁建连。"
+    },
+    {
+      "term": "Publisher Confirm 与 Return",
+      "explanation": "confirm 确认 broker 已接收，mandatory 加 Return 才能发现路由失败；两者都开并记录告警，才算生产端可靠，否则消息可能静默丢失。"
+    },
+    {
+      "term": "ACK 与 prefetch",
+      "explanation": "ack 在业务成功后 basicAck，失败 basicNack 且 requeue=false 进死信；prefetch 限制未确认条数，防止压垮消费者。"
     },
     {
       "term": "死信队列",
-      "explanation": "过期或拒绝的消息进入 DLX，便于排查毒消息。"
+      "explanation": "消息被拒绝且不重回、超过 TTL 或队列超长时进入 x-dead-letter-exchange；死信队列必须有人消费和告警，否则只是换个地方堆积。"
+    },
+    {
+      "term": "TTL 与延迟队列",
+      "explanation": "队列或消息级 TTL 配合 DLX 可实现延迟消费；RabbitMQ 只在队头判断过期，不保证准点，精确延迟用延迟插件或业务调度表。"
+    },
+    {
+      "term": "幂等与去重",
+      "explanation": "at-least-once 下重复不可避免：用业务唯一键加去重表或 Redis SETNX，或让操作天然幂等，例如按版本号更新、状态机只允许一次跃迁。"
+    },
+    {
+      "term": "流控与告警",
+      "explanation": "内存或磁盘到达高水位会触发 flow control，阻塞发布连接；发布端要有超时与降级，队列长度、unacked、磁盘空间必须监控告警。"
+    },
+    {
+      "term": "Quorum Queue",
+      "explanation": "quorum queue 基于 Raft，多数派确认才写入，支持自动选主；4.x 应统一用它，代价是更重的磁盘与网络开销。"
     }
   ],
   "pathSteps": [
     {
-      "title": "画一张图",
-      "goal": "topic 交换机如何把 content.updated 路由到缓存失效队列。",
+      "title": "先画路由图",
+      "goal": "画出 content.updated 从 exchange 经 binding 进入缓存失效、搜索同步两个队列的路径。",
       "hours": 1,
       "resources": [
-        "官方教程"
-      ]
-    },
-    {
-      "title": "Spring AMQP 示例",
-      "goal": "读懂 @RabbitListener 草案。",
-      "hours": 3,
-      "resources": [
+        "官方文档 · 路由",
         "本页示例"
       ]
     },
     {
-      "title": "幂等",
-      "goal": "同样的「内容更新」消息消费两次不能把数据打坏。",
-      "hours": 2,
+      "title": "起 broker 与管理台",
+      "goal": "用 Docker 跑 rabbitmq:3.13-management，访问 15672，创建 vhost、用户和权限。",
+      "hours": 1,
       "resources": [
-        "常见坑"
+        "docker-basics",
+        "官方文档 · 安装"
       ]
     },
     {
-      "title": "对照 Kafka",
-      "goal": "明确何时不该用 Rabbit。",
+      "title": "Spring AMQP 收发",
+      "goal": "RabbitTemplate 发 JSON 消息，@RabbitListener 消费，确认消息转换器与队列声明都生效。",
       "hours": 2,
       "resources": [
-        "kafka"
+        "spring-boot-fundamentals",
+        "本页示例"
+      ]
+    },
+    {
+      "title": "手动 ack 与 prefetch",
+      "goal": "切到 manual ack，在管理台观察 unacked；故意抛异常，确认消息进入死信而不是无限重回。",
+      "hours": 1,
+      "resources": [
+        "本页示例",
+        "官方文档 · 消费确认"
+      ]
+    },
+    {
+      "title": "死信与延迟重试",
+      "goal": "用 TTL 队列加 DLX 做三级延迟重试，超过次数后落到人工处理队列并告警。",
+      "hours": 1,
+      "resources": [
+        "官方文档 · 死信"
+      ]
+    },
+    {
+      "title": "消费幂等",
+      "goal": "用唯一键或 Redis SETNX 去重，重复投递同一条消息时业务结果不变。",
+      "hours": 1,
+      "resources": [
+        "redis",
+        "本页示例"
+      ]
+    },
+    {
+      "title": "压测与对照 Kafka",
+      "goal": "灌入一批消息观察队列长度、消费速率与内存水位，写下什么场景该换 Kafka。",
+      "hours": 1,
+      "resources": [
+        "kafka",
+        "actuator"
       ]
     }
   ],
   "samples": [
     {
-      "title": "监听草案",
+      "title": "手动 ACK + 幂等消费",
       "language": "java",
-      "description": "内容更新后删 Redis。当前未接入。",
-      "code": "@RabbitListener(queues = \"topic.cache.evict\")\npublic void onContentUpdated(ContentUpdatedEvent event) {\n    stringRedisTemplate.delete(\"topic:slug:\" + event.slug());\n}"
+      "description": "业务成功后 basicAck；失败 basicNack 且不重回，让死信队列接住。去重键需按消息唯一 id 设计。",
+      "code": "@Component\npublic class ContentEventListener {\n    private final StringRedisTemplate redis;\n    private final ProcessedMessageRepository processed;\n\n    public ContentEventListener(StringRedisTemplate redis, ProcessedMessageRepository processed) {\n        this.redis = redis;\n        this.processed = processed;\n    }\n\n    @RabbitListener(queues = \"topic.cache.evict\")\n    public void onContentUpdated(ContentUpdatedEvent event, Channel channel,\n                                 @Header(AmqpHeaders.DELIVERY_TAG) long tag) throws IOException {\n        try {\n            String id = event.messageId();\n            if (Boolean.TRUE.equals(redis.opsForValue()\n                    .setIfAbsent(\"mq:dedup:\" + id, \"1\", Duration.ofHours(24)))) {\n                redis.delete(\"topic:slug:\" + event.slug());\n                processed.save(new ProcessedMessage(id));\n            }\n            channel.basicAck(tag, false);\n        } catch (Exception e) {\n            channel.basicNack(tag, false, false);\n        }\n    }\n}"
+    },
+    {
+      "title": "生产端确认与路由失败回调",
+      "language": "java",
+      "description": "开启 confirm 与 mandatory，发送失败或路由不到队列时记录日志，而不是静默丢消息。",
+      "code": "@Service\npublic class ContentEventPublisher {\n    private static final Logger log = LoggerFactory.getLogger(ContentEventPublisher.class);\n    private final RabbitTemplate rabbitTemplate;\n\n    public ContentEventPublisher(RabbitTemplate rabbitTemplate) {\n        this.rabbitTemplate = rabbitTemplate;\n        this.rabbitTemplate.setMandatory(true);\n        this.rabbitTemplate.setConfirmCallback((correlation, ack, cause) -> {\n            if (!ack) {\n                String id = correlation == null ? \"-\" : correlation.getId();\n                log.warn(\"消息未被 broker 接收: {} {}\", id, cause);\n            }\n        });\n    }\n\n    public void publish(ContentUpdatedEvent event) {\n        CorrelationData correlation = new CorrelationData(event.messageId());\n        rabbitTemplate.convertAndSend(\"content.topic\", \"content.updated.\" + event.type(),\n                event, correlation);\n    }\n}"
+    },
+    {
+      "title": "可靠消费配置",
+      "language": "yaml",
+      "description": "手动 ack、固定 prefetch、关闭自动重试与 reject 重回；重试交给死信队列，避免本地忙等。",
+      "code": "spring:\n  rabbitmq:\n    host: localhost\n    port: 5672\n    username: learn\n    password: ${RABBITMQ_PASSWORD:learn}\n    virtual-host: /learn\n    publisher-confirm-type: correlated\n    publisher-returns: true\n    template:\n      mandatory: true\n    listener:\n      simple:\n        acknowledge-mode: manual\n        prefetch: 20\n        concurrency: 2\n        max-concurrency: 8\n        default-requeue-rejected: false\n        retry:\n          enabled: false"
     }
   ],
   "pitfalls": [
     {
-      "title": "忘记幂等",
-      "detail": "at-least-once 投递是常态。用业务主键去重。"
+      "title": "消费端吞异常导致消息丢失",
+      "detail": "现象是消息被确认但业务没执行。原因是 @RabbitListener 默认自动 ack，方法正常返回即确认，异常被 catch 后也返回。规避：异常向上抛，或改手动 ack 并显式 nack，同时配置死信。"
     },
     {
-      "title": "无限重试打满 CPU",
-      "detail": "毒消息要进死信，不要裸 while true。"
+      "title": "失败消息无限重回",
+      "detail": "现象是同一消息反复投递、CPU 打满、日志刷屏。原因是 nack 时 requeue=true，或抛异常后默认重回。规避：限制重试次数，失败进死信，用 TTL 队列做延迟重试。"
     },
     {
-      "title": "用 MQ 当 RPC 同步等待",
-      "detail": "会把超时和运维复杂度推高。同步查询走 HTTP/DB。"
+      "title": "只做消费幂等，不做生产确认",
+      "detail": "现象是 broker 重启或网络抖动后消息凭空消失。原因是没开 publisher confirm 与 mandatory，发送后也不检查结果。规避：confirm 加 return 回调，本地消息表或事务消息兜底。"
+    },
+    {
+      "title": "消息体过大或携带全量数据",
+      "detail": "现象是内存上涨、网络抖动、消费超时。原因是一次性把大对象或全表结果塞进消息。规避：消息只带业务 id 与版本号，消费端回查，大文件走对象存储。"
+    },
+    {
+      "title": "队列无人消费且没有 TTL",
+      "detail": "现象是磁盘告警甚至 broker 阻塞。原因是消费者下线或绑定写错，没人发现。规避：队列长度与 unacked 告警，设置消息 TTL 和最大长度，死信兜底。"
+    },
+    {
+      "title": "把 MQ 当 RPC 用",
+      "detail": "现象是接口超时、链路难追踪、错误码丢失。原因是发送后同步等待回复队列。规避：同步查询走 HTTP 或数据库，异步结果用事件加回调，不要伪造 RPC。"
     }
   ],
   "repoPointers": [],
   "scenarios": [
     {
-      "title": "异步任务需要可靠重试",
-      "signal": "发邮件、生成报表、调用第三方失败后要延迟重试，不能丢",
-      "approach": "手动 ack + 持久化队列；失败进死信队列，用 TTL 控制重试间隔，超过次数进人工处理队列"
+      "title": "下单后的非核心步骤拖慢主流程",
+      "signal": "发短信、加积分、生成报表等步骤失败会回滚订单，接口响应越来越慢",
+      "approach": "主流程只落库并发布 OrderCreated 事件，各下游独立队列消费；失败进死信重试，消费端按订单号幂等"
     },
     {
-      "title": "消息要按不同规则路由",
-      "signal": "同一事件要按地区、类型分发给不同消费者",
-      "approach": "用 topic/fanout exchange 做路由，队列绑定不同 routing key；消费端保持幂等"
+      "title": "瞬时流量超过数据库承受能力",
+      "signal": "大促或批量导入时写入 QPS 陡增，数据库连接池打满",
+      "approach": "请求先入队列缓冲，消费者用 prefetch 控制速率、按数据库能力横向扩容；队列长度作为削峰指标告警"
+    },
+    {
+      "title": "未支付订单定时关闭",
+      "signal": "订单创建后 30 分钟未支付要自动取消并释放库存",
+      "approach": "TTL 队列加 DLX 做延迟消息，或使用 delayed-message-exchange 插件；消费时先查订单状态，保证重复消息不误关"
+    },
+    {
+      "title": "同一事件要通知多个系统",
+      "signal": "内容更新后要同时失效缓存、同步搜索索引、发订阅通知",
+      "approach": "topic 或 fanout exchange 绑定多个队列，各系统独立消费与重试；不要让一个消费者串行做完所有事"
+    },
+    {
+      "title": "第三方回调失败需要退避重试",
+      "signal": "调用外部接口超时或被限流，立即重试只会加重故障",
+      "approach": "失败消息进入多级 TTL 重试队列，间隔按 1 分钟、5 分钟、30 分钟递增，超过最大次数转人工队列并告警"
     }
   ]
 }

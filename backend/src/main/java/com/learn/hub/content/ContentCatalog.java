@@ -29,6 +29,10 @@ public final class ContentCatalog {
         return Optional.ofNullable(topics.get(slug));
     }
 
+    public Collection<ContentModels.TrackDocument> tracks() {
+        return tracks.values();
+    }
+
     public Optional<ContentModels.TrackDocument> track(String slug) {
         return Optional.ofNullable(tracks.get(slug));
     }

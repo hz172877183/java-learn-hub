@@ -8,7 +8,10 @@
   "tags": [
     "rest",
     "validation",
-    "exception"
+    "exception",
+    "spring-mvc",
+    "http",
+    "problem-detail"
   ],
   "status": "published",
   "integrationStatus": "runtime",
@@ -17,103 +20,206 @@
     "spring-boot-fundamentals"
   ],
   "nextTopics": [
-    "spring-data-jpa"
+    "spring-data-jpa",
+    "http-error-contract"
   ],
   "relatedTopics": [
-    "spring-security-jwt"
+    "spring-security-jwt",
+    "cors-practice"
   ],
-  "overviewMd": "REST 在本项目里就是资源 + HTTP 动词：学习项是 `/api/v1/topics`，详情是 `/api/v1/topics/{slug}`。\n\n**该用时：** 前后端分离、开放给 Vue 调用的 JSON API。\n\n**注意：** 控制器应保持薄，查询和校验规则放到服务或内容仓储；错误要有 `code`，不要把堆栈扔给浏览器。",
+  "overviewMd": "Spring MVC 的职责很具体：把 HTTP 请求映射到 Java 方法，把参数解析成对象，再把返回值写成 JSON。REST 不是某个注解，而是在这套机制上遵守「资源 + 动词 + 状态码」的约定。理解这一点，就不会把 `@RestController` 当成 REST 本身。\n\n核心心智模型是一条链：Filter → DispatcherServlet → HandlerMapping 找到方法 → HandlerMethodArgumentResolver 解析参数 → 执行方法 → HttpMessageConverter 写响应 → 出错时 HandlerExceptionResolver 兜底。参数收不到、返回 406、异常没被捕获，几乎都能在这条链上找到对应环节，而不是靠猜。\n\n该用时：前后端分离的 JSON API、需要参数校验与统一错误体的 CRUD、以及给 Vue 前端提供稳定契约的只读接口。不该用时：超大文件流式传输、SSE 或 WebSocket 长连接、纯网关转发——这些用 WebFlux 或专门组件更合适。控制器保持薄，查询与规则放到 service，才不会被业务细节淹没。\n\n版本注意点：Boot 3 使用 Spring Framework 6，Servlet API 是 `jakarta.servlet`，校验是 `jakarta.validation`，`javax.*` 一律不再可用。Spring 6 支持 RFC 9457 的 ProblemDetail，但本仓库仍返回自定义的 `{code, message, traceId}`，以对齐前端错误契约；Spring 6.1 起未知路径抛 `NoResourceFoundException`，需要显式处理成 404 而不是落进 500。\n\n放在本仓库里看：`/api/v1/topics` 提供列表与详情，`ApiExceptionHandler` 统一错误映射，`WebConfig` 负责 CORS。建议先按示例调一遍接口，再对照 `TopicController` 看每个注解的落点。",
   "concepts": [
     {
       "term": "@RestController",
-      "explanation": "等价于 @Controller + @ResponseBody，方法返回值直接序列化为 JSON。"
+      "explanation": "@Controller 与 @ResponseBody 的组合，方法返回值交给 HttpMessageConverter 序列化，不再经过视图解析器。"
     },
     {
-      "term": "路径变量与查询参数",
-      "explanation": "@PathVariable 绑定 URL 片段；@RequestParam 绑定 ?q=&page=。"
+      "term": "类级路径前缀",
+      "explanation": "@RequestMapping(\"/api/v1\") 写在类上，方法只写 /topics；@GetMapping 等组合注解是它的收窄写法，避免路径重复。"
+    },
+    {
+      "term": "@PathVariable 与 @RequestParam",
+      "explanation": "前者绑定 URL 模板里的片段，后者绑定查询串；搞混时通常不报错，只是拿到 null，排查成本很高。"
+    },
+    {
+      "term": "HTTP 语义与状态码",
+      "explanation": "GET 只读可缓存，PUT 幂等全量替换，POST 非幂等创建，PATCH 局部更新，DELETE 幂等；动词决定成功码是 200、201 还是 204。"
+    },
+    {
+      "term": "DTO 与 record",
+      "explanation": "请求和响应各用独立 record，不直接暴露实体；字段名就是契约，改实体不应牵动前端，Jackson 按参数名绑定。"
     },
     {
       "term": "Bean Validation",
-      "explanation": "在 DTO 上用 @NotBlank 等，方法参数加 @Valid，失败由异常解析器转 400。"
+      "explanation": "DTO 上加 @NotBlank、@Size，参数上加 @Valid 才触发；校验失败由 advice 转成 400 并指明字段。"
     },
     {
-      "term": "@ControllerAdvice",
-      "explanation": "集中把业务异常、校验异常映射成统一错误体。"
+      "term": "全局异常处理",
+      "explanation": "@RestControllerAdvice 加 @ExceptionHandler 把业务异常映射成固定状态码与错误体；兜底处理器只记日志，不把堆栈给调用方。"
+    },
+    {
+      "term": "ResponseEntity",
+      "explanation": "需要精确控制状态码或响应头时用它，比如创建成功返回 201 加 Location；普通 200 直接返回 DTO 更清爽。"
+    },
+    {
+      "term": "内容协商",
+      "explanation": "produces 与 consumes 限定媒体类型；Accept 不匹配得到 406，Content-Type 不对得到 415，这两个码常被误判为服务端 bug。"
+    },
+    {
+      "term": "CORS 与预检",
+      "explanation": "浏览器跨域会先发 OPTIONS 预检；服务端必须允许来源、方法和自定义头，否则出现 Postman 正常而页面报错的经典现象。"
     }
   ],
   "pathSteps": [
     {
-      "title": "读本仓库接口",
-      "goal": "对照 PRD 第 7 节，用浏览器或 curl 调列表与详情。",
+      "title": "调通只读接口",
+      "goal": "用 curl 调列表、详情和分类统计，记录每个请求的状态码与响应字段，对照 PRD 的契约。",
       "hours": 1,
       "resources": [
         "本页示例",
-        "PRD"
+        "backend/src/main/java/com/learn/hub/api/TopicController.java"
       ]
     },
     {
-      "title": "补一个查询条件",
-      "goal": "尝试增加按 tag 过滤（先本地改，再还原）。",
-      "hours": 2,
-      "resources": [
-        "TopicController"
-      ]
-    },
-    {
-      "title": "统一错误",
-      "goal": "访问不存在的 slug，确认 404 JSON 含 code 与 message。",
+      "title": "设计资源路径与状态码",
+      "goal": "为「创建、更新、删除学习项」写出路径、动词和成功/失败状态码，先只写契约不写实现。",
       "hours": 1,
       "resources": [
-        "ApiExceptionHandler"
+        "RFC 9110 HTTP 语义",
+        "backend/src/main/java/com/learn/hub/api/TopicController.java"
       ]
     },
     {
-      "title": "校验",
-      "goal": "了解 @Valid 在写接口（二期管理端）时如何接到 400。",
-      "hours": 4,
+      "title": "加筛选与分页",
+      "goal": "给列表加一个可选筛选参数，分页 size 设上限，响应同时返回 items 与 total。",
+      "hours": 1.5,
       "resources": [
-        "Jakarta Validation 文档"
+        "backend/src/main/java/com/learn/hub/topic/TopicService.java",
+        "Spring MVC @RequestParam 文档"
+      ]
+    },
+    {
+      "title": "统一错误契约",
+      "goal": "未知 slug 返回 404 且带 code/message/traceId，未知路径也不落进 500 兜底。",
+      "hours": 1.5,
+      "resources": [
+        "backend/src/main/java/com/learn/hub/api/ApiExceptionHandler.java",
+        "http-error-contract"
+      ]
+    },
+    {
+      "title": "参数校验接到 400",
+      "goal": "为写接口的 DTO 加约束，非法请求得到 400，且错误信息能指明是哪个字段。",
+      "hours": 1.5,
+      "resources": [
+        "Jakarta Validation 文档",
+        "本页示例"
+      ]
+    },
+    {
+      "title": "处理跨域与联调",
+      "goal": "用 Vite 前端调本地 API，区分「代理解决」与「服务端 CORS 解决」两种做法及各自适用场景。",
+      "hours": 1,
+      "resources": [
+        "cors-practice",
+        "backend/src/main/java/com/learn/hub/config/WebConfig.java"
+      ]
+    },
+    {
+      "title": "用测试固定契约",
+      "goal": "用 MockMvc 断言状态码与错误体字段，让后续重构不会悄悄改变契约。",
+      "hours": 0.5,
+      "resources": [
+        "junit-mockito",
+        "integration-testing"
       ]
     }
   ],
   "samples": [
     {
-      "title": "列表查询参数",
+      "title": "带分页上限的列表与详情",
       "language": "java",
-      "description": "只读列表：筛选条件都是可选查询参数，未发布内容在仓储层过滤。",
-      "code": "@GetMapping(\"/api/v1/topics\")\npublic TopicListResponse list(\n        @RequestParam(required = false) String category,\n        @RequestParam(required = false) String difficulty,\n        @RequestParam(required = false) String integrationStatus,\n        @RequestParam(required = false) String q,\n        @RequestParam(defaultValue = \"0\") int page,\n        @RequestParam(defaultValue = \"20\") int size) {\n    return topicService.list(category, difficulty, integrationStatus, q, page, size);\n}"
+      "description": "在真实控制器上补两处：分页 size 用约束挡住过大值，方法级校验由类上的 @Validated 触发。",
+      "code": "package com.learn.hub.api;\n\nimport com.learn.hub.topic.TopicDtos;\nimport com.learn.hub.topic.TopicService;\nimport jakarta.validation.constraints.Max;\nimport jakarta.validation.constraints.Min;\nimport org.springframework.validation.annotation.Validated;\nimport org.springframework.web.bind.annotation.GetMapping;\nimport org.springframework.web.bind.annotation.PathVariable;\nimport org.springframework.web.bind.annotation.RequestMapping;\nimport org.springframework.web.bind.annotation.RequestParam;\nimport org.springframework.web.bind.annotation.RestController;\n\n@Validated\n@RestController\n@RequestMapping(\"/api/v1\")\npublic class TopicController {\n\n    private final TopicService topicService;\n\n    public TopicController(TopicService topicService) {\n        this.topicService = topicService;\n    }\n\n    @GetMapping(\"/topics\")\n    public TopicDtos.TopicListResponse list(\n            @RequestParam(required = false) String category,\n            @RequestParam(required = false) String q,\n            @RequestParam(defaultValue = \"0\") @Min(0) int page,\n            @RequestParam(defaultValue = \"20\") @Min(1) @Max(100) int size) {\n        return topicService.list(category, null, null, q, page, size);\n    }\n\n    @GetMapping(\"/topics/{slug}\")\n    public TopicDtos.TopicDetail detail(@PathVariable String slug) {\n        return topicService.detail(slug);\n    }\n}"
+    },
+    {
+      "title": "统一错误处理器",
+      "language": "java",
+      "description": "三类异常三种状态码：业务不存在 404、校验失败 400、兜底 500；对外只给 traceId，堆栈进日志。",
+      "code": "package com.learn.hub.api;\n\nimport com.learn.hub.topic.NotFoundException;\nimport jakarta.servlet.http.HttpServletRequest;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.springframework.http.HttpStatus;\nimport org.springframework.http.ResponseEntity;\nimport org.springframework.web.bind.MethodArgumentNotValidException;\nimport org.springframework.web.bind.annotation.ExceptionHandler;\nimport org.springframework.web.bind.annotation.RestControllerAdvice;\n\nimport java.util.stream.Collectors;\n\n@RestControllerAdvice\npublic class ApiExceptionHandler {\n\n    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);\n\n    public record ApiError(String code, String message, String traceId) {\n    }\n\n    @ExceptionHandler(NotFoundException.class)\n    public ResponseEntity<ApiError> notFound(NotFoundException ex) {\n        return ResponseEntity.status(HttpStatus.NOT_FOUND)\n                .body(new ApiError(ex.getCode(), ex.getMessage(), \"req-1\"));\n    }\n\n    @ExceptionHandler(MethodArgumentNotValidException.class)\n    public ResponseEntity<ApiError> invalid(MethodArgumentNotValidException ex) {\n        String detail = ex.getBindingResult().getFieldErrors().stream()\n                .map(e -> e.getField() + \": \" + e.getDefaultMessage())\n                .collect(Collectors.joining(\"; \"));\n        return ResponseEntity.badRequest().body(new ApiError(\"VALIDATION_FAILED\", detail, \"req-1\"));\n    }\n\n    @ExceptionHandler(Exception.class)\n    public ResponseEntity<ApiError> fallback(Exception ex, HttpServletRequest request) {\n        log.error(\"未处理异常: {} {}\", request.getMethod(), request.getRequestURI(), ex);\n        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)\n                .body(new ApiError(\"INTERNAL_ERROR\", \"服务暂时不可用\", \"req-1\"));\n    }\n}"
+    },
+    {
+      "title": "错误与序列化的相关配置",
+      "language": "yaml",
+      "description": "默认错误页不泄露细节，未知字段直接拒绝；problemdetails 打开后可对比 Spring 6 自带的 RFC 9457 结构。",
+      "code": "server:\n  port: 8080\n  error:\n    include-message: never\n    include-stacktrace: never\n\nspring:\n  mvc:\n    problemdetails:\n      enabled: true\n  jackson:\n    default-property-inclusion: non_null\n    deserialization:\n      fail-on-unknown-properties: true\n\nlearn-hub:\n  cors-origins: http://localhost:5173,http://127.0.0.1:5173"
     }
   ],
   "pitfalls": [
     {
-      "title": "用 Map 当返回值",
-      "detail": "前端会被迫猜字段。用 record/DTO，字段名与 PRD 对齐。"
+      "title": "拿 Map 或实体当返回值",
+      "detail": "现象：前端字段靠猜，改一次实体就悄悄破坏契约。原因：序列化直接绑定内部模型。规避：请求、响应各用独立 record，只暴露契约需要的字段，废弃字段保留过渡期。"
     },
     {
-      "title": "404 返回 200 + 空对象",
-      "detail": "详情找不到应 404，方便前端展示专门页面。"
+      "title": "查不到就返回 200 加空对象",
+      "detail": "现象：详情页显示空白，而不是「未找到」。原因：用 null 或空对象代替异常。规避：抛 NotFoundException 由 advice 转 404，前端按状态码分支，而不是判断字段是否为空。"
     },
     {
-      "title": "把业务异常直接 toString",
-      "detail": "用户看到的是 message，排障靠 traceId 查日志，不要返回堆栈。"
+      "title": "过滤器里的异常没被 advice 捕获",
+      "detail": "现象：鉴权或编码失败时返回 HTML 500，前端 JSON 解析报错。原因：异常发生在 DispatcherServlet 之前，@ControllerAdvice 管不到。规避：Filter 内自行写 JSON 响应，或交给 HandlerExceptionResolver；补一条经过 Filter 的集成测试。"
+    },
+    {
+      "title": "校验注解不生效",
+      "detail": "现象：传空 title 依旧 200，脏数据入库。原因：忘了 @Valid、DTO 上没加约束，或注解来自 javax.validation。规避：统一 jakarta.validation，在 @RequestBody 前加 @Valid，并用一条 400 用例锁住行为。"
+    },
+    {
+      "title": "CORS 用通配来源又带凭证",
+      "detail": "现象：浏览器报 credentials flag is true 但 Allow-Origin 是 *。原因：规范禁止通配来源与凭证同时使用。规避：allowedOriginPatterns 明确列出来源并开启凭证，本地开发优先用 Vite 代理绕开跨域。"
+    },
+    {
+      "title": "用 GET 做写操作",
+      "detail": "现象：刷新页面重复创建，CDN 或浏览器缓存了本不该缓存的响应。原因：违反 HTTP 语义，中间层会按 GET 规则处理。规避：写操作走 POST/PUT/PATCH/DELETE，创建返回 201 加 Location，删除返回 204 且无 body。"
     }
   ],
   "repoPointers": [
     {
       "label": "学习项 API",
       "path": "backend/src/main/java/com/learn/hub/api/TopicController.java"
+    },
+    {
+      "label": "统一错误处理",
+      "path": "backend/src/main/java/com/learn/hub/api/ApiExceptionHandler.java"
+    },
+    {
+      "label": "CORS 与 Web 配置",
+      "path": "backend/src/main/java/com/learn/hub/config/WebConfig.java"
     }
   ],
   "scenarios": [
     {
-      "title": "对外提供一组 HTTP API",
-      "signal": "需要统一的返回结构、错误码和参数校验",
-      "approach": "用 @RestController 定义资源路径，Bean Validation 校验入参，@RestControllerAdvice 统一转错误体"
+      "title": "对外提供一组 JSON API",
+      "signal": "前端要求字段和错误码稳定，改动接口时怕踩到旧页面",
+      "approach": "资源化路径加版本前缀，请求响应都用 record，校验与异常集中在 advice；把状态码与错误字段写进 MockMvc 测试，契约变更先改测试。"
     },
     {
       "title": "前端联调被跨域拦住",
-      "signal": "浏览器报 CORS 错误，但 Postman 正常",
-      "approach": "在服务端按来源配置 CORS（允许的方法和头）；本地开发用 Vite 代理避开跨域，而不是放开 *"
+      "signal": "浏览器控制台报 CORS 错误，但 curl 和 Postman 一切正常",
+      "approach": "先看是否 OPTIONS 预检失败；服务端按来源白名单配置 CORS 并允许所需请求头，本地开发优先用 Vite 代理把请求变成同源。"
+    },
+    {
+      "title": "线上偶发 500 但拿不到信息",
+      "signal": "前端只看到「服务暂时不可用」，用户报障说不清是哪个请求",
+      "approach": "兜底处理器记录完整堆栈并把 traceId 返回给前端，日志按 traceId 串联；对外文案固定，内部细节只留在日志。"
+    },
+    {
+      "title": "写接口出现脏数据",
+      "signal": "库里出现空标题、超长 slug 或非法枚举值",
+      "approach": "DTO 上补 jakarta 约束并用枚举类型替代 String，@Valid 触发 400；数据库侧再加非空和长度约束兜底，防止绕过 API 的写入。"
+    },
+    {
+      "title": "接口要演进但旧前端还在用",
+      "signal": "字段要重命名或删除，前端发版节奏跟不上后端",
+      "approach": "新增字段保持向后兼容并给弃用标注，破坏性变更开 /v2；用访问日志确认旧字段无人使用后再删。"
     }
   ]
 }

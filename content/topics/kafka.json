@@ -2,12 +2,15 @@
   "slug": "kafka",
   "title": "Kafka（对照 RabbitMQ）",
   "category": "messaging",
-  "summary": "日志型流：分区、位移、高吞吐。本路线作对照，一期仅文档。",
+  "summary": "日志型流：分区、位移、高吞吐。本路线作对照，重点是建立「何时换 Kafka」的判断。",
   "difficulty": "practical",
   "estimatedHours": 8,
   "tags": [
     "kafka",
-    "streaming"
+    "streaming",
+    "event-driven",
+    "kraft",
+    "exactly-once"
   ],
   "status": "published",
   "integrationStatus": "docs_only",
@@ -17,82 +20,187 @@
   ],
   "nextTopics": [],
   "relatedTopics": [
-    "rabbitmq"
+    "rabbitmq",
+    "docker-basics",
+    "spring-cloud-overview"
   ],
-  "overviewMd": "Kafka 把消息当成可重放的日志。多个消费者组各自维护位移，适合埋点、管道、事件溯源。教学主推 RabbitMQ 后，用本页建立「何时换 Kafka」的判断，而不是两个 Broker 都在本机跑起来。",
+  "overviewMd": "Kafka 是分布式提交日志，不是传统队列：消息按 topic 追加到 partition，保留期内可被多个 consumer group 用各自的 offset 重复读。吞吐来自顺序写、批量、零拷贝与分区并行；代价是运维与语义复杂度更高，团队要先想清楚是否真的需要。\n\n核心模型：partition 是并行与有序的单位，副本跨 broker，ISR 是跟得上的副本集合，acks=all 加 min.insync.replicas 决定耐久性；consumer group 内一个 partition 只分给一个消费者，成员变化会触发 rebalance。\n\n该用：事件管道、埋点日志、CDC、削峰、需要重放与多订阅者的场景。不该用：低延迟点对点任务、复杂路由与优先级、原生延迟消息（Kafka 没有）、消息量很小的系统；没有运维能力时优先 RabbitMQ。\n\n版本注意：3.x 逐步把 KRaft 做成生产可用，3.9 是最后一个支持 ZooKeeper 的版本；4.0 完全移除 ZooKeeper，只支持 KRaft，要求 Java 17+，并移除 2.1 以前的旧客户端协议，还引入 share group 预览。Spring Boot 3 用 spring.kafka.*，KafkaTemplate 默认异步发送，要处理返回的 CompletableFuture。",
   "concepts": [
     {
       "term": "Topic 与 Partition",
-      "explanation": "分区是并行与顺序的单位。同一 key 进同一分区则有序。"
+      "explanation": "topic 是逻辑分类，partition 是追加日志，也是并行度与顺序性的单位；同一 key 按 hash 进同一分区才有序，增加分区会改变 key 落点。"
     },
     {
-      "term": "Consumer Group",
-      "explanation": "组内分摊分区；多组可重复消费同一日志。"
+      "term": "副本与 Leader/Follower",
+      "explanation": "每个 partition 有一个 leader 和若干 follower，读写都走 leader；副本跨 broker，复制因子 3 才能容忍一台机器故障。"
     },
     {
-      "term": "Offset",
-      "explanation": "消费进度。可重置以重放，这是和 Rabbit 队列「取走即消失」的最大不同。"
+      "term": "ISR 与 acks",
+      "explanation": "ISR 是与 leader 同步的副本集合；acks=all 加 min.insync.replicas=2 才算写入成功，可避免选到落后副本丢数据。"
+    },
+    {
+      "term": "Offset 与消费进度",
+      "explanation": "offset 是分区内位置，消费进度提交到 __consumer_offsets；可重置到 earliest 重放，这是日志模型与队列模型的核心差异。"
+    },
+    {
+      "term": "Consumer Group 与 Rebalance",
+      "explanation": "组内分区互斥分配，成员增减会触发 rebalance；cooperative-sticky 只迁移必要分区，减少停顿，但心跳与最大拉取间隔仍要调好。"
+    },
+    {
+      "term": "幂等生产者",
+      "explanation": "开启幂等后 broker 用 PID 加序列号去重，解决重试导致的重复写入；它只保证单分区单会话内不重，跨分区仍需事务或业务幂等。"
+    },
+    {
+      "term": "事务与 exactly-once",
+      "explanation": "事务把 consume-transform-produce 做成原子，下游 read_committed 才看不到未提交消息；代价是延迟上升、吞吐下降。"
+    },
+    {
+      "term": "顺序性",
+      "explanation": "顺序只到分区级：同 key 进同分区，生产端把 max.in.flight 控制在 5 以内，消费端单线程处理，才能端到端有序。"
+    },
+    {
+      "term": "日志保留与压缩",
+      "explanation": "retention.ms/bytes 控制段文件删除；compact 按 key 保留最新值，适合 changelog。策略选错会重放窗口不足或磁盘打满。"
+    },
+    {
+      "term": "KRaft 与控制器",
+      "explanation": "KRaft 用 controller quorum 替代 ZooKeeper，元数据以日志复制，部署更简单；4.0 起只支持 KRaft 模式。"
     }
   ],
   "pathSteps": [
     {
-      "title": "对比表",
-      "goal": "从模型、顺序、重放、运维成本四列对比 Rabbit。",
-      "hours": 2,
-      "resources": [
-        "rabbitmq"
-      ]
-    },
-    {
-      "title": "看一条消息生命周期",
-      "goal": "produce → log → consume → commit offset。",
-      "hours": 3,
-      "resources": [
-        "官方介绍"
-      ]
-    },
-    {
-      "title": "决定不接入一期",
-      "goal": "写清楚本学习门户没有事件管道需求。",
+      "title": "先做对比表",
+      "goal": "从模型、顺序、重放、路由、运维成本五行对比 RabbitMQ，写下本项目该选谁。",
       "hours": 1,
       "resources": [
-        "PRD"
+        "rabbitmq",
+        "官方文档 · 设计"
+      ]
+    },
+    {
+      "title": "起 KRaft 单节点",
+      "goal": "用 Docker 跑 apache/kafka，单节点同时做 controller 与 broker，能创建 topic 并收发消息。",
+      "hours": 1,
+      "resources": [
+        "docker-basics",
+        "官方文档 · 快速开始"
+      ]
+    },
+    {
+      "title": "命令行生产消费",
+      "goal": "建 3 分区 topic，用 console producer/consumer 发消息，观察 key 落分区与 offset 变化。",
+      "hours": 1,
+      "resources": [
+        "官方文档 · 快速开始"
+      ]
+    },
+    {
+      "title": "Spring Kafka 接入",
+      "goal": "配置 KafkaTemplate 与 @KafkaListener，JSON 序列化、ack 模式、groupId 都能说清。",
+      "hours": 1,
+      "resources": [
+        "spring-boot-fundamentals",
+        "本页示例"
+      ]
+    },
+    {
+      "title": "顺序与分区实验",
+      "goal": "同 key 与不同 key 各发一批消息，验证同分区有序、跨分区无序。",
+      "hours": 1,
+      "resources": [
+        "本页示例"
+      ]
+    },
+    {
+      "title": "重复与事务",
+      "goal": "模拟发送重试并开启幂等；再用事务与 read_committed 验证未提交消息不可见。",
+      "hours": 2,
+      "resources": [
+        "官方文档 · 事务"
+      ]
+    },
+    {
+      "title": "重平衡与积压",
+      "goal": "起两个消费者再杀掉一个，观察 rebalance；用 consumer group lag 判断积压与扩容。",
+      "hours": 1,
+      "resources": [
+        "actuator",
+        "官方文档 · 运维"
       ]
     }
   ],
   "samples": [
     {
-      "title": "生产者草案",
+      "title": "按业务键发送",
       "language": "java",
-      "description": "对照用，不进入运行时依赖。",
-      "code": "kafkaTemplate.send(\"content-events\", event.slug(), event);"
+      "description": "用 slug 做 key 保证同一学习项进同一分区；异步回调记录分区与 offset，失败要告警而不是只打日志。",
+      "code": "@Service\npublic class ContentEventProducer {\n    private static final Logger log = LoggerFactory.getLogger(ContentEventProducer.class);\n    private final KafkaTemplate<String, ContentUpdatedEvent> kafkaTemplate;\n\n    public ContentEventProducer(KafkaTemplate<String, ContentUpdatedEvent> kafkaTemplate) {\n        this.kafkaTemplate = kafkaTemplate;\n    }\n\n    public void publish(ContentUpdatedEvent event) {\n        ProducerRecord<String, ContentUpdatedEvent> record =\n                new ProducerRecord<>(\"content-events\", event.slug(), event);\n        kafkaTemplate.send(record).whenComplete((result, ex) -> {\n            if (ex != null) {\n                log.error(\"发送失败 slug={}\", event.slug(), ex);\n                return;\n            }\n            var meta = result.getRecordMetadata();\n            log.info(\"写入 partition={} offset={}\", meta.partition(), meta.offset());\n        });\n    }\n}"
+    },
+    {
+      "title": "手动提交与消费幂等",
+      "language": "java",
+      "description": "关闭自动提交，业务处理完再 acknowledge；按事件 id 去重，抵消至少一次投递带来的重复。",
+      "code": "@Component\npublic class ContentEventConsumer {\n    private final ProcessedEventRepository processed;\n\n    public ContentEventConsumer(ProcessedEventRepository processed) {\n        this.processed = processed;\n    }\n\n    @KafkaListener(topics = \"content-events\", groupId = \"learn-hub-search\")\n    public void onMessage(ConsumerRecord<String, ContentUpdatedEvent> record, Acknowledgment ack) {\n        String eventId = record.value().eventId();\n        if (processed.existsByEventId(eventId)) {\n            ack.acknowledge();\n            return;\n        }\n        processed.save(eventId);\n        ack.acknowledge();\n    }\n}"
+    },
+    {
+      "title": "生产与消费配置",
+      "language": "yaml",
+      "description": "acks=all 加幂等保证不丢不重，消费端关闭自动提交并读已提交消息；concurrency 与分区数配合。",
+      "code": "spring:\n  kafka:\n    bootstrap-servers: localhost:9092\n    producer:\n      key-serializer: org.apache.kafka.common.serialization.StringSerializer\n      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer\n      acks: all\n      enable-idempotence: true\n      properties:\n        max.in.flight.requests.per.connection: 5\n      retries: 10\n    consumer:\n      group-id: learn-hub-search\n      auto-offset-reset: earliest\n      enable-auto-commit: false\n      isolation-level: read_committed\n      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer\n      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer\n      properties:\n        spring.json.trusted.packages: \"com.learn.hub.*\"\n    listener:\n      ack-mode: manual_immediate\n      concurrency: 3"
     }
   ],
   "pitfalls": [
     {
-      "title": "分区数随意",
-      "detail": "分区只能加不能廉价地减。先按吞吐估算。"
+      "title": "分区数拍脑袋",
+      "detail": "现象是吞吐上不去，或分区过多导致 rebalance 频繁、文件句柄暴涨。原因是分区只增不减，且它就是并行上限。规避：按峰值吞吐除以单分区能力估算，预留 2 到 3 倍，先定 key 再定分区。"
     },
     {
-      "title": "和 Rabbit 当同义词",
-      "detail": "队列语义 vs 日志语义。选错会在重放和 fan-out 上痛苦。"
+      "title": "acks=1 还允许落后副本选主",
+      "detail": "现象是 broker 宕机后消息丢失。原因是 leader 写入即返回，且 unclean.leader.election 允许落后副本当选。规避：acks=all、min.insync.replicas=2、关闭 unclean 选主。"
     },
     {
-      "title": "本机同时跑两套 Broker 学概念",
-      "detail": "记忆会被运维噪音淹没。先把 Rabbit 跑通再碰 Kafka。"
+      "title": "消费太慢被踢出组",
+      "detail": "现象是同一批消息反复消费、lag 不降。原因是单批处理时间超过 max.poll.interval.ms，消费者被判定失联。规避：缩小 max.poll.records，处理异步化并手动提交，或调大超时。"
+    },
+    {
+      "title": "自动提交造成丢失或重复",
+      "detail": "现象是消息没处理完 offset 已提交，或重启后重复消费。原因是 enable.auto.commit=true 按时间提交。规避：关闭自动提交，业务成功后提交，消费逻辑保持幂等。"
+    },
+    {
+      "title": "key 为 null 破坏顺序",
+      "detail": "现象是同一订单的创建、支付事件乱序。原因是未指定 key，消息轮询写入各分区。规避：用业务主键做 key，消费端按分区单线程处理。"
+    },
+    {
+      "title": "盲目追求 exactly-once",
+      "detail": "现象是吞吐骤降、事务超时，外部系统仍然重复。原因是跨数据库、HTTP 的副作用无法被 Kafka 事务覆盖。规避：只在 Kafka 内部读写用事务，外部副作用靠幂等加去重表。"
     }
   ],
   "repoPointers": [],
   "scenarios": [
     {
-      "title": "下单后要通知库存、积分、消息中心",
-      "signal": "同步调用链越来越长，任一环节慢都拖垮主流程",
-      "approach": "把“下单成功”发布成事件，下游各自订阅；主流程只保证事件发出，失败靠重试和处理幂等兜底"
+      "title": "大促瞬时写入超过数据库能力",
+      "signal": "下单或导入的瞬时 QPS 是数据库上限的数倍，连接池打满、响应变慢",
+      "approach": "请求先写 Kafka 缓冲，消费者按数据库能力匀速拉取；监控 lag 动态扩容消费者，分区数决定并行上限"
     },
     {
-      "title": "流量高峰要削峰",
-      "signal": "大促或批量导入时瞬时写入量远超数据库承受能力",
-      "approach": "先写 Kafka 缓冲，消费者按数据库能力匀速消费；用分区数控制并行度，按业务 key 保证顺序"
+      "title": "主流程被下游同步调用拖垮",
+      "signal": "下单后要通知库存、积分、消息中心，任一环节超时都拖慢主流程",
+      "approach": "发布 OrderCreated 事件，各下游用独立 consumer group 订阅；主流程只保证事件发出，失败重试与消费幂等兜底"
+    },
+    {
+      "title": "同一业务实体的事件必须有序",
+      "signal": "订单的创建、支付、取消事件被乱序处理，状态机出现非法跃迁",
+      "approach": "用 orderId 作 key 固定分区，消费端单线程处理；rebalance 期间接受短暂停顿，状态更新带版本号防倒退"
+    },
+    {
+      "title": "埋点与日志汇总到数仓",
+      "signal": "多来源日志需要统一缓冲、按保留期回放，并同时供实时与离线消费",
+      "approach": "Kafka 作缓冲层，Flink 或 Connect 写下游；按天设置 retention，消费组各自维护 offset，互不影响"
+    },
+    {
+      "title": "下游 bug 修复后需要重放历史",
+      "signal": "搜索索引或报表逻辑写错，需要重新处理过去若干天的消息",
+      "approach": "把 offset 重置到指定时间戳，用新 consumer group 重放；或把历史消息导出到新 topic，避免影响在线消费"
     }
   ]
 }

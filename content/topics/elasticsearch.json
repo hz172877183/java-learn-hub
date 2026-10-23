@@ -2,12 +2,16 @@
   "slug": "elasticsearch",
   "title": "Elasticsearch 概览",
   "category": "search",
-  "summary": "倒排索引与全文检索。学习项多起来后再值得独立搜索，一期用数据库/内存过滤。",
+  "summary": "倒排索引、分词、mapping、DSL 与分片：理解 ES 擅长什么、不擅长什么，以及和 MySQL 怎么分工。",
   "difficulty": "practical",
   "estimatedHours": 8,
   "tags": [
     "elasticsearch",
-    "search"
+    "search",
+    "inverted-index",
+    "dsl",
+    "sharding",
+    "relevance"
   ],
   "status": "published",
   "integrationStatus": "docs_only",
@@ -15,85 +19,202 @@
   "prerequisites": [
     "spring-web-rest"
   ],
-  "nextTopics": [],
+  "nextTopics": [
+    "observability-prometheus"
+  ],
   "relatedTopics": [
     "spring-cloud-overview",
-    "mysql-basics"
+    "mysql-basics",
+    "kafka",
+    "mysql-tuning"
   ],
-  "overviewMd": "现在的搜索是对 title/tags/summary 做内存包含匹配，足够几十条学习项。文档量到「模糊分词、相关性、高亮」再上 ES。本页建立概念，不引入运行时。",
+  "overviewMd": "现在的搜索是对 title/tags/summary 做内存包含匹配，几十条学习项足够用。文档量上来、需求变成「模糊分词、相关度排序、高亮、按标签聚合」时，才值得引入 Elasticsearch。它的强项是全文检索与聚合分析，弱项是事务、关联与强一致，所以正确的分工是：MySQL 保存权威数据和事务，ES 保存一份为搜索优化的副本。\n\n倒排索引是所有能力的起点。正向索引是「文档 → 词」，倒排是「词 → 文档列表」，查询时按词取交集，不必逐行扫描。代价在写入：每个字段都要分词、建索引、写段文件。分词器决定文本被切成什么词项，中文用 ik 或 smartcn 才不会被切成单字；索引期与查询期必须用同一个分析器，否则「学习路线」写进去、搜「学习」却命中不了。\n\nmapping 是索引的契约。text 会分词用于全文检索，keyword 不分词用于精确匹配、排序与聚合，两者常配合 fields 多字段同时保留。dynamic 默认会把新字段猜成某种类型，猜错一次就要重建索引并 reindex。查询 DSL 里要分清 query 与 filter 上下文：参与打分的放 query，只做筛选的放 filter（可缓存、更快），排序和聚合字段必须是 doc_values 友好的类型。\n\n写入链路决定了「近实时」的含义。文档先进内存缓冲与 translog，refresh 之后才可被搜索（默认 1 秒），flush 把段落盘并截断 translog，后台 merge 合并小段控制文件数与查询开销。分片是水平扩展单位，副本提供高可用与读吞吐；主分片数创建后不能改，容量规划要按数据量和单分片 10–50GB 的经验值先算。\n\n分布式带来的坑集中在两处：翻页与一致性。from+size 深翻页会让每个分片都取出前 N 条再由协调节点归并，越翻越慢，应该改用 search_after 或 PIT；跨分片的相关性打分是局部的，需要时用 DFS query-then-fetch 或调整分片数。运维上关注集群颜色、未分配分片、磁盘水位与快照恢复演练。本仓库一期不引入运行时，等学习项过千或需要中文分词时再按本页顺序落地。",
   "concepts": [
     {
       "term": "倒排索引",
-      "explanation": "词项指向文档列表，所以全文快，不等于替代事务库。"
+      "explanation": "以词项为键记录包含它的文档与位置，查询时直接定位文档集合，避免像 LIKE 那样逐行扫描全表。"
     },
     {
-      "term": "Analyzer",
-      "explanation": "中文分词决定搜「学习路线」能否命中。选错分析器比调分更致命。"
+      "term": "分词器 Analyzer",
+      "explanation": "决定文本切成哪些词项，中文常用 ik 或 smartcn；索引与查询必须用同一个分析器，否则命中率骤降。"
     },
     {
-      "term": "近实时",
-      "explanation": "写入后稍有延迟才可搜。和 MySQL 读己之写不同。"
+      "term": "mapping",
+      "explanation": "字段类型与索引方式的声明，text 会分词、keyword 不分词；写错类型后只能重建索引并 reindex。"
+    },
+    {
+      "term": "query 与 filter",
+      "explanation": "query 参与相关性打分，filter 只判断是否命中且可缓存；把时间范围、状态这类条件放进 filter 更快。"
+    },
+    {
+      "term": "聚合 aggregation",
+      "explanation": "在查询结果上分桶与算指标，可嵌套 terms、date_histogram；只取聚合结果时把 size 设小省带宽。"
+    },
+    {
+      "term": "分片与副本",
+      "explanation": "分片决定水平扩展上限，副本提供高可用与读吞吐；主分片数创建后难改，容量规划要先算清楚。"
+    },
+    {
+      "term": "refresh/flush/merge",
+      "explanation": "refresh 让新文档可被搜索，flush 落盘事务日志，merge 合并段；三者共同决定写入成本与近实时延迟。"
+    },
+    {
+      "term": "深分页",
+      "explanation": "from+size 深翻页会每页重算并堆积堆内存，应改用 search_after 或 scroll/PIT，并限制最大页数。"
+    },
+    {
+      "term": "相关性打分",
+      "explanation": "BM25 综合词频、逆文档频率与字段长度打分，可 boost 提升标题权重；打分只对 query 上下文生效。"
+    },
+    {
+      "term": "集群与故障恢复",
+      "explanation": "节点角色分离、副本自动提升与快照备份是三条底线；主节点选举靠投票配置，脑裂会让集群拆成两半。"
     }
   ],
   "pathSteps": [
     {
-      "title": "先用现有 q 参数",
-      "goal": "感受内存搜索的边界（无分词）。",
+      "title": "先给现有搜索定边界",
+      "goal": "用现有 q 参数搜几个中文词，记录哪些该命中却没命中，写出「需要分词」的具体案例。",
       "hours": 1,
       "resources": [
-        "目录页"
+        "目录页",
+        "backend/src/main/resources/content"
       ]
     },
     {
-      "title": "读倒排索引",
-      "goal": "能在白板上画出 term → docId。",
-      "hours": 3,
+      "title": "画出倒排索引",
+      "goal": "手写三篇文档的 term → docId 表，理解为什么全文快、写入贵，以及为什么不能替代事务库。",
+      "hours": 1,
       "resources": [
-        "官方入门"
+        "Elasticsearch 官方入门"
       ]
     },
     {
-      "title": "规划索引字段",
-      "goal": "title、overview、tags 权重不同。",
-      "hours": 4,
+      "title": "起单节点并配分词",
+      "goal": "用 Docker 起单节点 ES，装 ik 分词器，用 _analyze 对比 standard 与 ik_max_word 的输出。",
+      "hours": 1.5,
       "resources": [
-        "本页示例"
+        "docker-basics",
+        "analysis-ik 插件文档"
+      ]
+    },
+    {
+      "title": "设计 mapping 与索引设置",
+      "goal": "为 topics 索引写 mapping：title 用 text+keyword，tags 用 keyword，明确分片与副本数。",
+      "hours": 1.5,
+      "resources": [
+        "本页 mapping 示例"
+      ]
+    },
+    {
+      "title": "写查询与聚合",
+      "goal": "用 bool + multi_match + filter 实现带权重的搜索，再加 terms 聚合按标签分桶并开高亮。",
+      "hours": 1,
+      "resources": [
+        "本页 DSL 示例",
+        "Query DSL 文档"
+      ]
+    },
+    {
+      "title": "处理翻页与写入可见性",
+      "goal": "对比 from+size 与 search_after 的开销，用 refresh=wait_for 解决「写完搜不到」。",
+      "hours": 1,
+      "resources": [
+        "本页 java 示例",
+        "Paginate search results 文档"
+      ]
+    },
+    {
+      "title": "规划同步与运维",
+      "goal": "写一页同步方案（binlog/MQ + 幂等 upsert），列出集群巡检项与快照恢复演练步骤。",
+      "hours": 1,
+      "resources": [
+        "kafka",
+        "mysql-basics"
       ]
     }
   ],
   "samples": [
     {
-      "title": "查询草案",
+      "title": "索引设置与 mapping",
       "language": "json",
-      "description": "multi_match 仅示意。",
-      "code": "{\n  \"query\": {\n    \"multi_match\": {\n      \"query\": \"jwt 鉴权\",\n      \"fields\": [\"title^3\", \"tags^2\", \"overviewMd\"]\n    }\n  }\n}"
+      "description": "中文分词用 ik_max_word；title 同时保留 keyword 子字段用于排序与精确匹配。需先安装 analysis-ik 插件。",
+      "code": "{\n  \"settings\": {\n    \"number_of_shards\": 1,\n    \"number_of_replicas\": 1,\n    \"refresh_interval\": \"1s\",\n    \"analysis\": {\n      \"analyzer\": {\n        \"zh_text\": {\n          \"type\": \"custom\",\n          \"tokenizer\": \"ik_max_word\",\n          \"filter\": [\"lowercase\"]\n        }\n      }\n    }\n  },\n  \"mappings\": {\n    \"properties\": {\n      \"slug\": { \"type\": \"keyword\" },\n      \"title\": {\n        \"type\": \"text\",\n        \"analyzer\": \"zh_text\",\n        \"fields\": { \"kw\": { \"type\": \"keyword\" } }\n      },\n      \"tags\": { \"type\": \"keyword\" },\n      \"overviewMd\": { \"type\": \"text\", \"analyzer\": \"zh_text\" },\n      \"level\": { \"type\": \"keyword\" },\n      \"updatedAt\": { \"type\": \"date\" }\n    }\n  }\n}"
+    },
+    {
+      "title": "带权重、过滤、高亮与聚合的查询",
+      "language": "json",
+      "description": "must 里的 multi_match 参与打分并给标题更高权重，level 与时间放进 filter；聚合字段必须是 keyword 或开启 fielddata。",
+      "code": "{\n  \"size\": 10,\n  \"query\": {\n    \"bool\": {\n      \"must\": [\n        {\n          \"multi_match\": {\n            \"query\": \"jwt 鉴权\",\n            \"fields\": [\"title^3\", \"tags^2\", \"overviewMd\"]\n          }\n        }\n      ],\n      \"filter\": [\n        { \"term\": { \"level\": \"beginner\" } },\n        { \"range\": { \"updatedAt\": { \"gte\": \"now-90d\" } } }\n      ]\n    }\n  },\n  \"highlight\": {\n    \"fields\": { \"title\": {}, \"overviewMd\": { \"fragment_size\": 80 } }\n  },\n  \"sort\": [{ \"_score\": \"desc\" }, { \"updatedAt\": \"desc\" }],\n  \"aggs\": {\n    \"by_tag\": { \"terms\": { \"field\": \"tags\", \"size\": 10 } },\n    \"by_level\": { \"terms\": { \"field\": \"level\" } }\n  }\n}"
+    },
+    {
+      "title": "写入可见性与 search_after 翻页",
+      "language": "java",
+      "description": "用官方 Java Client：写入时 refresh=wait_for 保证可搜，翻页带上一页最后一条的排序值，避免深分页。",
+      "code": "package com.learn.hub.search;\n\nimport java.util.List;\n\nimport co.elastic.clients.elasticsearch.ElasticsearchClient;\nimport co.elastic.clients.elasticsearch._types.FieldValue;\nimport co.elastic.clients.elasticsearch._types.Refresh;\nimport co.elastic.clients.elasticsearch._types.SortOrder;\nimport co.elastic.clients.elasticsearch.core.SearchResponse;\nimport co.elastic.clients.elasticsearch.core.search.Hit;\nimport org.springframework.stereotype.Repository;\n\n/** 写入 wait_for 保证写完可搜；翻页用 search_after，避免深分页堆内存。 */\n@Repository\npublic class TopicSearchRepository {\n\n    private final ElasticsearchClient client;\n\n    public TopicSearchRepository(ElasticsearchClient client) {\n        this.client = client;\n    }\n\n    public void save(TopicDoc doc) throws Exception {\n        client.index(i -> i\n                .index(\"topics\")\n                .id(doc.slug())\n                .document(doc)\n                .refresh(Refresh.WaitFor));\n    }\n\n    public List<String> page(int size, List<FieldValue> after) throws Exception {\n        SearchResponse<TopicDoc> resp = client.search(s -> s\n                        .index(\"topics\")\n                        .size(size)\n                        .sort(so -> so.field(f -> f.field(\"updatedAt\").order(SortOrder.Desc)))\n                        .searchAfter(after),\n                TopicDoc.class);\n        return resp.hits().hits().stream().map(Hit::id).toList();\n    }\n}"
     }
   ],
   "pitfalls": [
     {
-      "title": "当主数据库",
-      "detail": "无事务、更新模型不同。学习项主数据仍应在 MySQL/文件。"
+      "title": "拿 ES 当主数据库",
+      "detail": "现象：更新丢失、并发写互相覆盖，出了问题无法回溯。原因：ES 没有事务与唯一约束，刷新延迟还会造成读己之写不一致。规避：主数据留在 MySQL，ES 只存检索副本，用幂等 upsert 与版本号处理乱序同步。"
     },
     {
       "title": "中文不配分词",
-      "detail": "standard 分析器对中文往往单字切，体验差。"
+      "detail": "现象：搜「鉴权」搜不到「JWT 鉴权」，只能搜单字。原因：standard 分析器把中文按单字切，索引期与查询期都是单字。规避：装 ik 或 smartcn，索引与查询用同一个 analyzer，改分析器后必须 reindex。"
     },
     {
-      "title": "一期就上集群",
-      "detail": "单节点都还没问题定义时，集群只增加运维。"
+      "title": "from+size 翻到一万条以后",
+      "detail": "现象：越往后翻越慢，堆内存告警甚至 OOM。原因：每个分片都要取 from+size 条再由协调节点归并，成本随页深线性上升。规避：改用 search_after 或 PIT，产品上限制最大可翻页数，导出场景走异步任务。"
+    },
+    {
+      "title": "mapping 靠动态推断",
+      "detail": "现象：第一次写入把「123」猜成 long，之后带单位的字符串被拒绝；聚合字段报 fielddata 错误。原因：dynamic mapping 只按首条样本猜类型，且 text 默认不开 fielddata。规避：先建索引再写数据，需要聚合的字段显式用 keyword，生产把 dynamic 设为 strict。"
+    },
+    {
+      "title": "分片数拍脑袋",
+      "detail": "现象：单节点几十个小分片，集群元数据压力大、查询变慢；或者分片过大导致恢复要几小时。原因：默认 1 主 1 副被无限复制，或按「分片越多越快」的直觉设置。规避：按数据量与单分片 10–50GB 估算，用别名与 reindex 支持后续调整。"
+    },
+    {
+      "title": "写完立刻查却查不到",
+      "detail": "现象：接口返回创建成功，列表却搜不到新文档，用户以为丢了。原因：refresh_interval 默认 1 秒，写入后尚未刷新就查询。规避：对读己之写敏感的接口用 refresh=wait_for 或 GET by id，不要全局设 refresh=true。"
     }
   ],
-  "repoPointers": [],
+  "repoPointers": [
+    {
+      "label": "当前搜索实现",
+      "path": "backend/src/main/java/com/learn/hub/content/ContentCatalog.java"
+    },
+    {
+      "label": "内容数据",
+      "path": "content/topics"
+    }
+  ],
   "scenarios": [
     {
       "title": "列表搜索越来越慢",
       "signal": "LIKE '%关键词%' 走全表扫描，数据量上来后接口超时",
-      "approach": "先确认是否真需要全文检索；需要多字段匹配、相关度排序、高亮时再引入 ES，用倒排索引替代全表扫描"
+      "approach": "先确认是否真需要全文检索；需要多字段匹配、相关度排序、高亮时引入 ES，用倒排索引替代全表扫描，主数据仍留在 MySQL。"
     },
     {
       "title": "同一批数据要按多个维度查",
-      "signal": "运营要按标题、标签、正文组合搜索，还要按相关度排序",
-      "approach": "把可检索字段写入索引，用 multi_match + boost 控制权重；写入侧通过 binlog/消息同步，接受最终一致"
+      "signal": "运营要按标题、标签、正文组合搜索，还要按相关度排序、按标签统计数量",
+      "approach": "把可检索字段写入索引，用 multi_match 加 boost 控制权重，聚合走 keyword 字段；写入侧通过 binlog 或消息同步，接受秒级最终一致。"
+    },
+    {
+      "title": "搜索结果「不相关」",
+      "signal": "搜「Spring 事务」返回一堆标题里只有 Spring 的旧文，用户投诉排序怪",
+      "approach": "先用 explain 看打分构成，再调字段权重与 minimum_should_match；必要时加 function_score 做时间衰减，最后用真实查询日志做回归评测。"
+    },
+    {
+      "title": "集群变黄甚至变红",
+      "signal": "健康检查显示 yellow/red，部分分片未分配，写入被拒",
+      "approach": "先看 _cluster/allocation/explain 定位未分配原因（磁盘水位、节点离线、副本数大于节点数），再决定腾空间、加节点或临时调副本数，恢复后补一次快照。"
+    },
+    {
+      "title": "搜索结果和数据库对不上",
+      "signal": "MySQL 里已删除的文档还能搜到，或标题改了搜索里还是旧的",
+      "approach": "检查同步链路是否丢消息、是否幂等、是否有版本号防乱序；建立定期对账任务，用 scroll 导出与主库比对，差异走重建索引而不是逐条修。"
     }
   ]
 }

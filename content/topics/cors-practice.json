@@ -8,7 +8,9 @@
   "tags": [
     "cors",
     "browser",
-    "http"
+    "http",
+    "preflight",
+    "same-origin-policy"
   ],
   "status": "published",
   "integrationStatus": "runtime",
@@ -19,77 +21,147 @@
   "nextTopics": [],
   "relatedTopics": [
     "vue3-spa",
-    "http-error-contract"
+    "http-error-contract",
+    "spring-security-basics"
   ],
-  "overviewMd": "同源策略是**浏览器**的安全机制，不是服务端限制。跨源请求时，浏览器会先判断是否发预检（OPTIONS），再根据服务端返回的 CORS 响应头决定是否放行。\n\n所以会出现“Postman 正常、浏览器报错”：Postman 不受同源策略约束。排查时要看浏览器 Network 里的预检请求，而不是只测接口本身。\n\n本项目踩过的坑：CORS 只配置了 `allowedMethods(\"GET\")`，结果管理端 PUT 全部 403 `Invalid CORS request`。",
+  "overviewMd": "同源策略是**浏览器**的安全机制，不是服务端限制。跨源请求时，浏览器会先判断是否发预检（OPTIONS），再根据服务端返回的 CORS 响应头决定是否把结果交给页面。服务端能做的只是“声明允许谁读”，拦截动作始终由浏览器执行。\n\n触发预检的条件不复杂：方法不是 GET/HEAD/POST，或 Content-Type 不是表单那三种，或带了自定义头（比如 `Authorization`）。带 JSON 的 PUT、带令牌的 DELETE 都会先发 OPTIONS，浏览器在预检里带上 `Origin`、`Access-Control-Request-Method`、`Access-Control-Request-Headers`，服务端逐项回答后，真实请求才会发出。\n\nSpring 里有三个配置位置：`WebMvcConfigurer#addCorsMappings`（本项目用的方式，简单直接）、Spring Security 6 的 `http.cors(Customizer.withDefaults())` 加一个 `CorsConfigurationSource` Bean（安全链场景必须用它，否则预检会先被鉴权拦掉）、以及单接口上的 `@CrossOrigin`。生产环境更推荐同域部署或网关统一处理，把跨域问题收敛到一个地方。\n\n所以会出现“Postman 正常、浏览器报错”：Postman 和 curl 不受同源策略约束。排查时要看浏览器 Network 里的预检请求与响应头，而不是只测接口本身。\n\n常见误区：只允许 GET 却抱怨 PUT 失败；`allowedOrigins(\"*\")` 与 `allowCredentials(true)` 同时出现被浏览器拒绝；预检被 JWT 过滤器拦成 401；把 CORS 当成鉴权或 CSRF 防护——它只约束浏览器，命令行客户端可以完全无视。",
   "concepts": [
     {
       "term": "同源",
-      "explanation": "协议 + 域名 + 端口三者相同才算同源；127.0.0.1 和 localhost 也算不同源。"
+      "explanation": "协议、域名、端口三者完全相同才算同源。127.0.0.1 与 localhost、http 与 https、5173 与 8080 都算跨源。"
     },
     {
-      "term": "简单请求与预检",
-      "explanation": "带 Authorization 或 JSON 的 PUT/POST 会触发 OPTIONS 预检，预检通过才发真实请求。"
+      "term": "简单请求",
+      "explanation": "方法为 GET/HEAD/POST，且只带安全列表内的头与表单类型 Content-Type。简单请求不发预检，但响应仍要带允许来源。"
     },
     {
-      "term": "allowedOrigins",
-      "explanation": "精确列出前端地址；配合 credentials 时不能用 *。"
+      "term": "预检请求",
+      "explanation": "浏览器先发 OPTIONS 询问能否跨源，携带 Origin 与期望的方法、头。预检不通过，真实请求根本不会发出。"
     },
     {
-      "term": "allowedMethods",
-      "explanation": "必须包含实际使用的方法；只写 GET 时，PUT/DELETE 会在预检阶段被拒。"
+      "term": "Access-Control-Allow-Origin",
+      "explanation": "响应里声明允许的来源，只能是单个值或 *。多来源场景要按请求 Origin 动态回写，并加 Vary: Origin 防止缓存串味。"
+    },
+    {
+      "term": "credentials",
+      "explanation": "带 Cookie 或认证信息时，前端要设 credentials，服务端要开 allowCredentials 且不能用 *，必须精确列出来源。"
+    },
+    {
+      "term": "allowedHeaders 与 exposedHeaders",
+      "explanation": "前者声明允许请求携带的头，后者声明前端能读取的响应头。自定义 traceId 头不 expose，前端就读不到。"
+    },
+    {
+      "term": "预检缓存",
+      "explanation": "Access-Control-Max-Age 让浏览器缓存预检结果，减少 OPTIONS 次数。设太大时改了允许项要等缓存过期才生效。"
     },
     {
       "term": "开发代理",
-      "explanation": "Vite 把 /api 代理到后端，浏览器看到的是同源请求，从根上绕开 CORS。"
+      "explanation": "Vite 把 /api 代理到后端，浏览器看到的是同源请求，从根上绕开 CORS。只适合开发，生产仍需同域或正确配置。"
+    },
+    {
+      "term": "同域部署与网关",
+      "explanation": "前端静态资源与 API 走同一域名，或用网关统一加 CORS 头。跨域配置集中一处，避免每个服务各配一套还互相矛盾。"
+    },
+    {
+      "term": "CORS 不是 CSRF 防护",
+      "explanation": "CORS 限制的是“谁能读响应”，不阻止请求到达服务端。表单类简单请求照样能发，所以写操作仍要 CSRF 防护。"
     }
   ],
   "pathSteps": [
     {
       "title": "复现跨域",
-      "goal": "用浏览器 Network 看到预检请求和失败原因。",
-      "hours": 0.5,
+      "goal": "用浏览器 Network 看到 OPTIONS 预检、失败提示与缺失的响应头。",
+      "hours": 0.25,
       "resources": [
         "MDN CORS"
       ]
     },
     {
       "title": "配置允许项",
-      "goal": "按来源、方法、头精确配置，并验证 PUT/DELETE。",
-      "hours": 1,
+      "goal": "按来源、方法、头精确配置，验证 PUT 与 DELETE 都能通过预检。",
+      "hours": 0.5,
       "resources": [
         "本项目 WebConfig"
       ]
     },
     {
-      "title": "用代理收敛",
-      "goal": "开发期用 Vite proxy，生产用同域部署或网关。",
+      "title": "安全链里的 CORS",
+      "goal": "在 Security 6 中用 cors() 加 CorsConfigurationSource，并放行 OPTIONS 预检。",
       "hours": 0.5,
       "resources": [
-        "vite.config.ts"
+        "官方文档 Spring Security CORS"
+      ]
+    },
+    {
+      "title": "带凭证的场景",
+      "goal": "开启 allowCredentials 后改用精确来源，确认浏览器不再拒绝。",
+      "hours": 0.25,
+      "resources": [
+        "MDN CORS 凭证"
+      ]
+    },
+    {
+      "title": "用代理收敛",
+      "goal": "开发期用 Vite proxy，生产用同域部署或网关统一加头。",
+      "hours": 0.25,
+      "resources": [
+        "vite.config.ts",
+        "vue3-spa 学习项"
+      ]
+    },
+    {
+      "title": "排查清单化",
+      "goal": "整理一套“看预检、看响应头、看 Vary、看来源拼写”的排查顺序。",
+      "hours": 0.25,
+      "resources": [
+        "本页 bash 示例"
       ]
     }
   ],
   "samples": [
     {
-      "title": "放开读写方法",
+      "title": "WebMvcConfigurer 配置 CORS",
       "language": "java",
-      "description": "只允许本地前端来源，方法覆盖管理端需要的 PUT/DELETE。",
-      "code": "registry.addMapping(\"/api/**\")\n        .allowedOrigins(\"http://localhost:5173\", \"http://127.0.0.1:5173\")\n        .allowedMethods(\"GET\", \"POST\", \"PUT\", \"DELETE\", \"OPTIONS\")\n        .allowedHeaders(\"*\");"
+      "description": "来源从配置读取，方法覆盖写操作，显式列出允许的请求头并暴露 traceId。",
+      "code": "@Configuration\npublic class WebConfig implements WebMvcConfigurer {\n\n    private final List<String> origins;\n\n    public WebConfig(@Value(\"${learn-hub.cors-origins}\") List<String> origins) {\n        this.origins = origins;\n    }\n\n    @Override\n    public void addCorsMappings(CorsRegistry registry) {\n        registry.addMapping(\"/api/**\")\n                .allowedOrigins(origins.toArray(String[]::new))\n                .allowedMethods(\"GET\", \"POST\", \"PUT\", \"PATCH\", \"DELETE\", \"OPTIONS\")\n                .allowedHeaders(\"Authorization\", \"Content-Type\", \"X-Request-Id\")\n                .exposedHeaders(\"X-Trace-Id\")\n                .maxAge(1800);\n    }\n}"
+    },
+    {
+      "title": "Spring Security 6 中的 CORS",
+      "language": "java",
+      "description": "cors() 复用 CorsConfigurationSource；预检 OPTIONS 显式放行，避免被认证过滤器拦成 401。",
+      "code": "@Bean\nSecurityFilterChain apiChain(HttpSecurity http) throws Exception {\n    http\n        .cors(Customizer.withDefaults())\n        .csrf(AbstractHttpConfigurer::disable)\n        .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))\n        .authorizeHttpRequests(auth -> auth\n            .requestMatchers(HttpMethod.OPTIONS, \"/**\").permitAll()\n            .requestMatchers(\"/api/v1/admin/**\").hasRole(\"ADMIN\")\n            .anyRequest().authenticated());\n    return http.build();\n}\n\n@Bean\nCorsConfigurationSource corsConfigurationSource(\n        @Value(\"${learn-hub.cors-origins}\") List<String> origins) {\n    CorsConfiguration config = new CorsConfiguration();\n    config.setAllowedOrigins(origins);\n    config.setAllowedMethods(List.of(\"GET\", \"POST\", \"PUT\", \"DELETE\", \"OPTIONS\"));\n    config.setAllowedHeaders(List.of(\"Authorization\", \"Content-Type\"));\n    config.setAllowCredentials(true);\n    config.setMaxAge(1800L);\n    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();\n    source.registerCorsConfiguration(\"/api/**\", config);\n    return source;\n}"
+    },
+    {
+      "title": "用 curl 检查预检",
+      "language": "bash",
+      "description": "直接发 OPTIONS 并带上预检使用的三个请求头，逐项核对响应头是否齐全。",
+      "code": "# 1) 模拟浏览器预检：Origin 加期望的方法与头\ncurl -s -i -X OPTIONS http://localhost:8080/api/v1/topics \\\n  -H 'Origin: http://localhost:5173' \\\n  -H 'Access-Control-Request-Method: PUT' \\\n  -H 'Access-Control-Request-Headers: authorization,content-type'\n\n# 2) 期望 200 或 204，且包含 Allow-Origin、Allow-Methods、Allow-Headers、Max-Age\n\n# 3) 真实请求也要带 Origin，否则服务端不会回 CORS 头\ncurl -s -o /dev/null -w '%{http_code}\\n' -X PUT http://localhost:8080/api/v1/topics/1 \\\n  -H 'Origin: http://localhost:5173' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"title\":\"demo\"}'\n\n# 4) 不在白名单的来源：预检不应回 Allow-Origin\ncurl -s -i -X OPTIONS http://localhost:8080/api/v1/topics \\\n  -H 'Origin: http://evil.example' \\\n  -H 'Access-Control-Request-Method: PUT' | grep -i 'access-control'\n\n# 5) 带凭证时不要出现 Allow-Origin: *\ncurl -s -i -X OPTIONS http://localhost:8080/api/v1/me \\\n  -H 'Origin: https://app.example.com' \\\n  -H 'Access-Control-Request-Method: GET' | grep -i 'access-control'"
     }
   ],
   "pitfalls": [
     {
       "title": "只允许 GET",
-      "detail": "预检直接失败，浏览器报 CORS 错误，但 curl 一切正常；本项目管理端就因此 403。"
+      "detail": "现象是列表能加载、保存和删除全部失败，浏览器报 CORS，curl 却正常；原因是 allowedMethods 只写了 GET，PUT/DELETE 在预检阶段被拒。规避办法是列出实际使用的全部方法并含 OPTIONS，且用预检请求验证一遍。"
     },
     {
-      "title": "allowedOrigins('*') + credentials",
-      "detail": "浏览器会拒绝这种组合；带 Cookie 时必须精确列出来源。"
+      "title": "allowedOrigins 用 * 又开 credentials",
+      "detail": "现象是浏览器拒绝带 Cookie 的请求，提示 Allow-Origin 不能为通配符；原因是安全规范不允许通配来源与凭证共存。规避办法是按请求 Origin 精确回写白名单，并加 Vary: Origin。"
     },
     {
       "title": "预检被鉴权拦截",
-      "detail": "OPTIONS 不带业务令牌，过滤器要放行预检，否则永远拿不到真实请求。"
+      "detail": "现象是浏览器只报 CORS 错误，服务端日志里却是 401；原因是 OPTIONS 不带业务令牌，被 anyRequest().authenticated() 拦下。规避办法是在安全链中放行 OPTIONS，并确保 CorsFilter 在认证过滤器之前执行。"
+    },
+    {
+      "title": "127.0.0.1 与 localhost 混用",
+      "detail": "现象是同一台机器上有时正常、有时报跨域，刷新后又变了；原因是浏览器按字符串比较来源，二者不同源。规避办法是白名单同时列出两种写法，或开发期统一用 Vite 代理。"
+    },
+    {
+      "title": "缓存把 CORS 头串给别的来源",
+      "detail": "现象是 A 站点正常、B 站点拿到 A 的响应头或被拒；原因是响应缺少 Vary: Origin，被 CDN 或反向代理按 URL 缓存。规避办法是补齐 Vary，缓存键包含 Origin，或让网关按来源输出头。"
+    },
+    {
+      "title": "把 CORS 当安全边界",
+      "detail": "现象是以为配了白名单就挡住了第三方调用；原因是 CORS 只约束浏览器读响应，curl 和服务端调用完全不受限。规避办法是鉴权、限流、CSRF 防护照旧做，CORS 只当浏览器兼容配置。"
     }
   ],
   "repoPointers": [
@@ -102,12 +174,27 @@
     {
       "title": "前后端分开端口开发",
       "signal": "页面在 5173，接口在 8080，浏览器报 CORS",
-      "approach": "开发期用 Vite 代理，或精确配置 allowedOrigins 与 allowedMethods"
+      "approach": "开发期用 Vite 代理，或精确配置 allowedOrigins 与 allowedMethods，并验证预检"
     },
     {
       "title": "Postman 正常但页面失败",
       "signal": "curl 200，浏览器控制台 CORS 报错",
       "approach": "看预检 OPTIONS 的状态和响应头，确认方法、头、来源是否被允许"
+    },
+    {
+      "title": "管理端写接口全部失败",
+      "signal": "GET 正常，PUT 与 DELETE 报 Invalid CORS request",
+      "approach": "检查 allowedMethods 是否包含写方法，以及安全链是否放行了 OPTIONS"
+    },
+    {
+      "title": "登录态跨子域共享",
+      "signal": "app.example.com 调 api.example.com，Cookie 不生效",
+      "approach": "精确列出来源、开 allowCredentials、Cookie 设 SameSite 与 Domain，并接受不能使用通配符"
+    },
+    {
+      "title": "上线后偶发跨域",
+      "signal": "本地稳定，线上部分用户报错，刷新后时好时坏",
+      "approach": "检查网关与 CDN 的 Vary: Origin、缓存键与多来源配置，排除缓存串味"
     }
   ]
 }

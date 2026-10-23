@@ -1,0 +1,202 @@
+{
+  "slug": "kubernetes-basics",
+  "title": "Kubernetes 入门",
+  "category": "cloud",
+  "summary": "Pod、Deployment、Service、Ingress 与探针：把容器跑成可运维的工作负载。",
+  "difficulty": "practical",
+  "estimatedHours": 10,
+  "tags": [
+    "kubernetes",
+    "container",
+    "devops",
+    "cloud-native",
+    "kubectl"
+  ],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://kubernetes.io/docs/home/",
+  "prerequisites": [
+    "docker-basics",
+    "linux-basics"
+  ],
+  "nextTopics": [
+    "observability-prometheus"
+  ],
+  "relatedTopics": [
+    "docker-compose",
+    "nginx-basics"
+  ],
+  "overviewMd": "Kubernetes 是容器编排系统，核心是声明式 API 与控制器循环：你提交期望状态，控制器不断把实际状态拉回来。它解决的是多容器、多副本、多节点的调度、服务发现、滚动发布与自愈，不是把 Docker 命令换个写法。只想在单机跑几个依赖时，Compose 更轻；需要多节点、弹性扩缩和统一发布时，才轮到 Kubernetes。\n\n最小心智模型由几层对象组成：Pod 是最小调度单元，Deployment 管理 Pod 副本与发布，Service 给一组 Pod 一个稳定入口，Ingress 再把域名和路径路由到 Service。ConfigMap 与 Secret 把配置从镜像里拆出来，Namespace 做逻辑隔离，Job/CronJob 承载一次性与定时任务，PVC 负责持久化。把这些对象的关系画清楚，比背 kubectl 命令更重要。\n\n真正让工作负载可运维的是细节：startup/readiness/liveness 三类探针决定何时接流量、何时重启；requests/limits 决定调度、QoS 与 OOM 边界；滚动更新参数和 readiness 共同决定发布是否平滑；HPA 依赖 metrics-server 与 requests 才能扩副本。镜像要使用不可变 tag，私有仓库要配 imagePullSecrets，日志和指标则交给集群外系统。\n\nKubernetes 的学习成本主要在运维面：网络插件、Ingress Controller、存储类、RBAC 和证书都会影响可用性。本地先用 kind、minikube 或 k3d 建单节点集群，把 Deployment、Service、Ingress、探针和回滚跑通，再上托管集群。示例统一使用 apps/v1 等稳定 API；本仓库的 Compose 仍是本地开发首选，Kubernetes 清单用于演示生产部署形态，不要把 Secret 明文提交进 Git。",
+  "concepts": [
+    {
+      "term": "Pod 与镜像",
+      "explanation": "Pod 是最小调度单元，一个或多个容器共享网络与存储；镜像由 image 指定，私有仓库通过 imagePullSecrets 拉取，通常不直接创建 Pod。"
+    },
+    {
+      "term": "Deployment",
+      "explanation": "Deployment 声明副本数与 Pod 模板，借助 ReplicaSet 完成滚动更新、暂停和回滚；无状态服务首选，故障时自动补齐副本。"
+    },
+    {
+      "term": "Service",
+      "explanation": "Service 用 label selector 选中 Pod，提供稳定 ClusterIP 和四层负载均衡；类型有 ClusterIP、NodePort、LoadBalancer，避免直连 Pod IP。"
+    },
+    {
+      "term": "Ingress",
+      "explanation": "Ingress 描述七层 host/path 路由和 TLS，必须由 ingress controller 实现；IngressClass 选错时规则不会生效，常表现为 404。"
+    },
+    {
+      "term": "ConfigMap 与 Secret",
+      "explanation": "ConfigMap 存普通配置，Secret 存口令、令牌和证书；Secret 默认只做 base64，不是加密，需配 RBAC、静态加密或外部密钥管理。"
+    },
+    {
+      "term": "三类探针",
+      "explanation": "startupProbe 保护慢启动，readinessProbe 决定是否接入流量，livenessProbe 失败会重启容器；依赖下游的检查不要放进 liveness。"
+    },
+    {
+      "term": "requests 与 limits",
+      "explanation": "requests 决定调度与 HPA 基准，limits 是运行上限；CPU 超限被节流，内存超限会 OOMKilled，requests 等于 limits 时获得 Guaranteed。"
+    },
+    {
+      "term": "滚动更新与回滚",
+      "explanation": "滚动更新由 maxSurge 和 maxUnavailable 控制批次，readiness 通过才接流量；用 kubectl rollout status 观察、rollout undo 回滚。"
+    },
+    {
+      "term": "HPA 与 Namespace",
+      "explanation": "HPA 按 CPU、内存或自定义指标调整副本数，依赖 metrics-server 与 requests；Namespace 提供逻辑隔离、配额和 RBAC 边界。"
+    },
+    {
+      "term": "Job、CronJob 与存储",
+      "explanation": "Job 运行一次性任务，CronJob 按 cron 定时创建 Job；emptyDir 随 Pod 删除，PVC 通过 StorageClass 申请 PV，适合持久化数据。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "建本地集群",
+      "goal": "用 kind 或 minikube 起单节点集群，kubectl get nodes 能看到 Ready，并切换 context。",
+      "hours": 1,
+      "resources": [
+        "kind 官方 Quick Start",
+        "kubectl 安装页"
+      ]
+    },
+    {
+      "title": "跑第一个 Deployment",
+      "goal": "部署 3 副本应用，用 port-forward 访问，练习 scale、describe 和 logs。",
+      "hours": 2,
+      "resources": [
+        "Deployment 官方教程",
+        "本页 Deployment 示例"
+      ]
+    },
+    {
+      "title": "Service 与 Ingress",
+      "goal": "创建 ClusterIP/NodePort，安装 ingress-nginx，按 host/path 把流量转发到 Service。",
+      "hours": 2,
+      "resources": [
+        "Service 概念",
+        "Ingress 官方文档"
+      ]
+    },
+    {
+      "title": "配置与探针",
+      "goal": "用 ConfigMap/Secret 注入配置，给 Spring Boot 配三类探针，观察未就绪和重启事件。",
+      "hours": 2,
+      "resources": [
+        "Configure a Pod",
+        "本页探针示例"
+      ]
+    },
+    {
+      "title": "资源、HPA 与发布",
+      "goal": "设置 requests/limits，安装 metrics-server，压测触发 HPA，再执行 set image 与 rollout undo。",
+      "hours": 2,
+      "resources": [
+        "Resource Management",
+        "HPA Walkthrough"
+      ]
+    },
+    {
+      "title": "Job、存储与私有镜像",
+      "goal": "跑一个 Job 和 CronJob，挂载 PVC，并用 imagePullSecret 拉取私有仓库镜像。",
+      "hours": 1,
+      "resources": [
+        "Job 文档",
+        "Pull an Image from a Private Registry"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "Deployment：探针、资源与私有镜像",
+      "language": "yaml",
+      "description": "apps/v1 写法；探针复用 Actuator 健康端点，requests 供调度与 HPA 使用，limits 防止内存打爆节点。",
+      "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: topic-service\n  namespace: learnhub\nspec:\n  replicas: 3\n  selector:\n    matchLabels:\n      app: topic-service\n  template:\n    metadata:\n      labels:\n        app: topic-service\n    spec:\n      imagePullSecrets:\n        - name: registry-cred\n      containers:\n        - name: app\n          image: registry.example.com/learnhub/topic-service:1.4.0\n          ports:\n            - containerPort: 8080\n          envFrom:\n            - configMapRef:\n                name: topic-config\n            - secretRef:\n                name: topic-secret\n          resources:\n            requests: { cpu: 250m, memory: 512Mi }\n            limits: { cpu: \"1\", memory: 1Gi }\n          startupProbe:\n            httpGet: { path: /actuator/health/liveness, port: 8080 }\n            failureThreshold: 30\n            periodSeconds: 2\n          readinessProbe:\n            httpGet: { path: /actuator/health/readiness, port: 8080 }\n            periodSeconds: 5\n          livenessProbe:\n            httpGet: { path: /actuator/health/liveness, port: 8080 }\n            periodSeconds: 10\n            failureThreshold: 3"
+    },
+    {
+      "title": "Service 与 Ingress",
+      "language": "yaml",
+      "description": "Service 提供集群内稳定入口，Ingress 绑定域名与 TLS；需要先安装 ingress-nginx 并设置 ingressClassName。",
+      "code": "apiVersion: v1\nkind: Service\nmetadata:\n  name: topic-service\n  namespace: learnhub\nspec:\n  type: ClusterIP\n  selector:\n    app: topic-service\n  ports:\n    - name: http\n      port: 80\n      targetPort: 8080\n---\napiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: learnhub\n  namespace: learnhub\nspec:\n  ingressClassName: nginx\n  rules:\n    - host: learn.example.com\n      http:\n        paths:\n          - path: /api/topics\n            pathType: Prefix\n            backend:\n              service:\n                name: topic-service\n                port:\n                  number: 80\n  tls:\n    - hosts: [learn.example.com]\n      secretName: learnhub-tls"
+    },
+    {
+      "title": "kubectl 排查常用命令",
+      "language": "bash",
+      "description": "从 Pod 状态、事件、日志一路查到 Service 与发布历史；先定位层，再改配置。",
+      "code": "# 1. 状态与事件\nkubectl -n learnhub get pods -o wide\nkubectl -n learnhub describe pod -l app=topic-service\n\n# 2. 容器日志（当前与上次崩溃）\nkubectl -n learnhub logs deploy/topic-service --tail=100\nkubectl -n learnhub logs deploy/topic-service --previous\n\n# 3. 进容器验证进程与端口\nkubectl -n learnhub exec -it deploy/topic-service -- sh\nkubectl -n learnhub exec deploy/topic-service -- wget -qO- localhost:8080/actuator/health/readiness\n\n# 4. Service、Endpoint 与 Ingress 链路\nkubectl -n learnhub get svc,endpointslice\nkubectl -n learnhub get ingress\nkubectl -n learnhub run netshoot --rm -it --restart=Never --image=nicolaka/netshoot -- curl -v http://topic-service\n\n# 5. 发布与资源\nkubectl -n learnhub rollout status deploy/topic-service\nkubectl -n learnhub rollout history deploy/topic-service\nkubectl -n learnhub top pod\nkubectl -n learnhub get events --sort-by=.lastTimestamp"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "liveness 探活依赖下游",
+      "detail": "把数据库连通性写进 liveness，数据库一抖动所有 Pod 一起重启，故障被放大；liveness 只检查进程自身，依赖状态交给 readiness。"
+    },
+    {
+      "title": "不设 requests 或 limits 失衡",
+      "detail": "只写 limits 会让调度器无法预留资源，HPA 也算不出利用率；requests 过低导致节点超卖，内存 limits 过小则频繁 OOMKilled。"
+    },
+    {
+      "title": "latest 镜像加 IfNotPresent",
+      "detail": "节点已有旧 latest 时不会重新拉取，kubectl apply 后看似更新其实没变；用版本号或 digest，并按需设置 imagePullPolicy。"
+    },
+    {
+      "title": "Service 的 Endpoints 为空",
+      "detail": "selector 与 Pod 标签不一致、targetPort 写错或 Pod 未 Ready 时，Service 没有后端，访问返回 503；先看 endpointslice 再改配置。"
+    },
+    {
+      "title": "改了 ConfigMap 但进程没变",
+      "detail": "env 注入的值只在容器启动时读取，更新 ConfigMap 不会自动重启 Pod；用 volume 挂载或 rollout restart，Secret 还要注意 base64 不是加密。"
+    },
+    {
+      "title": "Ingress 规则不生效",
+      "detail": "没装 ingress controller、ingressClassName 不匹配或路径类型写错时，请求直接 404；先看 Ingress 的 ADDRESS 与 controller 日志。"
+    }
+  ],
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "从 Compose 迁到集群",
+      "signal": "本地 Compose 跑得通，但要多副本、滚动发布和故障自愈",
+      "approach": "先容器化并固定镜像 tag，再补 Deployment、Service、探针和资源声明；配置与密钥外置，最后接 Ingress"
+    },
+    {
+      "title": "发布后要能快速回滚",
+      "signal": "新版本错误率升高，手工替换 jar 既慢又不可追溯",
+      "approach": "用 Deployment 的滚动更新与 revisionHistory，readiness 把关流量，异常时 rollout undo 回到上一 ReplicaSet"
+    },
+    {
+      "title": "流量突增但不想常备高配",
+      "signal": "白天和晚上的 QPS 差距大，固定副本数不是浪费就是被打满",
+      "approach": "设置贴近压测值的 requests，安装 metrics-server，用 HPA 按 CPU 或自定义指标扩缩，并设最小/最大副本"
+    },
+    {
+      "title": "配置与密钥要分环境",
+      "signal": "测试和生产的数据库地址、令牌混在镜像或 Git 里",
+      "approach": "ConfigMap 存普通配置，Secret 存敏感值并开启加密与 RBAC；挂载为文件或注入环境变量，变更后触发滚动重启"
+    },
+    {
+      "title": "每天定时导出报表",
+      "signal": "需要每天凌晨跑批处理，失败要能看到日志并重试",
+      "approach": "用 CronJob 生成 Job，设置 concurrencyPolicy 与 backoffLimit，结果写 PVC 或对象存储，并给失败告警"
+    }
+  ]
+}

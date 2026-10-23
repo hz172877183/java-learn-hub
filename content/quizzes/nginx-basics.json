@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "请求 https://learn.example.com/api/topics 返回 404，后端日志里收到的路径是 /api/api/topics。最可能的原因是哪一项？",
+    "options": [
+      "upstream 里的节点被 max_fails 摘除了",
+      "proxy_read_timeout 设得太短，请求被中断",
+      "location /api/ 里写了 proxy_pass http://backend/api/，前缀被重复拼接",
+      "证书链缺少中间证书，TLS 握手失败"
+    ],
+    "correctIndex": 2,
+    "explanation": "proxy_pass 带 URI 时会用它替换 location 匹配到的前缀。location /api/ 配 http://backend/api/ 相当于把 /api/ 换成 /api/，再拼上剩余路径就成了 /api/api/topics。写 http://backend/ 才会剥掉前缀。"
+  },
+  {
+    "type": "choice",
+    "stem": "Vue3 使用 history 路由，直接刷新 /topics/42 需要返回 index.html，但 /api 下的真实 404 不能被吞成首页。下面哪种配置最合适？",
+    "options": [
+      "用 error_page 404 /index.html 把所有 404 都转成首页",
+      "location / 只写 root 与 index index.html，靠默认索引文件兜底",
+      "把前端产物也 proxy_pass 到 Vite dev server，交给前端处理",
+      "location / 用 try_files $uri $uri/ /index.html，同时把 /api/ 单独反代、静态目录用 try_files $uri =404"
+    ],
+    "correctIndex": 3,
+    "explanation": "SPA 回退只应作用于前端路由：try_files 先找真实文件，找不到再回 index.html；/api/ 单独反代后 404 会原样返回。error_page 全量兜底会让接口错误变成 200 的 HTML，前端解析直接失败。"
+  },
+  {
+    "type": "text",
+    "stem": "线上突然出现大量 502 和 504，请说明这两类错误的区别，以及各自第一步该查什么。",
+    "options": [],
+    "referenceAnswer": "502 Bad Gateway 是 Nginx 连不上或拿不到上游的有效响应：后端进程没起、端口写错、容器网络不通、upstream 节点被 max_fails 全部摘除，或上游直接断开连接。先查 error.log 里的 connect() failed / no live upstreams，再看后端端口与进程是否存活。504 Gateway Timeout 是连接建立了，但在 proxy_read_timeout 内没等到响应：后端慢查询、线程池或连接池耗尽、下游依赖卡住，或超时设得过短。先看 error.log 的 upstream timed out，用 curl 直接打后端量化耗时，再决定优化上游还是调整超时，不要一上来就盲目加大 timeout。",
+    "explanation": "两者的分界是「有没有连上」：502 关注可达性与进程，504 关注响应时间与容量；先看 error.log 的 upstream 行能快速定位层。"
+  }
+]

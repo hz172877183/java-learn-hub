@@ -2,115 +2,209 @@
   "slug": "redis",
   "title": "Redis 核心结构与缓存模式",
   "category": "cache",
-  "summary": "内存数据结构：缓存、锁、限流的基础；先掌握 string/hash 与过期。",
+  "summary": "内存数据结构：缓存、锁、限流的基础；先掌握 string/hash 与过期，再谈高可用。",
   "difficulty": "intermediate",
   "estimatedHours": 8,
   "tags": [
     "redis",
-    "cache"
+    "cache",
+    "distributed-lock",
+    "cache-avalanche",
+    "spring-data-redis"
   ],
   "status": "published",
   "integrationStatus": "snippet",
-  "officialDocsUrl": "https://redis.io/docs/",
+  "officialDocsUrl": "https://redis.io/docs/latest/",
   "prerequisites": [
-    "spring-boot-fundamentals"
+    "spring-boot-fundamentals",
+    "mysql-basics"
   ],
   "nextTopics": [
     "spring-security-jwt"
   ],
   "relatedTopics": [
-    "actuator"
+    "actuator",
+    "rabbitmq"
   ],
-  "overviewMd": "Redis 是内存里的数据结构服务器。业务最常见的是把热点读缓存起来，或用 SET NX 做锁。一期本项目不强制启动 Redis，避免学习门户跑不起来。\n\n**该用时：** 读多写少、会话、验证码、分布式锁、简单限流。\n\n**不该用时：** 当主数据库存放必须持久且复杂查询的学习项正文（那是 MySQL 的事）。",
+  "overviewMd": "Redis 是内存数据结构服务器，不是「缓存」的同义词。命令在单线程内原子执行（6.0 起网络 I/O 多线程，7.x 继续优化），数据常驻内存，靠 RDB/AOF 持久化，靠主从复制加 Sentinel 或 Cluster 做高可用与水平扩展。对学习门户而言，它承担学习项详情缓存、会话、验证码、计数限流和跨实例互斥；一期可以不启动，二期用 Docker 起单节点即可。\n\n核心模型是键空间加类型：String、Hash、List、Set、ZSet，以及 Stream 等扩展。所有操作以 key 为单位原子执行，多 key 命令在 Cluster 下要求落在同一 slot。过期键由惰性删除加定期采样清理，内存上限由 maxmemory 加淘汰策略兜底，「设了 TTL」不等于「到点立刻释放」。\n\n该用的地方：读多写少的热点数据、短期状态、原子计数、跨实例互斥、排行榜与去重。不该用的地方：当唯一主库存必须持久、需要复杂查询或事务的数据；存超大对象；用 KEYS、HGETALL 做全量扫描；把 Redis 当消息队列做可靠投递（Stream 可以，但要接受运维成本）。\n\n版本注意：7.0 把 AOF 改为多文件清单（base + incr），引入 Functions、分片 pub/sub 与 ACL v2；7.4 支持 Hash 字段级 TTL；8.x 内置 Search/JSON/TimeSeries 与向量集合，许可证改为 AGPLv3 选项，Valkey 是 BSD 分支。Spring Boot 3 使用 spring.data.redis.*（Boot 2 的 spring.redis.* 已废弃），默认客户端是 Lettuce。",
   "concepts": [
     {
-      "term": "String",
-      "explanation": "最常用。可存 JSON 序列化后的详情，配合 EXPIRE。"
+      "term": "String 与键设计",
+      "explanation": "String 存文本、JSON、计数和二进制；键按业务前缀分层并强制 TTL，禁止把用户输入直接拼进键。"
     },
     {
       "term": "Hash",
-      "explanation": "对象多字段部分更新时比整包 JSON 省带宽。"
+      "explanation": "Hash 适合存对象字段，HSET/HGET 只读写部分字段，比整包 JSON 省带宽；字段过多时 HGETALL 会阻塞。"
     },
     {
-      "term": "TTL",
-      "explanation": "过期时间。没有 TTL 的缓存等于内存泄漏候选项。"
+      "term": "ZSet 有序集合",
+      "explanation": "ZSet 按 score 排序且成员去重，适合排行榜、延迟队列和滑动窗口限流；范围查询与按分数删除都是 O(log N)。"
     },
     {
-      "term": "缓存旁路 Cache-Aside",
-      "explanation": "读：先 Redis，没有再查库并回填；写：先更库再删缓存。"
+      "term": "RDB 与 AOF",
+      "explanation": "RDB 是某一刻的全量快照，恢复快但会丢快照后的写入；AOF 追加写命令，everysec 最多丢约一秒。生产常两者并用。"
     },
     {
-      "term": "击穿 / 穿透 / 雪崩",
-      "explanation": "热点过期、查不存在的 key、同时大面积过期。分别用互斥重建、空值短 TTL、随机 TTL 应对。"
+      "term": "主从复制与 Sentinel",
+      "explanation": "主从异步复制用于读扩展和热备，Sentinel 监控主节点、故障时选主并通知客户端新地址；它不解决容量分片，切换瞬间可能丢未同步写入并短暂不可写。"
+    },
+    {
+      "term": "Cluster 分片",
+      "explanation": "Cluster 把键空间分成 16384 个 slot，多主节点各带副本，客户端按 MOVED/ASK 重定向；跨 slot 操作要用 hash tag。"
+    },
+    {
+      "term": "缓存穿透、击穿与雪崩",
+      "explanation": "穿透是查不存在的键，用空值缓存或布隆过滤器；击穿是热点键过期瞬间并发回源，用互斥重建或逻辑过期；雪崩是大量键同时失效，用随机 TTL、多级缓存和限流降级。"
+    },
+    {
+      "term": "分布式锁",
+      "explanation": "用 SET token NX PX 加锁，值放唯一 token；释放时用 Lua 比对 token 再删，避免误删他人的锁；租期要覆盖业务耗时。"
+    },
+    {
+      "term": "过期与内存淘汰",
+      "explanation": "过期键靠惰性删除和定期采样清理，不保证准点释放；maxmemory 到达上限后按 allkeys-lru 等策略淘汰。"
+    },
+    {
+      "term": "大 key 与热 key",
+      "explanation": "大 key 是 String 过大或集合元素过多，删除与传输都会卡住事件循环；热 key 是单键 QPS 过高打爆单个分片，要拆分或加本地缓存。"
     }
   ],
   "pathSteps": [
     {
-      "title": "CLI 五分钟",
-      "goal": "SET/GET/EXPIRE/TTL 亲手敲一遍。",
+      "title": "起一个单节点",
+      "goal": "用 Docker 跑 redis:7-alpine，redis-cli ping 返回 PONG，知道 6379 与数据卷挂载在哪。",
       "hours": 1,
       "resources": [
-        "redis-cli"
+        "docker-basics",
+        "官方文档 · 安装"
       ]
     },
     {
-      "title": "Spring 模板",
-      "goal": "读懂 StringRedisTemplate 示例（先不接入）。",
+      "title": "五种结构过一遍",
+      "goal": "SET/GET、HSET/HGETALL、LPUSH/LRANGE、SADD、ZADD 各敲一次，并观察 TTL 与 TYPE。",
+      "hours": 1,
+      "resources": [
+        "redis-cli",
+        "官方文档 · 数据类型"
+      ]
+    },
+    {
+      "title": "持久化实验",
+      "goal": "写入数据后触发 BGSAVE，重启对比 RDB 与 AOF 的恢复结果，理解「可能丢多少」。",
       "hours": 2,
       "resources": [
+        "官方文档 · 持久化",
         "本页示例"
       ]
     },
     {
-      "title": "设计本项目缓存键",
-      "goal": "约定 topic:slug:{slug} ，TTL 5 分钟，内容更新时删除。",
-      "hours": 2,
+      "title": "Spring Data Redis 接入",
+      "goal": "配好 spring.data.redis.*，用 StringRedisTemplate 读写并设置 TTL，确认序列化结果可读。",
+      "hours": 1,
       "resources": [
-        "PRD 接口"
+        "spring-boot-fundamentals",
+        "本页示例"
       ]
     },
     {
-      "title": "想清楚失败",
-      "goal": "Redis 宕了是否降级直查内存/DB。门户可以降级。",
-      "hours": 3,
+      "title": "给学习项加 Cache-Aside",
+      "goal": "约定 topic:slug:{slug} 键、5 分钟 TTL，写路径先更新库再删缓存，并补上降级。",
+      "hours": 1,
       "resources": [
-        "常见坑"
+        "本页示例",
+        "mysql-basics"
+      ]
+    },
+    {
+      "title": "锁与限流",
+      "goal": "用 SET NX PX 实现互斥，Lua 校验 token 释放；用 INCR + EXPIRE 做固定窗口限流。",
+      "hours": 1,
+      "resources": [
+        "官方文档 · 分布式锁"
+      ]
+    },
+    {
+      "title": "故障演练",
+      "goal": "停掉 Redis 观察接口降级；用 SLOWLOG、MEMORY USAGE、--bigkeys 找出慢命令与大 key。",
+      "hours": 1,
+      "resources": [
+        "actuator",
+        "官方文档 · 运维"
       ]
     }
   ],
   "samples": [
     {
-      "title": "Cache-Aside 草案",
+      "title": "Cache-Aside 与互斥重建",
       "language": "java",
-      "description": "二期接入 Redis 时的读路径。注意序列化与 TTL。",
-      "code": "public TopicDetail get(String slug) {\n    String key = \"topic:slug:\" + slug;\n    String cached = stringRedisTemplate.opsForValue().get(key);\n    if (cached != null) {\n        return objectMapper.readValue(cached, TopicDetail.class);\n    }\n    TopicDetail detail = topicRepository.findPublished(slug);\n    stringRedisTemplate.opsForValue()\n            .set(key, objectMapper.writeValueAsString(detail), Duration.ofMinutes(5));\n    return detail;\n}"
+      "description": "读路径先查缓存，未命中时用短锁避免热点键被并发回源；异常向上抛，由上层决定降级。",
+      "code": "@Service\npublic class TopicCacheService {\n    private final StringRedisTemplate redis;\n    private final ObjectMapper json;\n    private final TopicRepository repository;\n\n    public TopicCacheService(StringRedisTemplate redis, ObjectMapper json, TopicRepository repository) {\n        this.redis = redis;\n        this.json = json;\n        this.repository = repository;\n    }\n\n    public TopicDetail get(String slug) throws Exception {\n        String key = \"topic:slug:\" + slug;\n        String cached = redis.opsForValue().get(key);\n        if (cached != null) {\n            return json.readValue(cached, TopicDetail.class);\n        }\n        String lockKey = key + \":rebuild\";\n        Boolean locked = redis.opsForValue().setIfAbsent(lockKey, \"1\", Duration.ofSeconds(10));\n        if (Boolean.TRUE.equals(locked)) {\n            try {\n                TopicDetail detail = repository.findPublished(slug).orElseThrow();\n                redis.opsForValue().set(key, json.writeValueAsString(detail), Duration.ofMinutes(5));\n                return detail;\n            } finally {\n                redis.delete(lockKey);\n            }\n        }\n        Thread.sleep(50);\n        String retry = redis.opsForValue().get(key);\n        return retry != null ? json.readValue(retry, TopicDetail.class)\n                : repository.findPublished(slug).orElseThrow();\n    }\n}"
+    },
+    {
+      "title": "分布式锁：加锁与 Lua 释放",
+      "language": "java",
+      "description": "token 保证只释放自己的锁；unlock 用 Lua 把「比较 + 删除」做成原子操作。",
+      "code": "@Component\npublic class RedisLock {\n    private static final DefaultRedisScript<Long> UNLOCK = new DefaultRedisScript<>(\n            \"if redis.call('get', KEYS[1]) == ARGV[1] then \"\n                    + \"return redis.call('del', KEYS[1]) else return 0 end\", Long.class);\n\n    private final StringRedisTemplate redis;\n\n    public RedisLock(StringRedisTemplate redis) {\n        this.redis = redis;\n    }\n\n    public String tryLock(String key, Duration ttl) {\n        String token = UUID.randomUUID().toString();\n        Boolean ok = redis.opsForValue().setIfAbsent(key, token, ttl);\n        return Boolean.TRUE.equals(ok) ? token : null;\n    }\n\n    public boolean unlock(String key, String token) {\n        Long removed = redis.execute(UNLOCK, List.of(key), token);\n        return removed != null && removed > 0;\n    }\n}"
+    },
+    {
+      "title": "Spring Boot 连接配置",
+      "language": "yaml",
+      "description": "单节点 + Lettuce 连接池（需 commons-pool2），超时与 TTL 都显式配置，避免默认值埋雷。",
+      "code": "spring:\n  data:\n    redis:\n      host: localhost\n      port: 6379\n      password: ${REDIS_PASSWORD:}\n      database: 0\n      timeout: 2s\n      lettuce:\n        pool:\n          max-active: 16\n          max-idle: 8\n          min-idle: 2\n          max-wait: 500ms\n  cache:\n    type: redis\n    redis:\n      time-to-live: 5m\n      cache-null-values: false\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: health,metrics"
     }
   ],
   "pitfalls": [
     {
-      "title": "无 TTL",
-      "detail": "学习项一多、序列化一肥，Redis 会先于你的预期撑满。"
+      "title": "所有键都没有 TTL",
+      "detail": "现象是 used_memory 持续上涨，直到 maxmemory 淘汰或直接 OOM。原因多为写入时只 set 不 expire，或不同入口各写各的。规避：统一缓存组件封装 TTL，代码审查键模板，并监控 evicted_keys 与内存水位。"
     },
     {
-      "title": "只更新缓存不更新库",
-      "detail": "重启或淘汰后数据丢失。Cache-Aside 以数据库为准。"
+      "title": "删缓存与写库的顺序错乱",
+      "detail": "现象是更新后页面仍读到旧值，过一会儿又恢复。原因是先删缓存再写库，或并发读在写库前把旧值回填。规避：先写库再删缓存，配合延迟双删或 binlog/消息补偿，并接受最终一致。"
     },
     {
-      "title": "用 Keys * 当生产查询",
-      "detail": "阻塞事件循环。扫描用 SCAN，业务查询用明确 key 或 Redis Search（进阶）。"
+      "title": "KEYS * 与大 Hash 全量读",
+      "detail": "现象是偶发超时、SLOWLOG 里出现毫秒级命令。原因是 O(N) 命令阻塞单线程，键越多越久。规避：用 SCAN 游标代替 KEYS，拆分大 Hash，删除用 UNLINK，并用 --bigkeys 定期体检。"
+    },
+    {
+      "title": "锁误删或锁提前过期",
+      "detail": "现象是两个线程同时进入临界区。原因是释放时直接 DEL 没校验 token，或业务耗时超过锁租期。规避：Lua 比对 token 再删，长任务用看门狗续期，业务本身保持幂等。"
+    },
+    {
+      "title": "Cluster 下的跨 slot 操作",
+      "detail": "现象是 CROSSSLOT 错误，MGET、事务或 Lua 直接失败。原因是多个 key 被分到不同分片。规避：用 hash tag（如 topic:{slug}:detail）绑定同一 slot，或把多 key 合并成单 key 结构。"
+    },
+    {
+      "title": "把 Redis 当主库、持久化配置随意",
+      "detail": "现象是重启后数据大面积缺失。原因是只开 RDB 且 save 间隔很长，或 AOF 被关闭。规避：先明确可丢数据范围，关键数据落 MySQL；需要恢复能力时开 AOF everysec 并配主从。"
     }
   ],
   "repoPointers": [],
   "scenarios": [
     {
-      "title": "同一个热点数据被反复查库",
-      "signal": "首页、商品详情、配置项 QPS 高，数据库压力大但数据变化不频繁",
-      "approach": "读多写少的数据加缓存，设置合理 TTL；更新时先改库再删缓存，接受短暂不一致"
+      "title": "热点详情读多写少",
+      "signal": "首页或详情页 QPS 高、数据库 CPU 吃紧，但内容几分钟才变一次",
+      "approach": "Cache-Aside：读先查 Redis，未命中回源并回填 5 分钟 TTL；写路径先更新 MySQL 再删缓存，空结果短 TTL 防穿透"
     },
     {
-      "title": "需要原子计数或短期状态",
-      "signal": "验证码、登录态、接口限流、排行榜",
-      "approach": "用带 TTL 的 key 存短期状态；计数用 INCR/INCRBY 保证原子性；限流用固定/滑动窗口脚本"
+      "title": "验证码与登录态",
+      "signal": "短期状态需要自动过期，且多个应用实例要共享",
+      "approach": "验证码用 String 加 5 分钟 TTL，校验成功立即 DEL；会话用 Hash 存 userId、roles 等字段，整体设置滑动过期"
+    },
+    {
+      "title": "接口限流与防刷",
+      "signal": "同一 IP 或用户短时间请求突增，下游开始超时",
+      "approach": "INCR + EXPIRE 做固定窗口计数，超阈值返回 429；要求更平滑时用 Lua 实现滑动窗口，键按用户维度打散"
+    },
+    {
+      "title": "多副本定时任务互斥",
+      "signal": "定时任务在多台机器上重复执行，产生重复数据或重复通知",
+      "approach": "任务开始前 SET NX PX 抢锁，token 标识持有者，结束用 Lua 释放；任务本身仍要做幂等，锁只降低重复概率"
+    },
+    {
+      "title": "排行榜与去重统计",
+      "signal": "需要按分数实时排序，或统计当日独立用户数",
+      "approach": "ZSet 存分数与成员做榜单，ZREVRANGE 取 Top N；UV 用 Set 或 HyperLogLog，后者省内存但有约 0.8% 误差"
     }
   ]
 }

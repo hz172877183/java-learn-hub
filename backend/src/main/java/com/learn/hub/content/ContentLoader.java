@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -124,8 +125,20 @@ public class ContentLoader {
     }
 
     /**
-     * 解析数据库里的学习项 JSON，并补齐缺失字段。
+     * 读取 content/seed-version.txt，用于判断是否需要同步种子内容。
      */
+    public String readSeedVersion() {
+        Resource resource = new ClassPathResource("content/seed-version.txt");
+        if (!resource.exists()) {
+            return "0";
+        }
+        try (InputStream in = resource.getInputStream()) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8).trim();
+        } catch (IOException e) {
+            throw new IllegalStateException("内容种子版本文件无法读取", e);
+        }
+    }
+
     /**
      * 读取 content/interview/questions.json，作为面试题库的种子。
      */
@@ -140,7 +153,11 @@ public class ContentLoader {
         }
     }
 
-    public ContentModels.TopicDocument parseTopic(String json) {        try {
+    /**
+     * 解析数据库里的学习项 JSON，并补齐缺失字段。
+     */
+    public ContentModels.TopicDocument parseTopic(String json) {
+        try {
             return objectMapper.readValue(json, ContentModels.TopicDocument.class).normalized();
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("数据库中的学习项 JSON 无法解析", e);

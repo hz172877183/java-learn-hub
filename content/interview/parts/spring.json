@@ -1,0 +1,492 @@
+[
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "choice",
+    "stem": "Spring Bean 的默认作用域是 singleton，关于 Bean 作用域下列说法正确的是？",
+    "options": [
+      "默认 singleton，容器内同名 Bean 只创建一个实例",
+      "默认 prototype，每次获取都会创建新的实例",
+      "默认 request，每个 HTTP 请求创建一个实例",
+      "默认 singleton，但每次注入都会创建新实例"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "singleton 是默认作用域，实例存放在单例池中；prototype 每次 getBean 都新建，且容器不负责销毁。request、session 只在 Web 环境中有效。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "choice",
+    "stem": "@Autowired 默认按什么方式注入？当同类型存在多个 Bean 时，下面哪种处理方式正确？",
+    "options": [
+      "默认按名称注入，直接用字段名匹配即可",
+      "默认按类型注入，可配合 @Qualifier 指定 Bean 名称",
+      "默认按类型注入，多个候选时随机选择一个",
+      "默认按名称注入，必须配合 @Resource 才能使用"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "@Autowired 默认 byType，多个候选时再按字段名或参数名匹配，仍匹配不上会抛 NoUniqueBeanDefinitionException；@Qualifier 可显式指定。required=false 允许注入不到时为 null。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "choice",
+    "stem": "使用 @Transactional 注解时，默认在抛出哪类异常时回滚？",
+    "options": [
+      "所有 Exception 及其子类",
+      "只有受检异常（Checked Exception）",
+      "RuntimeException 和 Error",
+      "任何异常都不回滚，必须手动设置"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "默认只对 RuntimeException 和 Error 回滚；抛出受检异常需显式写 rollbackFor = Exception.class，这是事务“看起来没生效”的常见原因。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "choice",
+    "stem": "Spring AOP 中，想在目标方法正常返回后执行增强逻辑，应优先使用哪种通知？",
+    "options": [
+      "@Before",
+      "@AfterThrowing",
+      "@Around",
+      "@AfterReturning"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "@AfterReturning 在方法正常返回后执行，可拿到返回值；@AfterThrowing 只在抛异常时执行；@After 类似 finally，无论成功失败都执行。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于 BeanFactory 与 ApplicationContext，下面说法正确的是？",
+    "options": [
+      "ApplicationContext 是 BeanFactory 的子接口，增加了事件、国际化等能力",
+      "BeanFactory 是 ApplicationContext 的子接口，启动更快",
+      "两者完全等价，只是命名不同",
+      "ApplicationContext 默认懒加载所有单例 Bean"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "ApplicationContext 继承 BeanFactory 并扩展事件发布、国际化、资源加载等能力；其实现默认预实例化单例，而 BeanFactory 默认懒加载。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "choice",
+    "stem": "Spring 配置中 ${...} 与 #{...} 的区别，下面说法正确的是？",
+    "options": [
+      "${} 用于 SpEL 表达式，#{} 用于占位符替换",
+      "${} 用于属性占位符解析，#{} 用于 SpEL 表达式求值",
+      "两者都由 SpEL 解析，作用完全相同",
+      "#{} 只能用于 XML，${} 只能用于注解"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "${} 由 PropertySourcesPlaceholderConfigurer 解析配置属性；#{} 由 SpEL 求值，可调用方法、访问 Bean 属性；两者可以嵌套使用。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "text",
+    "stem": "Spring 中 @Component、@Service、@Repository、@Controller 有什么区别？使用时如何选择？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）四者本质都是把类注册为 Bean，@Service、@Repository、@Controller 都是 @Component 的派生注解，只是语义更明确。2）@Controller 标记 Web 控制层，配合 @RequestMapping；@Service 标记业务层；@Repository 标记持久层，Spring 会为其做持久层异常转换。3）选择原则是按分层语义使用，便于阅读与 AOP 精确匹配；自定义注解可组合 @Component 复用。",
+    "explanation": "功能上几乎等价，差异在语义与异常转换；@Repository 会把厂商异常转成 DataAccessException，这是它相对 @Component 的实际增强。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "text",
+    "stem": "解释 Spring AOP 中的连接点、切点、通知和织入，它们之间是什么关系？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）连接点 JoinPoint：程序执行中可被增强的点，Spring 中主要是方法调用；2）切点 Pointcut：用表达式筛选连接点，如 execution(* com.x.service.*(..))；3）通知 Advice：切点上执行的具体逻辑，分前置、后置、异常、环绕等；4）织入 Weaving：把通知应用到目标对象生成代理的过程，Spring 在运行期通过动态代理完成。",
+    "explanation": "切点是“在哪加”的筛选规则，通知是“加什么”，织入是“怎么加进去”；Spring AOP 只支持方法级别的连接点。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "text",
+    "stem": "Spring 的事件机制怎么用？请说明事件、发布者和监听器各自的角色。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）定义事件，继承 ApplicationEvent 或直接使用任意 POJO；2）通过 ApplicationEventPublisher.publishEvent 发布，ApplicationContext 实现了该接口；3）监听器实现 ApplicationListener 或在方法上加 @EventListener；4）默认同步执行，可用 @Async 异步化。适合做业务解耦，如注册成功后发邮件、发券。",
+    "explanation": "事件机制是观察者模式的落地，默认在同一线程同步调用，监听器抛异常会影响发布方，生产上常配合异步与事务事件使用。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "text",
+    "stem": "Spring 缓存抽象中 @Cacheable、@CachePut、@CacheEvict 分别是什么语义？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）@Cacheable：先查缓存，命中直接返回，未命中执行方法并写缓存；2）@CachePut：每次都执行方法，并把返回值写入缓存，用于更新；3）@CacheEvict：删除缓存，allEntries=true 清空整个 cache，beforeInvocation 控制删除时机。需在配置类上加 @EnableCaching 才会生效。",
+    "explanation": "三者都靠 CacheInterceptor 拦截实现，注解失效最常见原因是未开启 @EnableCaching，或同类自调用绕过了代理。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "choice",
+    "stem": "Spring AOP 创建代理时，JDK 动态代理与 CGLIB 的主要区别是？",
+    "options": [
+      "JDK 代理要求目标类非 final，CGLIB 要求有接口",
+      "两者都只能代理 private 方法",
+      "JDK 代理基于接口，CGLIB 通过继承生成子类",
+      "CGLIB 只能代理接口，JDK 可代理任意类"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "JDK 代理要求目标实现接口，代理类与目标是兄弟关系；CGLIB 生成子类，无法代理 final 类和 final 方法。Spring Boot 2.x 起默认 proxyTargetClass=true，即默认 CGLIB。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "choice",
+    "stem": "Spring 用三级缓存解决单例循环依赖，其中二级缓存 earlySingletonObjects 存放的是？",
+    "options": [
+      "已经完整初始化完成的单例 Bean 实例",
+      "用于创建 Bean 的 ObjectFactory 工厂",
+      "Bean 的定义信息 BeanDefinition",
+      "提前暴露的早期 Bean 引用，可能已是代理对象"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "一级 singletonObjects 放成品；二级 earlySingletonObjects 放提前暴露的早期引用，若需要代理则是代理对象；三级 singletonFactories 放 ObjectFactory，用于延迟决定是否生成代理。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "choice",
+    "stem": "事务传播行为 REQUIRED 与 REQUIRES_NEW 的关键区别是？",
+    "options": [
+      "REQUIRED 加入当前事务，REQUIRES_NEW 挂起当前事务并新建独立事务",
+      "两者都会加入当前事务，没有区别",
+      "REQUIRED 总是新建事务，REQUIRES_NEW 总是加入当前事务",
+      "REQUIRES_NEW 不能与 REQUIRED 嵌套使用"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "REQUIRED 是默认值，有事务则加入、无则新建；REQUIRES_NEW 会挂起外层事务并开启独立事务，内层回滚不影响外层，适合记录日志等必须落库的操作。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "choice",
+    "stem": "Spring Boot 自动配置中 @ConditionalOnMissingBean 的含义是？",
+    "options": [
+      "容器中存在指定类型的 Bean 时才生效",
+      "容器中不存在指定类型的 Bean 时才生效",
+      "配置文件中存在指定属性时才生效",
+      "指定类存在于 classpath 上时才生效"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "OnMissingBean 用于“用户自定义优先”的默认配置，只有容器中没有该类型 Bean 时才注册；存在时对应 @ConditionalOnBean，属性条件用 @ConditionalOnProperty。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于 BeanFactoryPostProcessor 与 BeanPostProcessor，下面说法正确的是？",
+    "options": [
+      "前者处理 Bean 实例，后者处理 BeanDefinition",
+      "两者都在 Bean 实例化完成之后执行",
+      "前者在实例化前修改 BeanDefinition，后者在 Bean 初始化前后处理实例",
+      "两者都由 @PostConstruct 注解触发"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "BFPP 在 refresh 的 invokeBeanFactoryPostProcessors 阶段执行，可修改 Bean 定义，如占位符替换；BPP 在每次创建 Bean 的初始化前后回调，可用于注解注入与生成代理。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "choice",
+    "stem": "使用 @Cacheable 不指定 key 时，Spring 默认的 key 生成规则是？",
+    "options": [
+      "固定使用“类名+方法名”作为 key",
+      "固定使用方法返回值作为 key",
+      "每次随机生成一个 UUID 作为 key",
+      "无参用 SimpleKey.EMPTY，单参用参数本身，多参封装为 SimpleKey"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "默认 KeyGenerator 是 SimpleKeyGenerator：无参生成空 SimpleKey，单参直接使用该参数，多参封装成 SimpleKey；因此参数对象需正确实现 equals 和 hashCode。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "choice",
+    "stem": "Spring 6 升级后，Servlet 相关依赖的包名发生了什么变化？",
+    "options": [
+      "javax.servlet 改为 jakarta.servlet",
+      "jakarta.servlet 改为 javax.servlet",
+      "包名保持不变，只是版本号提升",
+      "改为 spring.servlet 下的新包"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "Jakarta EE 9 起命名空间由 javax.* 迁移到 jakarta.*，Spring 6 / Spring Boot 3 基于 Jakarta EE 9+，因此 Tomcat 10+、Servlet 6 等依赖必须使用 jakarta 包。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "choice",
+    "stem": "下列 Spring 组件与设计模式的对应关系，错误的是？",
+    "options": [
+      "BeanFactory 使用工厂模式创建 Bean",
+      "JdbcTemplate 使用建造者模式管理连接",
+      "ApplicationEvent 使用观察者模式",
+      "AOP 代理使用代理模式"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "JdbcTemplate 属于模板方法模式，把连接获取、异常转换等固定流程封装，变化部分交给回调；BeanFactory 是工厂，事件是观察者，AOP 是代理。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "text",
+    "stem": "为什么构造器注入的循环依赖无法被 Spring 解决？实际项目中你会怎么处理？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）原因：构造器注入要求在实例化时就拿到依赖，两个 Bean 互相等待对方构造完成，无法提前暴露引用，三级缓存也无能为力，会抛 BeanCurrentlyInCreationException。2）处理：优先重构，抽出第三个 Bean 或调整依赖方向；确需保留可改用 setter 注入并加 @Lazy 延迟代理；Spring Boot 2.6+ 默认禁止循环依赖，应作为设计问题修掉。",
+    "explanation": "三级缓存只能解决属性填充阶段的循环依赖；构造器阶段对象尚未创建，无法放入缓存，所以只能靠重构或 @Lazy 打破。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "text",
+    "stem": "同一个类中方法 A 调用加了 @Transactional 的方法 B，事务为什么会失效？如何解决？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）原因：@Transactional 依赖代理，A 调用 B 是 this 调用，走的是原始对象而非代理，通知不执行。2）解决：把 B 拆到另一个 Bean 中通过注入调用；或注入自身代理，使用 AopContext.currentProxy() 需开启 exposeProxy；也可用 TransactionTemplate 编程式控制。3）本质是绕过代理的自调用都会失效，缓存、异步注解同理。",
+    "explanation": "关键点是“调用是否经过代理对象”；把方法移到另一个 Bean 或用编程式事务最稳妥，依赖 AopContext 需要额外配置。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "text",
+    "stem": "列举 @Transactional 事务失效的常见场景。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）注解所在方法非 public，或类未被 Spring 管理；2）同类自调用绕过代理；3）异常被 catch 未抛出，或抛出受检异常未配置 rollbackFor；4）传播行为设置不当，如 NOT_SUPPORTED；5）表引擎不支持事务，如 MyISAM；6）多线程中调用，事务绑定在原线程；7）类被 final 修饰导致无法代理。",
+    "explanation": "排查事务失效先确认调用是否经过代理、异常是否抛出、数据源与表引擎是否支持事务，再看传播行为与只读设置。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "text",
+    "stem": "多个切面同时拦截同一个方法时，如何控制它们的执行顺序？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）在切面类上使用 @Order 注解或实现 Ordered 接口，值越小优先级越高；2）未指定顺序时行为不确定，不应依赖；3）环绕通知的进入顺序与退出顺序相反，形成栈式结构；4）同一通知类型下按切面顺序执行，可用它保证“日志在外、事务在内”之类的语义。",
+    "explanation": "@Order 只控制切面之间的顺序，不控制同一方法内多个通知；排查顺序问题时先确认是否显式指定了顺序。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "text",
+    "stem": "同一个 Bean 中，@PostConstruct、InitializingBean.afterPropertiesSet 和 initMethod 的执行顺序是什么？销毁阶段呢？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）初始化顺序：@PostConstruct（由 CommonAnnotationBeanPostProcessor 调用）→ InitializingBean.afterPropertiesSet → 自定义 initMethod；三者都在 BeanPostProcessor 的前置回调之后、后置回调之前执行。2）销毁顺序：@PreDestroy → DisposableBean.destroy → 自定义 destroyMethod，仅在单例 Bean 容器关闭时触发，prototype 不归容器管理。",
+    "explanation": "记忆方式：注解优先、接口其次、配置最后；AOP 代理在后置回调中生成，所以 init 方法里拿到的 this 还不是最终代理。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "text",
+    "stem": "如何在事务提交成功后再执行发送消息、发通知这类副作用？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）使用 @TransactionalEventListener，默认 phase=AFTER_COMMIT，事务提交后才触发；2）发布方通过 ApplicationEventPublisher 发布事件，监听器绑定当前事务；3）若需异步，再加 @Async 并配置线程池；4）事务回滚时监听器不执行，可配置 fallbackExecution 处理无事务场景。",
+    "explanation": "直接在事务方法里发 MQ 会出现“消息已发、事务回滚”的不一致；事务事件把副作用推迟到提交后，是本地最终一致的常用做法。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "text",
+    "stem": "如何自定义一个 @Conditional 条件，让某个 Bean 只在满足特定条件时注册？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）实现 Condition 接口，重写 matches 方法，通过 ConditionContext 获取 Environment、BeanFactory、ClassLoader 做判断；2）在 @Bean 或 @Component 上使用 @Conditional(MyCondition.class)；3）Spring Boot 提供 @ConditionalOnClass、@ConditionalOnProperty 等组合注解，底层同样是 Condition；4）条件判断应轻量、无副作用，不要在里面初始化 Bean。",
+    "explanation": "Condition 在解析配置类时求值，比 @Profile 更灵活；多个条件同时存在时需全部满足，除非使用 AnyNestedCondition。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "text",
+    "stem": "Spring 的 Resource 抽象解决了什么问题？classpath:、file: 前缀分别怎么用？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）作用：统一访问 classpath、文件系统、URL、ServletContext 等资源，接口为 Resource，常见实现有 ClassPathResource、FileSystemResource、UrlResource。2）前缀：classpath: 从类路径加载，file: 从文件系统路径加载，http: 走 URL。3）支持 classpath*: 通配符跨 jar 扫描；可用 ResourceLoader 或 @Value 注入资源路径。",
+    "explanation": "打成 jar 后普通 File 读不到 classpath 内资源，必须用 getResourceAsStream；classpath*: 才能跨 jar 匹配，这是打包后资源加载失败的常见原因。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "choice",
+    "stem": "使用 @Around 通知时，如果忘记调用 ProceedingJoinPoint.proceed()，会发生什么？",
+    "options": [
+      "目标方法照常执行，只是返回值被忽略",
+      "启动时报错，容器无法创建代理",
+      "目标方法不会执行，直接返回通知中的返回值",
+      "只会执行 @Before，不执行 @After"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "@Around 完全包裹目标方法，只有调用 proceed() 才触发目标执行；不调用相当于短路，目标方法被跳过，常用于缓存、鉴权、限流等场景。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "choice",
+    "stem": "事务传播行为 NESTED 与 REQUIRES_NEW 的核心差异是？",
+    "options": [
+      "两者都使用同一个物理事务，没有本质区别",
+      "NESTED 总是新建数据库连接，REQUIRES_NEW 复用当前连接",
+      "NESTED 只能用于只读事务，REQUIRES_NEW 用于写事务",
+      "NESTED 基于保存点，回滚只影响嵌套部分；REQUIRES_NEW 是独立事务"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "NESTED 通过 JDBC savepoint 实现，外层回滚会带上内层，内层回滚不影响外层；REQUIRES_NEW 挂起外层、独立提交或回滚，需要新连接，注意连接池耗尽风险。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "choice",
+    "stem": "关于 Spring 7 / Spring Boot 4 的基线要求，下面说法正确的是？",
+    "options": [
+      "要求 JDK 17+，基于 Jakarta EE 11，并支持虚拟线程",
+      "要求 JDK 8+，仍兼容 javax 命名空间",
+      "要求 JDK 11+，只支持 Tomcat 9",
+      "不再支持 Spring MVC，只保留 WebFlux"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "Spring 7 以 JDK 17 为基线，迁移到 Jakarta EE 11（Servlet 6.1、Tomcat 11），移除大量过时 API；虚拟线程在 6.1 已支持，7 继续完善。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "text",
+    "stem": "简述 Spring 容器启动时 refresh() 的主要步骤，以及各阶段能做什么扩展。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）prepareRefresh 准备环境；2）obtainFreshBeanFactory 加载 BeanDefinition；3）invokeBeanFactoryPostProcessors 执行 BFPP，完成占位符替换与配置类解析；4）registerBeanPostProcessors 注册 BPP；5）initApplicationEventMulticaster 初始化事件组件；6）onRefresh 由子类创建 Web 容器；7）finishBeanFactoryInitialization 实例化非懒加载单例；8）finishRefresh 发布 ContextRefreshedEvent。",
+    "explanation": "记住两条主线：BFPP 改“定义”，BPP 改“实例”；单例实例化发生在 finishBeanFactoryInitialization，AOP 代理也在其中生成。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "text",
+    "stem": "Spring Boot 2.6 之后默认禁止循环依赖，线上遇到循环依赖报错你会怎么治理？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先定位：报错信息会给出 Bean 链路，结合 BeanCurrentlyInCreationException 或依赖图梳理依赖环。2）优先重构：按职责拆分，把公共逻辑抽成第三个 Bean；用事件、回调或 @Lazy 延迟打破。3）配置兜底：allow-circular-references=true 只是临时手段，会掩盖设计问题。4）预防：用 ArchUnit 或模块依赖检查在 CI 中拦截循环依赖。",
+    "explanation": "Spring Boot 2.6 默认 allow-circular-references=false；循环依赖多半是职责不清的信号，重构比打开开关更值得做。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "text",
+    "stem": "哪些情况下 Spring AOP 的增强会失效？线上如何快速判断？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）自调用：同类方法内部调用绕过代理；2）方法为 private、static、final，或类为 final，代理无法覆盖；3）对象不是 Spring 管理的 Bean，如自己 new 出来的实例；4）切点表达式写错或未启用 @EnableAspectJAutoProxy；5）异步或多线程中丢失代理上下文。判断方法：断点看调用栈是否经过代理类，或打印 AopUtils.isAopProxy。",
+    "explanation": "先确认“调用是否经过代理”，再看切点是否匹配、方法是否可被代理；自调用和自己 new 出来的对象是最常见原因。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "text",
+    "stem": "什么是大事务？它有哪些危害，如何在架构上拆分？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）大事务指事务内包含远程调用、批量写、长耗时逻辑，导致连接占用久、锁持有久、回滚代价大。2）危害：连接池耗尽、行锁与间隙锁阻塞、主从延迟、回滚时间长。3）拆分：把 RPC、发消息、文件操作移出事务；批量操作分批提交；用本地消息表或事务事件保证最终一致；只读查询走只读事务或不开事务。",
+    "explanation": "事务应只包住必要的数据库写操作；把外部调用放进事务是典型反模式，会放大锁与连接占用。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "text",
+    "stem": "如何在 Spring 启动时动态注册一个 Bean？BeanDefinitionRegistryPostProcessor 适合做什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）实现 BeanDefinitionRegistryPostProcessor，在 postProcessBeanDefinitionRegistry 中向 registry 注册 BeanDefinition，可在此扫描自定义注解或按配置批量注册；2）也可用 ImportBeanDefinitionRegistrar 配合 @Import，MyBatis 的 Mapper 扫描就是这么做的；3）注册后仍会走正常的实例化、BPP 与 AOP 流程。注意它执行早于普通 BFPP，不要在此获取 Bean 实例。",
+    "explanation": "BeanDefinitionRegistryPostProcessor 是所有 BFPP 中最早执行的一批，适合做“按规则批量造 Bean”，此时容器尚未实例化业务 Bean。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "text",
+    "stem": "使用 Spring 事件机制在生产环境有哪些坑？如何规避？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）默认同步，监听器慢会拖慢发布方，甚至拖垮事务；应配置 @Async 与独立线程池并设拒绝策略。2）异步监听器抛异常不会反馈给发布方，需日志、重试与死信兜底。3）事务未提交就发事件，监听器查不到数据；用 @TransactionalEventListener 绑定 AFTER_COMMIT。4）集群下事件只在单机生效，跨实例需 MQ 广播。",
+    "explanation": "事件不是消息队列：没有持久化、没有跨实例投递、默认同步；把它当进程内解耦工具，别当可靠消息用。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "text",
+    "stem": "SpEL 表达能力很强，为什么在对外接口中使用它需要特别小心？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）SpEL 支持调用方法、访问属性、执行构造器甚至用 T() 引用类，若表达式来自用户输入，可能被构造为表达式注入，造成任意方法调用或 RCE。2）防护：表达式来源白名单、避免直接拼接用户输入、使用 SimpleEvaluationContext 限制能力、必要时用沙箱或改用固定模板。3）内部使用也应限制求值上下文与超时。",
+    "explanation": "StandardEvaluationContext 能力过强，SimpleEvaluationContext 只读且受限；任何把外部输入当表达式求值的代码都要按注入漏洞对待。"
+  },
+  {
+    "category": "spring",
+    "level": "senior",
+    "type": "text",
+    "stem": "构造器注入、setter 注入、字段注入如何取舍？为什么官方推荐构造器注入？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）构造器注入：依赖可 final、对象创建即完整，便于单测直接 new，缺少依赖时启动即失败；缺点是依赖多时构造器臃肿，也无法解决构造器循环依赖。2）setter 注入：适合可选依赖与重新配置。3）字段注入：代码短但隐藏依赖、难以脱离容器测试、易掩盖循环依赖，官方不建议。4）实践：必需依赖用构造器，可选依赖用 setter 或 ObjectProvider。",
+    "explanation": "取舍核心是可测试性与依赖显式化；Spring 团队明确推荐构造器注入，字段注入只在简单场景或测试中偶尔使用。"
+  },
+  {
+    "category": "spring",
+    "level": "architect",
+    "type": "choice",
+    "stem": "需要在 Spring 启动的不同阶段做扩展，下列扩展点与时机匹配正确的是？",
+    "options": [
+      "BeanDefinitionRegistryPostProcessor：所有 Bean 实例化完成后追加 Bean",
+      "BeanPostProcessor：每个 Bean 初始化前后包装实例",
+      "SmartInitializingSingleton：在 BeanDefinition 解析前修改定义",
+      "ApplicationListener：在容器刷新前修改数据源配置"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "BPP 在每个 Bean 初始化前后回调；RegistryPostProcessor 在定义阶段注册 Bean；SmartInitializingSingleton 在所有单例实例化后回调；监听器在事件发生时执行，不能修改早期配置。"
+  },
+  {
+    "category": "spring",
+    "level": "architect",
+    "type": "text",
+    "stem": "要为团队封装一个 Spring Boot starter，你会如何设计自动配置、条件装配与可覆盖性？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）拆分 autoconfigure 与 starter 两个模块，通过 AutoConfiguration.imports 注册自动配置类。2）用 @ConditionalOnClass、@ConditionalOnMissingBean、@ConditionalOnProperty 保证按需生效且用户配置优先。3）用 @ConfigurationProperties 收敛配置并做校验与默认值。4）暴露少量扩展点，如 Customizer、BeanPostProcessor，而不是让用户改源码。5）提供配置元数据与版本兼容策略，避免与业务依赖冲突。",
+    "explanation": "starter 的设计核心是“约定优于配置 + 可覆盖”：条件装配决定是否生效，@ConfigurationProperties 决定怎么配，扩展点决定怎么改。"
+  },
+  {
+    "category": "spring",
+    "level": "architect",
+    "type": "text",
+    "stem": "在分层架构中，你会如何划定事务边界？跨服务场景又如何保证一致性？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）事务边界放在应用服务层，只包住必要的数据库写，RPC、消息、文件操作移出事务。2）一个用例一个事务，避免在 Controller 或 Repository 层加 @Transactional 导致边界模糊。3）跨服务不强求强一致：核心扣减用本地事务加幂等，周边用本地消息表或事务消息实现最终一致，配合对账与补偿。4）用只读事务、超时、连接池隔离控制资源，并对长事务监控告警。",
+    "explanation": "架构上先分级：单库内用本地事务，跨服务用最终一致；事务边界清晰比事务技术选型更重要。"
+  }
+]

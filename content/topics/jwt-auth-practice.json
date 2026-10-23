@@ -9,6 +9,7 @@
     "jwt",
     "auth",
     "bcrypt",
+    "jjwt",
     "spring-boot"
   ],
   "status": "published",
@@ -22,84 +23,152 @@
   ],
   "relatedTopics": [
     "http-error-contract",
-    "config-and-secrets"
+    "config-and-secrets",
+    "spring-security-jwt",
+    "actuator"
   ],
-  "overviewMd": "JWT 把用户身份放进一个签名令牌，服务端不保存会话。真正难的不是“怎么签发”，而是四件事：**密钥怎么管、令牌放哪、过期怎么办、如何注销**。\n\n本项目用 JJWT 0.12 加一个自写 `OncePerRequestFilter`，没有引入完整的 Spring Security；密码用 BCrypt 哈希，只依赖 `spring-security-crypto`。这是一条“前后端分离 + 单体服务”的最小落地路径。\n\n学习的顺序建议是：先能签发和校验，再处理过期与错误响应，最后才考虑刷新令牌和强制下线。不要一上来就设计双令牌体系。",
+  "overviewMd": "JWT 把用户身份放进一个签名令牌，服务端不保存会话。真正难的不是“怎么签发”，而是四件事：**密钥怎么管、令牌放哪、过期怎么办、如何注销**。这四件事决定了一套鉴权是能上线，还是只能做演示。\n\n本项目用 JJWT 0.12 加一个自写 `OncePerRequestFilter`，没有引入完整的 Spring Security；密码用 BCrypt 哈希，只依赖 `spring-security-crypto`。这是一条“前后端分离 + 单体服务”的最小落地路径，优点是依赖轻、链路短，缺点是没有框架托底的异常处理和会话防护。\n\n当前 `JwtService` 把 `sub` 设为用户 ID，附带 `username`，密钥与有效期来自 `learn-hub.jwt-secret` 和 `jwt-ttl-hours`，默认 168 小时。这个默认值只适合本地演示：**生产环境应把访问令牌压到 15 到 30 分钟**，再用刷新令牌维持会话，否则令牌一旦泄露就是长达七天的访问权。\n\n学习的顺序建议是：先能签发和校验，再处理过期与错误响应，然后做刷新轮换，最后才考虑黑名单和强制下线。不要一上来就设计双令牌加设备指纹——先把单令牌的边界和失败路径跑通。\n\n常见误区：把 payload 当加密数据、把权限写进 claims 后长期不刷新、密钥带默认值上线、令牌塞进 URL、用 `equals` 比较 BCrypt 哈希、刷新令牌不轮换导致可无限重放。",
   "concepts": [
     {
       "term": "签名不是加密",
-      "explanation": "JWT 默认只签名，payload 只是 base64，任何拿到令牌的人都能解开。不要往 claims 里放密码、身份证等敏感信息。"
+      "explanation": "JWT 默认只签名，payload 只是 base64url，任何拿到令牌的人都能解开。不要往 claims 里放密码、身份证等敏感信息。"
     },
     {
-      "term": "claims 与过期",
-      "explanation": "sub 放用户 ID，exp 控制有效期。服务端每次请求都要校验签名和 exp，不能只在前端判断。"
+      "term": "claims 设计",
+      "explanation": "sub 放用户 ID，附带少量稳定标识；昵称、头像、权限列表这类会变的字段不要放，否则令牌又大又无法更新。"
     },
     {
       "term": "HS256 密钥",
-      "explanation": "对称密钥至少 32 字节，必须来自环境变量。密钥泄露等于别人可以伪造任意用户。"
+      "explanation": "对称密钥至少 32 字节，必须来自环境变量。密钥泄露等于别人可以伪造任意用户，长度不足时 JJWT 会直接拒绝签发。"
     },
     {
-      "term": "无状态与吊销",
-      "explanation": "服务端不存会话，就没有天然注销。常见做法是短 TTL + refresh token，或维护令牌黑名单、用户令牌版本号。"
+      "term": "exp 与时钟偏移",
+      "explanation": "exp 是绝对时间戳，服务端每次请求都要校验。多实例部署要开 NTP；容忍几秒偏移可以接受，但不能把过期判断挪到前端。"
     },
     {
       "term": "BCrypt 密码哈希",
-      "explanation": "自带随机盐和成本因子，不可逆。登录时用 matches 比较，永远不要自行拼 MD5/SHA。"
+      "explanation": "自带随机盐和成本因子，不可逆。登录时用 matches 比较，永远不要自行拼 MD5/SHA，也不要用 equals 比较哈希串。"
+    },
+    {
+      "term": "刷新令牌",
+      "explanation": "访问令牌短、刷新令牌长且只存哈希。刷新时签发新的一对并作废旧 refresh，被盗用的旧令牌再次出现时就能触发告警。"
+    },
+    {
+      "term": "注销与黑名单",
+      "explanation": "无状态没有天然注销。可以按 jti 维护黑名单并设置与 exp 相同的 TTL，或维护用户级令牌版本号，改密码时自增。"
+    },
+    {
+      "term": "令牌存放位置",
+      "explanation": "localStorage 怕 XSS，HttpOnly Cookie 怕 CSRF。SPA 常选内存加刷新令牌，跨站场景必须配 SameSite 与 CSRF 防护。"
+    },
+    {
+      "term": "统一 401 契约",
+      "explanation": "令牌缺失、过期、签名错误都应返回同一种 401 错误体，前端才好统一跳登录；不要用 500 或 200 加业务码表达。"
+    },
+    {
+      "term": "密钥轮换",
+      "explanation": "轮换时旧令牌不能立刻全废：令牌头带 kid，服务端同时保留新旧密钥一段时间，等最长 TTL 过去再下线旧密钥。"
     }
   ],
   "pathSteps": [
     {
       "title": "签发与校验",
-      "goal": "写一个 JwtService，能签发令牌并从令牌解析出用户 ID。",
-      "hours": 2,
+      "goal": "写一个 JwtService，能签发令牌、解析出用户 ID，并把签名错误与过期都归为“无效”。",
+      "hours": 1,
       "resources": [
         "jjwt 文档",
         "本项目 JwtService"
       ]
     },
     {
+      "title": "登录与 BCrypt",
+      "goal": "注册时哈希密码，登录时用 matches 校验，并让“用户不存在”和“密码错误”返回同一个错误。",
+      "hours": 1,
+      "resources": [
+        "本项目 AuthService",
+        "spring-security-crypto"
+      ]
+    },
+    {
       "title": "接进过滤器",
-      "goal": "只保护 /api/v1/me/**，无效令牌返回统一的 401 错误体。",
-      "hours": 1.5,
+      "goal": "只保护 /api/v1/me/**，无效令牌返回统一的 401 错误体，有效则把用户 ID 传给控制器。",
+      "hours": 1,
       "resources": [
         "本项目 UserAuthFilter"
       ]
     },
     {
-      "title": "过期与注销",
-      "goal": "理解过期处理，能说清黑名单与短 TTL 的取舍。",
-      "hours": 1.5,
+      "title": "过期与刷新",
+      "goal": "拆出 access 与 refresh 两种令牌，实现刷新轮换，并验证旧 refresh 不能再用。",
+      "hours": 1,
       "resources": [
+        "OWASP JWT Cheat Sheet",
         "spring-security-jwt 学习项"
+      ]
+    },
+    {
+      "title": "注销与强制下线",
+      "goal": "实现黑名单或令牌版本号，做到改密码后旧令牌立即失效。",
+      "hours": 0.5,
+      "resources": [
+        "redis 学习项",
+        "本项目 AuthService"
+      ]
+    },
+    {
+      "title": "补齐错误契约与测试",
+      "goal": "覆盖无令牌、坏签名、过期、篡改四类请求，断言都返回 401 且响应体一致。",
+      "hours": 0.5,
+      "resources": [
+        "http-error-contract 学习项",
+        "本项目 AdminAndQuizTest"
       ]
     }
   ],
   "samples": [
     {
-      "title": "签发令牌",
+      "title": "签发与解析",
       "language": "java",
-      "description": "把用户 ID 放进 sub，设置有效期并签名。",
-      "code": "public String issue(Long userId, String username) {\n    Instant now = Instant.now();\n    return Jwts.builder()\n            .subject(String.valueOf(userId))\n            .claim(\"username\", username)\n            .issuedAt(Date.from(now))\n            .expiration(Date.from(now.plus(7, ChronoUnit.DAYS)))\n            .signWith(key)\n            .compact();\n}"
+      "description": "JJWT 0.12 写法：sub 存用户 ID，typ 区分 access 与 refresh，解析时同时校验签名、过期与类型。",
+      "code": "@Service\npublic class JwtService {\n\n    private final SecretKey key;\n    private final Duration accessTtl;\n    private final Duration refreshTtl;\n\n    public JwtService(@Value(\"${learn-hub.jwt-secret}\") String secret,\n                      @Value(\"${learn-hub.jwt.access-ttl:PT30M}\") Duration accessTtl,\n                      @Value(\"${learn-hub.jwt.refresh-ttl:P7D}\") Duration refreshTtl) {\n        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));\n        this.accessTtl = accessTtl;\n        this.refreshTtl = refreshTtl;\n    }\n\n    public String issue(Long userId, String type) {\n        Duration ttl = \"refresh\".equals(type) ? refreshTtl : accessTtl;\n        Instant now = Instant.now();\n        return Jwts.builder()\n                .subject(String.valueOf(userId))\n                .claim(\"typ\", type)\n                .id(UUID.randomUUID().toString())\n                .issuedAt(Date.from(now))\n                .expiration(Date.from(now.plus(ttl)))\n                .signWith(key, Jwts.SIG.HS256)\n                .compact();\n    }\n\n    public Optional<Long> parse(String token, String expectedType) {\n        try {\n            Claims claims = Jwts.parser().verifyWith(key).build()\n                    .parseSignedClaims(token).getPayload();\n            if (!expectedType.equals(claims.get(\"typ\"))) {\n                return Optional.empty();\n            }\n            return Optional.of(Long.valueOf(claims.getSubject()));\n        } catch (JwtException | IllegalArgumentException e) {\n            return Optional.empty();\n        }\n    }\n}"
     },
     {
-      "title": "在过滤器里校验",
+      "title": "登录与刷新",
       "language": "java",
-      "description": "解析失败统一 401；成功则把用户 ID 传给后续控制器。",
-      "code": "String header = request.getHeader(\"Authorization\");\nString token = header != null && header.startsWith(\"Bearer \")\n        ? header.substring(7).trim() : null;\nvar userId = token == null ? Optional.<Long>empty() : jwtService.parseUserId(token);\nif (userId.isEmpty()) {\n    response.setStatus(401);\n    response.getWriter().write(\"{\\\"code\\\":\\\"UNAUTHORIZED\\\"}\");\n    return;\n}\nrequest.setAttribute(\"currentUserId\", userId.get());\nchain.doFilter(request, response);"
+      "description": "BCrypt 校验失败与用户不存在返回同一错误，避免枚举账号；刷新只接受 refresh 类型令牌，轮换与吊销需要额外存储，见路径步骤。",
+      "code": "@Service\npublic class AuthService {\n\n    private final UserRepository users;\n    private final PasswordEncoder encoder;\n    private final JwtService jwt;\n\n    public AuthService(UserRepository users, PasswordEncoder encoder, JwtService jwt) {\n        this.users = users;\n        this.encoder = encoder;\n        this.jwt = jwt;\n    }\n\n    public AuthResponse login(String username, String rawPassword) {\n        UserEntity user = users.findByUsername(username)\n                .orElseThrow(UnauthorizedException::new);\n        if (!encoder.matches(rawPassword, user.getPasswordHash())) {\n            throw new UnauthorizedException();\n        }\n        return issuePair(user);\n    }\n\n    public AuthResponse refresh(String refreshToken) {\n        Long userId = jwt.parse(refreshToken, \"refresh\")\n                .orElseThrow(UnauthorizedException::new);\n        UserEntity user = users.findById(userId)\n                .orElseThrow(UnauthorizedException::new);\n        return issuePair(user);\n    }\n\n    private AuthResponse issuePair(UserEntity user) {\n        return new AuthResponse(\n                jwt.issue(user.getId(), \"access\"),\n                jwt.issue(user.getId(), \"refresh\"));\n    }\n}"
+    },
+    {
+      "title": "手工验证过期与篡改",
+      "language": "bash",
+      "description": "登录、访问受保护接口、刷新、重复使用旧 refresh，四步验证整条链路。",
+      "code": "# 1) 登录，拿 access 与 refresh\nRESP=$(curl -s -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"demo\",\"password\":\"demo1234\"}')\nACCESS=$(echo $RESP | jq -r .accessToken)\nREFRESH=$(echo $RESP | jq -r .refreshToken)\n\n# 2) 带 access 访问受保护接口：期望 200\ncurl -s -o /dev/null -w '%{http_code}\\n' -H \"Authorization: Bearer $ACCESS\" http://localhost:8080/api/v1/me\n\n# 3) 用 refresh 换新令牌：期望 200\ncurl -s -o /dev/null -w '%{http_code}\\n' -X POST -H \"Content-Type: application/json\" -d \"{\\\"refreshToken\\\":\\\"$REFRESH\\\"}\" http://localhost:8080/api/v1/auth/refresh\n\n# 4) 重复使用同一个 refresh：应 401，说明轮换生效\ncurl -s -o /dev/null -w '%{http_code}\\n' -X POST -H \"Content-Type: application/json\" -d \"{\\\"refreshToken\\\":\\\"$REFRESH\\\"}\" http://localhost:8080/api/v1/auth/refresh\n\n# 5) 访问受保护接口拿错误体，确认带 code 与 traceId\ncurl -s -i http://localhost:8080/api/v1/me | head -n 12"
     }
   ],
   "pitfalls": [
     {
       "title": "把令牌放在 URL 里",
-      "detail": "查询参数会进入访问日志、Referer 和浏览器历史，等于泄露。只放 Authorization 头。"
+      "detail": "现象是查询参数出现在访问日志、Referer 和浏览器历史中；原因是图省事用 ?token= 传参。规避办法是只放 Authorization 头，排查问题时也别把完整令牌贴进工单或日志。"
     },
     {
       "title": "密钥硬编码进仓库",
-      "detail": "默认值可以用于本地，但上线必须用环境变量覆盖，并在启动时校验长度。"
+      "detail": "现象是本地能跑、上线后令牌被人伪造，或安全扫描直接报高危；原因是默认密钥写在 application.yml 并提交。规避办法是密钥来自环境变量，启动时校验长度，缺失就拒绝启动。"
     },
     {
       "title": "claims 塞太多东西",
-      "detail": "令牌会变大且无法更新；只放稳定标识，昵称、权限每次从库里查或单独缓存。"
+      "detail": "现象是请求头越来越大、改昵称后界面不更新；原因是把可变资料和权限全写进令牌。规避办法是只放用户 ID 与类型，其余每次按需查询或缓存。"
+    },
+    {
+      "title": "用 equals 比较 BCrypt 哈希",
+      "detail": "现象是密码明明正确却一直登录失败；原因是 BCrypt 每次哈希盐不同，字符串必然不相等。规避办法是始终用 PasswordEncoder.matches(raw, hash)，并且不要在日志里打印哈希。"
+    },
+    {
+      "title": "刷新令牌不轮换、不绑定",
+      "detail": "现象是 refresh 泄露后可以长期换新，用户毫无感知；原因是一次签发后永久有效，且服务端不记录使用状态。规避办法是一次一换、只存哈希、检测重复使用并吊销整条会话链。"
+    },
+    {
+      "title": "过期时间设成七天还叫“临时”",
+      "detail": "现象是用户被盗后攻击者能连续访问一周；原因是为了少做刷新把 TTL 拉长。规避办法是 access 15 到 30 分钟、refresh 7 天且可撤销，配合前端静默刷新。"
     }
   ],
   "repoPointers": [
@@ -120,12 +189,27 @@
     {
       "title": "前后端分离，需要无状态登录",
       "signal": "Web 和小程序共用 API，服务端不想维护 session",
-      "approach": "登录签发 JWT，客户端放 Authorization 头；服务端每次验签并检查 exp"
+      "approach": "登录签发 JWT，客户端放 Authorization 头；服务端每次验签并检查 exp，从 claims 取用户身份"
     },
     {
       "title": "接口突然全部 401",
       "signal": "改完密钥或部署后，老令牌全部失效",
-      "approach": "先确认服务端密钥是否被环境变量覆盖；JWT 无状态，换密钥必然让旧令牌失效，提前规划轮换窗口"
+      "approach": "先确认服务端密钥是否被环境变量覆盖；JWT 无状态，换密钥必然让旧令牌失效，提前规划双密钥过渡窗口"
+    },
+    {
+      "title": "用户要求“退出所有设备”",
+      "signal": "改密码或怀疑泄露后，希望旧登录态立刻作废",
+      "approach": "维护用户级令牌版本号或 jti 黑名单，鉴权时比对；版本号自增即让全部旧令牌失效"
+    },
+    {
+      "title": "移动端频繁掉登录",
+      "signal": "用户半天不用就要重新登录，投诉集中在前台切后台之后",
+      "approach": "access TTL 保持短、refresh 长效并在启动时静默刷新；刷新失败再去登录页"
+    },
+    {
+      "title": "安全评审要求补齐防护",
+      "signal": "评审提出算法混淆、令牌泄露、暴力破解三类风险",
+      "approach": "固定 HS256 与密钥长度、登录限流与失败计数、令牌不入日志，并补 401 集成测试"
     }
   ]
 }

@@ -8,95 +8,193 @@
   "tags": [
     "vue",
     "vite",
-    "typescript"
+    "typescript",
+    "pinia",
+    "vue-router",
+    "frontend"
   ],
   "status": "published",
   "integrationStatus": "runtime",
   "officialDocsUrl": "https://vuejs.org/guide/introduction.html",
-  "prerequisites": [],
-  "nextTopics": [],
-  "relatedTopics": [
+  "prerequisites": [
     "spring-web-rest"
   ],
-  "overviewMd": "前端是学习门户的皮肤。目录、详情、路线都走 `/api/v1`。详情路由是 `/topics/:slug`，刷新可直达，由 Vue Router history 模式配合开发代理。",
+  "nextTopics": [],
+  "relatedTopics": [
+    "http-error-contract",
+    "jwt-auth-practice",
+    "nginx-basics",
+    "cors-practice"
+  ],
+  "overviewMd": "前端是学习门户的皮肤。目录、详情、路线、面试题都走 `/api/v1`；详情路由是 `/topics/:slug`，刷新可直达，靠的是 Vue Router 的 history 模式配合开发代理与生产环境的回退规则。技术栈是 Vite + TypeScript + Vue 3 + Pinia + Element Plus，没有服务端渲染，产物就是一包静态文件。\n\nComposition API 的价值是“按关注点组织代码”而不是“按选项填空”。`<script setup>` 里声明的变量与方法自动暴露给模板，`defineProps`/`defineEmits` 是编译宏；把“拉列表 + 分页 + 取消请求”抽成 composable，多个页面就能共享同一套逻辑，而不是复制三段几乎一样的 `onMounted`。\n\n响应式要分清三件事：`ref` 管基本类型与整体替换，脚本里读写 `.value`；`reactive` 只对对象生效，解构会丢响应性；`computed` 只做纯派生并带缓存，`watch` 才用来处理副作用（发请求、写本地存储、埋点）。把请求写进 computed 是最常见的错误，它会随依赖变化反复触发且难以取消。\n\n状态要分层。组件内的 UI 状态用 `ref`；父子通信用 props/emit（`v-model` 只是它们的语法糖）；真正跨页面共享的才放进 Pinia，比如登录态与筛选条件。把所有状态一股脑塞进 store，换来的是页面之间隐性耦合，改一个字段要先查十个引用。\n\n请求与契约是前后端协作的接缝。统一封装 `fetch`（baseURL、token、错误体解析、401 跳登录），把 TS 类型与后端 DTO 对齐，字段改名时让 `vue-tsc` 在构建期报错，而不是上线后白屏。构建与部署方面，`vite build` 产出静态资源，history 模式必须由服务端 `try_files` 回退到 `index.html`，`/api` 走同源反代避开 CORS；性能上做路由懒加载、按需引入、图片优化，移动端注意视口、安全区与表格横向滚动。",
   "concepts": [
     {
-      "term": "SFC",
-      "explanation": "单文件组件：template + script setup + style。"
+      "term": "SFC 与 script setup",
+      "explanation": "单文件组件把 template/script/style 放在一起，script setup 顶层声明自动暴露给模板，defineProps 是编译宏。"
     },
     {
-      "term": "Vue Router",
-      "explanation": "把 URL 映射到页面组件。动态段 slug 对应学习项。"
+      "term": "ref 与 reactive",
+      "explanation": "ref 包基本类型与整体替换，模板自动解包、脚本里用 .value；reactive 只对对象生效，解构会丢响应性。"
+    },
+    {
+      "term": "computed 与 watch",
+      "explanation": "computed 只做纯派生并缓存结果，watch 处理副作用（请求、存储、埋点）；不要在 computed 里发请求。"
+    },
+    {
+      "term": "组件通信",
+      "explanation": "父传子 props、子传父 emit，v-model 是两者的语法糖；跨层级用 provide/inject，跨页面才交给 Pinia。"
     },
     {
       "term": "Pinia",
-      "explanation": "跨页状态。筛选条件可以放这里，一期也可用组件内 ref。"
+      "explanation": "setup 写法的 store 与组件同构，state/getter/action 一目了然；登录态可持久化，退出时要清干净。"
     },
     {
-      "term": "Vite 代理",
-      "explanation": "开发时 /api 转到 :8080，避免 CORS 心智负担（后端仍配置了 CORS）。"
+      "term": "Vue Router",
+      "explanation": "history 模式配动态段 /topics/:slug，组件用 import() 懒加载；守卫做登录校验，通配路由兜底 404。"
+    },
+    {
+      "term": "请求封装与拦截器",
+      "explanation": "统一 baseURL、注入 token、解析错误体、401 跳登录；用 AbortController 取消过期请求，避免竞态覆盖。"
+    },
+    {
+      "term": "类型契约",
+      "explanation": "api/types.ts 与后端 DTO 一一对应，字段改名在编译期暴露；后端新增字段保持可选，避免前端全量报错。"
+    },
+    {
+      "term": "构建与部署",
+      "explanation": "vite build 产出带 hash 的静态资源便于长缓存；history 模式需 nginx try_files 回退，/api 同源反代。"
+    },
+    {
+      "term": "性能与移动端适配",
+      "explanation": "路由懒加载、组件按需引入、大列表虚拟滚动；移动端用 viewport、安全区与横向滚动容器，别让表格撑破页面。"
     }
   ],
   "pathSteps": [
     {
       "title": "启动前端",
-      "goal": "npm install && npm run dev，打开目录页。",
+      "goal": "npm install && npm run dev，打开目录页，确认 Vite 代理把 /api 转到了 8080。",
       "hours": 1,
       "resources": [
-        "README"
+        "vue3-spa",
+        "spring-web-rest"
       ]
     },
     {
       "title": "跟一次请求",
-      "goal": "浏览器网络面板看 topics 列表 JSON。",
+      "goal": "在网络面板看 topics 列表的请求与响应，对照 TS 类型确认字段来源。",
       "hours": 1,
       "resources": [
-        "DevTools"
+        "vue3-spa",
+        "network-basics"
       ]
     },
     {
-      "title": "改卡片字段",
-      "goal": "加一个「预计小时」展示（已有则读样式）。",
-      "hours": 2,
+      "title": "用 Composition API 重写一页",
+      "goal": "把筛选、分页、加载与错误状态抽成 composable，页面只负责渲染。",
+      "hours": 1.5,
       "resources": [
-        "CatalogView.vue"
+        "vue3-spa"
       ]
     },
     {
-      "title": "Markdown",
-      "goal": "看详情如何把 overviewMd 渲染成 HTML。",
-      "hours": 2,
+      "title": "拆组件与通信",
+      "goal": "把卡片、筛选栏拆成组件，用 props/emit 通信，避免父子互相直接改状态。",
+      "hours": 1,
       "resources": [
-        "marked"
+        "vue3-spa",
+        "design-patterns"
+      ]
+    },
+    {
+      "title": "Pinia 管登录态",
+      "goal": "登录、退出、刷新页面后恢复状态，token 与用户信息持久化并能正确清理。",
+      "hours": 1.5,
+      "resources": [
+        "jwt-auth-practice",
+        "http-error-contract"
+      ]
+    },
+    {
+      "title": "路由与守卫",
+      "goal": "动态段详情页、懒加载、登录守卫与 404 兜底，刷新后仍能直达。",
+      "hours": 1,
+      "resources": [
+        "vue3-spa",
+        "nginx-basics"
+      ]
+    },
+    {
+      "title": "构建部署与性能",
+      "goal": "跑通 vue-tsc + vite build，配好 nginx 回退与缓存，检查包体积与首屏。",
+      "hours": 1,
+      "resources": [
+        "nginx-basics",
+        "docker-basics"
       ]
     }
   ],
   "samples": [
     {
-      "title": "动态路由",
+      "title": "列表 composable：取消与竞态",
       "language": "ts",
-      "description": "详情页必须用参数，而不是为每个技术栈写死路由。",
-      "code": "{\n  path: '/topics/:slug',\n  name: 'topic',\n  component: () => import('@/views/TopicDetailView.vue')\n}"
+      "description": "筛选变化时重置页码并取消上一次请求，旧响应不会覆盖新结果；错误只留文案，不打断页面。",
+      "code": "import { computed, ref, watch } from 'vue'\nimport type { TopicListResponse } from '@/api/types'\n\nexport function useTopicList(size = 12) {\n  const category = ref('')\n  const keyword = ref('')\n  const page = ref(0)\n  const items = ref<TopicListResponse['items']>([])\n  const total = ref(0)\n  const loading = ref(false)\n  const error = ref('')\n\n  let controller: AbortController | null = null\n\n  async function load() {\n    controller?.abort()\n    controller = new AbortController()\n    loading.value = true\n    error.value = ''\n\n    const qs = new URLSearchParams({ page: String(page.value), size: String(size) })\n    if (category.value) qs.set('category', category.value)\n    if (keyword.value) qs.set('q', keyword.value)\n\n    try {\n      const res = await fetch(`/api/v1/topics?${qs}`, { signal: controller.signal })\n      if (!res.ok) throw new Error(`HTTP ${res.status}`)\n      const data = (await res.json()) as TopicListResponse\n      items.value = data.items\n      total.value = data.total\n    } catch (e) {\n      if ((e as Error).name !== 'AbortError') error.value = (e as Error).message\n    } finally {\n      loading.value = false\n    }\n  }\n\n  watch([category, keyword], () => { page.value = 0; load() }, { immediate: true })\n  watch(page, load)\n\n  return {\n    category, keyword, page, items, total, loading, error,\n    hasPrev: computed(() => page.value > 0),\n    hasNext: computed(() => (page.value + 1) * size < total.value),\n  }\n}"
+    },
+    {
+      "title": "路由与登录守卫",
+      "language": "ts",
+      "description": "页面全部懒加载；守卫把未登录用户送去登录页并带上回跳地址，登录后再访问则直接放行。",
+      "code": "import { createRouter, createWebHistory } from 'vue-router'\nimport { useAuthStore } from '@/stores/auth'\n\nconst router = createRouter({\n  history: createWebHistory(),\n  routes: [\n    { path: '/', name: 'home', component: () => import('@/views/HomeView.vue') },\n    { path: '/catalog', name: 'catalog', component: () => import('@/views/CatalogView.vue') },\n    { path: '/topics/:slug', name: 'topic', component: () => import('@/views/TopicDetailView.vue') },\n    {\n      path: '/me',\n      name: 'my-learning',\n      component: () => import('@/views/MyLearningView.vue'),\n      meta: { requiresAuth: true },\n    },\n    { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue') },\n    {\n      path: '/:pathMatch(.*)*',\n      name: 'not-found',\n      component: () => import('@/views/NotFoundView.vue'),\n    },\n  ],\n  scrollBehavior: () => ({ top: 0 }),\n})\n\nrouter.beforeEach((to) => {\n  const auth = useAuthStore()\n  if (to.meta.requiresAuth && !auth.isLoggedIn) {\n    return { name: 'login', query: { redirect: to.fullPath } }\n  }\n  if (to.name === 'login' && auth.isLoggedIn) {\n    return { name: 'my-learning' }\n  }\n})\n\nexport default router"
+    },
+    {
+      "title": "History 模式的 nginx 配置",
+      "language": "yaml",
+      "description": "刷新 /topics/redis 不能 404，所以要回退到 index.html；静态资源长缓存，/api 反代到后端。",
+      "code": "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: learnhub-web-nginx\ndata:\n  nginx.conf: |\n    server {\n      listen 80;\n      root /usr/share/nginx/html;\n      index index.html;\n\n      # Vue Router history 模式：找不到文件就交给前端路由\n      location / {\n        try_files $uri $uri/ /index.html;\n      }\n\n      # 同源反代，避免生产环境 CORS\n      location /api/ {\n        proxy_pass http://learnhub-api:8080;\n        proxy_set_header Host $host;\n        proxy_set_header X-Request-Id $request_id;\n      }\n\n      # 带 hash 的静态资源可以放心长缓存\n      location ~* \\.(js|css|woff2|png|svg)$ {\n        expires 1y;\n        add_header Cache-Control \"public, immutable\";\n      }\n\n      gzip on;\n      gzip_types text/css application/javascript application/json;\n    }"
     }
   ],
   "pitfalls": [
     {
       "title": "把学习项写死在前端数组",
-      "detail": "违反 PRD：新增学习项不得改前端路由硬编码。"
+      "detail": "现象：新增一个学习项要改前端代码并重新发版。原因：图快，用本地常量代替接口。规避：所有内容走 /api/v1，前端只认 slug，路由用动态段 /topics/:slug。"
     },
     {
       "title": "生产环境仍指向 localhost:8080",
-      "detail": "用相对路径 /api，部署时同源或网关反代。"
+      "detail": "现象：部署后接口全 404 或跨域报错。原因：接口地址写死，或忘记生产没有 Vite 代理。规避：统一用相对路径 /api，部署时同源反代；环境差异只留一个可注入的 baseURL。"
     },
     {
-      "title": "v-html 不信任源",
-      "detail": "本期 Markdown 来自仓库，仍避免把用户 UGC 直接 v-html。"
+      "title": "刷新详情页 404",
+      "detail": "现象：站内跳转正常，F5 之后服务器返回 404。原因：history 模式把路径交给服务端，而服务端没有对应文件。规避：nginx try_files 回退到 index.html，或改用 hash 模式（代价是 URL 难看）。"
+    },
+    {
+      "title": "解构 reactive 丢响应性",
+      "detail": "现象：改了对象字段页面不更新。原因：const { page } = reactive(obj) 解构出的是普通值。规避：用 ref + .value，或 toRefs/toRef 保留响应性。"
+    },
+    {
+      "title": "v-html 渲染不可信内容",
+      "detail": "现象：笔记或题目里的 Markdown 带脚本，造成 XSS。原因：直接把用户内容丢给 v-html。规避：只对仓库内的受信内容渲染，用户输入先 sanitize，或改用纯文本展示。"
+    },
+    {
+      "title": "快速切筛选导致数据错乱",
+      "detail": "现象：点得快时列表显示的是上一次筛选的结果。原因：多个请求并发，返回顺序不确定，后发的先回。规避：AbortController 取消旧请求，或用请求序号丢弃过期响应。"
     }
   ],
   "repoPointers": [
     {
       "label": "前端工程",
       "path": "frontend"
+    },
+    {
+      "label": "请求封装",
+      "path": "frontend/src/api/client.ts"
+    },
+    {
+      "label": "路由表",
+      "path": "frontend/src/router/index.ts"
+    },
+    {
+      "label": "登录态 Store",
+      "path": "frontend/src/stores/auth.ts"
     }
   ],
   "scenarios": [
@@ -108,7 +206,22 @@
     {
       "title": "首屏加载慢",
       "signal": "打包后的 JS 体积过大，白屏时间长",
-      "approach": "路由懒加载 + 组件库按需引入，拆分 vendor chunk；静态资源开启 gzip/brotli，必要时上 SSR"
+      "approach": "路由懒加载 + 组件库按需引入，拆分 vendor chunk；静态资源开 gzip/brotli，必要时上 SSR"
+    },
+    {
+      "title": "移动端打开排版错乱",
+      "signal": "表格横向溢出，底部按钮被安全区遮住，点击有延迟",
+      "approach": "补 viewport meta，用 vw/rem 做弹性布局，表格套横向滚动容器，底部留 safe-area-inset"
+    },
+    {
+      "title": "登录过期后页面一片空白",
+      "signal": "token 失效时接口 401，但页面既不跳登录也不提示",
+      "approach": "在请求层统一处理 401：清 token、跳登录并带 redirect，其他错误交给页面提示"
+    },
+    {
+      "title": "后端改字段，前端上线才发现",
+      "signal": "接口把 items 改成 records，页面列表直接空白",
+      "approach": "types.ts 与后端 DTO 对齐并纳入 vue-tsc 构建，关键接口加契约测试或 OpenAPI 生成类型"
     }
   ]
 }

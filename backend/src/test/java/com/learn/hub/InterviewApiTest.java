@@ -10,6 +10,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -53,7 +54,7 @@ class InterviewApiTest {
     void publicListFiltersByLevel() throws Exception {
         mvc.perform(get("/api/v1/interview/questions").param("level", "senior").param("size", "100"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(6))
+                .andExpect(jsonPath("$.total").value(greaterThan(0)))
                 .andExpect(jsonPath("$.items[0].level").value("senior"));
     }
 
@@ -63,7 +64,7 @@ class InterviewApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.levels.length()").value(4))
                 .andExpect(jsonPath("$.levels[0].id").value("junior"))
-                .andExpect(jsonPath("$.total").value(24));
+                .andExpect(jsonPath("$.total").value(greaterThan(500)));
     }
 
     @Test

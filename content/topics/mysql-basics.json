@@ -7,6 +7,8 @@
   "estimatedHours": 8,
   "tags": [
     "mysql",
+    "innodb",
+    "index",
     "sql",
     "schema"
   ],
@@ -21,92 +23,180 @@
   "relatedTopics": [
     "mybatis-plus"
   ],
-  "overviewMd": "一期学习内容来自仓库 JSON，尚未强制 MySQL。二期会把 Topic 落表，所以现在先把表设计想清楚，避免到时再推翻。\n\n**该用时：** 需要事务、关联查询、报表的业务数据。\n\n**不必上时：** 纯静态教学内容、本机演示 MVP。",
+  "overviewMd": "MySQL 8.0 是通用关系数据库。本页不追求覆盖运维全貌，而是建立能支撑业务建模、SQL 调优与面试追问的核心模型：数据在 InnoDB 里怎么放、事务怎么隔离、锁怎么加、优化器怎么选执行路径。\n\nInnoDB 是默认存储引擎，表按主键组织成聚簇索引，二级索引最终回表取行；事务通过 redo/undo 与 MVCC 提供持久性、回滚和一致性快照。把这些串起来，才能解释“为什么加了索引还是慢”“为什么两个事务互相等待”。\n\n该用：订单、账户、库存、学习项这类需要事务、约束、关联查询和报表的业务数据。不该用：缓存热点、全文检索、日志队列、图片文件；这些分别交给 Redis、Elasticsearch、消息队列和对象存储，MySQL 只保存可信的权威数据。\n\n表设计先定主键与唯一键，再按真实查询建联合索引；字段尽量 NOT NULL 并有默认值，金额用 DECIMAL，时间用 DATETIME(3) 或 TIMESTAMP 并统一时区。不要先堆字段再补索引，也不要拿 SELECT * 当默认写法。\n\n版本注意：MySQL 8.0 默认字符集已是 utf8mb4、排序规则为 utf8mb4_0900_ai_ci，默认认证插件为 caching_sha2_password；查询缓存已移除，CHECK 约束从 8.0.16 起真正生效，EXPLAIN ANALYZE 从 8.0.18 起可用。5.7 升级前要验证驱动、认证插件和排序规则差异。",
   "concepts": [
     {
-      "term": "主键",
-      "explanation": "本项目学习项自然键是 slug（URL 友好），也可另加自增 id 作内部关联。"
-    },
-    {
       "term": "InnoDB",
-      "explanation": "默认引擎，支持事务与外键。教学项目没有特殊理由不要换 MyISAM。"
+      "explanation": "MySQL 8.0 默认事务引擎，支持事务、行级锁、MVCC 与外键；数据按主键组织。只读场景外不要用 MyISAM。"
     },
     {
-      "term": "utf8mb4",
-      "explanation": "完整 Unicode，避免 emoji 或罕见汉字写入失败。"
+      "term": "聚簇索引",
+      "explanation": "数据存放在主键 B+ 树叶子节点，二级索引叶子存主键值并回表。主键应短、有序、少变更，避免随机 UUID 页分裂。"
     },
     {
-      "term": "索引",
-      "explanation": "列表筛选 category、status 值得建索引；不要给低区分度列乱加。"
+      "term": "联合索引与最左前缀",
+      "explanation": "联合索引按列顺序排序，查询须从最左列连续匹配；范围条件后的列常失效。等值列在前，排序列也纳入索引。"
+    },
+    {
+      "term": "MVCC",
+      "explanation": "undo 版本链加 Read View 实现快照读，普通 SELECT 不加锁；当前读读最新提交版本。长事务会拖住 purge 并膨胀 undo。"
+    },
+    {
+      "term": "隔离级别",
+      "explanation": "MySQL 默认 REPEATABLE READ：快照读复用 Read View，当前读加间隙锁抑制幻读。RC 每次语句新快照，常配 ROW binlog。"
+    },
+    {
+      "term": "行锁、间隙锁与 Next-Key Lock",
+      "explanation": "InnoDB 有记录锁、间隙锁与 Next-Key Lock，加锁取决于索引和范围；另有 MDL。无索引更新会锁大量行，事务要短。"
+    },
+    {
+      "term": "执行计划",
+      "explanation": "EXPLAIN 重点看 type、key、rows 与 Extra。type 为 ALL 或出现 Using filesort，通常说明索引没吃上。"
+    },
+    {
+      "term": "字符集与排序规则",
+      "explanation": "推荐 utf8mb4 与 utf8mb4_0900_ai_ci，覆盖四字节 emoji。库表列与连接字符集要一致，否则乱码或索引失效。"
+    },
+    {
+      "term": "事务日志",
+      "explanation": "redo 保证持久性与崩溃恢复，undo 支撑回滚和 MVCC，binlog 负责复制审计；两阶段提交协调 redo 与 binlog。"
+    },
+    {
+      "term": "主键与分布式 ID",
+      "explanation": "自增 BIGINT 顺序写入、索引紧凑，是单库首选；分库分表用雪花、号段等趋势递增 ID，业务键另建唯一索引。"
     }
   ],
   "pathSteps": [
     {
-      "title": "装库",
-      "goal": "本机或 Docker 跑 MySQL 8，用客户端连上。",
+      "title": "起一个 MySQL 8.0",
+      "goal": "用 Docker 启动 MySQL 8.0，映射端口并建库，建库时指定 utf8mb4；用客户端确认版本、字符集和排序规则。",
       "hours": 1,
       "resources": [
         "docker-basics"
       ]
     },
     {
-      "title": "画表",
-      "goal": "按下面示例建 topic 表（先练习，不必接到 Boot）。",
-      "hours": 2,
+      "title": "设计 topic 表",
+      "goal": "确定主键、业务唯一键、状态与时间字段，写出含联合索引的 DDL，并说明每个索引服务哪条查询。",
+      "hours": 1.5,
       "resources": [
-        "本页 DDL"
+        "mysql-basics"
       ]
     },
     {
-      "title": "写三条 SQL",
-      "goal": "按 category 过滤 published，体会索引与 EXPLAIN。",
-      "hours": 3,
+      "title": "CRUD 与分页",
+      "goal": "插入样例数据，练习条件查询、排序、LIMIT 与 COUNT；观察 NULL、默认值和 DATETIME(3) 精度的实际行为。",
+      "hours": 1,
       "resources": [
-        "官方 EXPLAIN"
+        "mysql-basics"
       ]
     },
     {
-      "title": "对照 JPA",
-      "goal": "看实体如何映射到这些列。",
-      "hours": 2,
+      "title": "用 EXPLAIN 调慢查询",
+      "goal": "对 category + status 列表查询执行 EXPLAIN ANALYZE，确认命中联合索引且没有 filesort，再构造一个索引失效案例。",
+      "hours": 1.5,
       "resources": [
-        "spring-data-jpa"
+        "mysql-basics"
+      ]
+    },
+    {
+      "title": "复现隔离与锁",
+      "goal": "开两个会话，在 RR 下复现快照读、当前读、间隙锁与死锁，记录锁等待和回滚信息。",
+      "hours": 1,
+      "resources": [
+        "mysql-basics"
+      ]
+    },
+    {
+      "title": "处理并发写入",
+      "goal": "用唯一索引实现幂等插入，用条件 UPDATE 或版本号避免超卖，比较悲观锁与乐观锁的适用边界。",
+      "hours": 1,
+      "resources": [
+        "mybatis-plus"
+      ]
+    },
+    {
+      "title": "接到应用与迁移",
+      "goal": "把表映射到 JPA/MyBatis-Plus 实体，用 Flyway 管理 DDL，禁止手工修改测试库和生产库结构。",
+      "hours": 1,
+      "resources": [
+        "spring-data-jpa",
+        "flyway"
       ]
     }
   ],
   "samples": [
     {
-      "title": "学习项表草案",
+      "title": "学习项主表 DDL",
       "language": "sql",
-      "description": "二期落库草案，不是当前运行时依赖。",
-      "code": "CREATE TABLE topic (\n  slug VARCHAR(64) PRIMARY KEY,\n  title VARCHAR(128) NOT NULL,\n  category VARCHAR(32) NOT NULL,\n  summary VARCHAR(200) NOT NULL,\n  difficulty VARCHAR(16) NOT NULL,\n  estimated_hours INT NOT NULL,\n  status VARCHAR(16) NOT NULL,\n  integration_status VARCHAR(16) NOT NULL,\n  overview_md MEDIUMTEXT NOT NULL,\n  updated_at DATETIME NOT NULL,\n  INDEX idx_topic_category_status (category, status)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+      "description": "InnoDB + utf8mb4，自增主键、slug 唯一键，以及服务列表查询的联合索引。",
+      "code": "-- 学习项主表：InnoDB + utf8mb4，主键用自增 BIGINT\nCREATE TABLE topic (\n    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,\n    slug VARCHAR(64) NOT NULL,\n    title VARCHAR(128) NOT NULL,\n    category VARCHAR(32) NOT NULL,\n    summary VARCHAR(255) NOT NULL DEFAULT '',\n    overview_md MEDIUMTEXT NOT NULL,\n    difficulty VARCHAR(16) NOT NULL,\n    estimated_hours SMALLINT UNSIGNED NOT NULL DEFAULT 0,\n    status VARCHAR(16) NOT NULL DEFAULT 'draft',\n    integration_status VARCHAR(24) NOT NULL DEFAULT 'docs_only',\n    version INT UNSIGNED NOT NULL DEFAULT 0,\n    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),\n    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)\n        ON UPDATE CURRENT_TIMESTAMP(3),\n    PRIMARY KEY (id),\n    UNIQUE KEY uk_topic_slug (slug),\n    KEY idx_topic_category_status (category, status, updated_at, id),\n    CONSTRAINT chk_topic_status\n        CHECK (status IN ('draft', 'published', 'archived'))\n) ENGINE=InnoDB\n  DEFAULT CHARSET=utf8mb4\n  COLLATE=utf8mb4_0900_ai_ci;"
+    },
+    {
+      "title": "列表查询与游标分页",
+      "language": "sql",
+      "description": "联合索引覆盖等值条件与排序；翻页用游标而非越来越大的 OFFSET。",
+      "code": "-- 列表页：等值条件 + 排序，命中 idx_topic_category_status\nSELECT id, slug, title, estimated_hours, updated_at\nFROM topic\nWHERE category = 'data' AND status = 'published'\nORDER BY updated_at DESC, id DESC\nLIMIT 20;\n\n-- 游标分页：把上一页最后一行的排序键作为起点\nSELECT id, slug, title, estimated_hours, updated_at\nFROM topic\nWHERE category = 'data' AND status = 'published'\n  AND (updated_at, id) < ('2026-10-01 00:00:00.000', 1000)\nORDER BY updated_at DESC, id DESC\nLIMIT 20;\n\n-- 8.0.18+ 可用 EXPLAIN ANALYZE 看真实耗时与行数\nEXPLAIN ANALYZE\nSELECT id, slug, title\nFROM topic\nWHERE category = 'data' AND status = 'published'\nORDER BY updated_at DESC\nLIMIT 20;"
+    },
+    {
+      "title": "事务内扣减库存",
+      "language": "sql",
+      "description": "锁定读保证检查与更新之间不被并发修改；应用层必须检查影响行数。",
+      "code": "-- 扣减前先锁行，避免检查与更新之间被其他事务修改\nSTART TRANSACTION;\n\nSELECT stock, version\nFROM course_seat\nWHERE course_id = 42\nFOR UPDATE;\n\nUPDATE course_seat\nSET stock = stock - 1,\n    version = version + 1,\n    updated_at = CURRENT_TIMESTAMP(3)\nWHERE course_id = 42\n  AND stock > 0;\n\n-- 应用层检查 UPDATE 影响行数；为 0 时执行 ROLLBACK\nCOMMIT;"
     }
   ],
   "pitfalls": [
     {
-      "title": "utf8 不是完整 Unicode",
-      "detail": "MySQL 的 utf8 实际是 utf8mb3。新建库一律 utf8mb4。"
+      "title": "utf8 与连接字符集不一致",
+      "detail": "现象：写入 emoji 报 Incorrect string value，或中文变问号。原因：库/表/列仍是 utf8mb3，或客户端连接不是 utf8mb4。规避：建库即 utf8mb4，连接串与 JDBC 参数统一，再迁移旧表并校验 collation。"
     },
     {
-      "title": "用 TEXT 当什么都往里塞",
-      "detail": "要筛选的字段单独列出来；JSON 数组（tags）可用 JSON 类型或关联表。"
+      "title": "深分页与大 OFFSET",
+      "detail": "现象：LIMIT 100000,20 越翻越慢。原因：MySQL 要扫描并丢弃前十万行，回表成本高。规避：用 (updated_at,id) 游标分页；必须跳页时先查主键再关联，别直接大偏移。"
     },
     {
-      "title": "没有迁移工具",
-      "detail": "手工改线上表会漂移。下一课用 Flyway 管版本。"
+      "title": "隐式转换让索引失效",
+      "detail": "现象：EXPLAIN 显示 type=ALL，明明有索引却全表扫。原因：字符串列与数字比较、列上套函数、前导通配 LIKE '%x'。规避：类型对齐、改写为范围条件、把函数移到常量侧。"
+    },
+    {
+      "title": "长事务拖垮 MVCC",
+      "detail": "现象：undo 表空间持续增长、历史版本读变慢、锁等待增多。原因：事务里做远程调用或等待用户，Read View 迟迟不释放。规避：缩短事务、把 IO 移出事务、监控 innodb_trx。"
+    },
+    {
+      "title": "以为 RR 完全没有幻读",
+      "detail": "现象：同一事务两次查询结果仍可能不同，或出现死锁。原因：快照读与当前读语义不同，当前读会加间隙锁。规避：明确语句是快照读还是锁定读，用唯一索引兜底，统一访问顺序。"
+    },
+    {
+      "title": "用 SELECT * 和大字段做列表",
+      "detail": "现象：列表接口 IO 高、临时表落盘、网络传输大。原因：把 MEDIUMTEXT 的 overview_md 和全部列一起查。规避：列表只取需要的列，正文放详情查询或拆表，分页查询避免 SELECT *。"
     }
   ],
   "repoPointers": [],
   "scenarios": [
     {
-      "title": "查询突然变慢",
-      "signal": "接口耗时上升、慢查询日志出现、CPU 打满",
-      "approach": "先 EXPLAIN 看 type/key/rows，确认是否命中索引、是否发生回表或文件排序；再决定加索引还是改写 SQL"
+      "title": "列表页突然变慢",
+      "signal": "接口 P99 从 80ms 涨到 1s，慢查询日志里是同一条 category + status + order by updated_at 的 SQL。",
+      "approach": "先 EXPLAIN ANALYZE 看是否命中 (category,status,updated_at,id)，再检查是否 SELECT *、是否深分页；按结论补联合索引或改成游标分页，不盲目加索引。"
     },
     {
-      "title": "并发下数据对不上",
-      "signal": "库存超卖、余额扣减异常、重复插入",
-      "approach": "明确隔离级别和锁范围；用唯一索引兜底幂等，必要时 SELECT ... FOR UPDATE 或乐观锁版本号"
+      "title": "并发扣库存出现超卖",
+      "signal": "压测时库存变成负数，或同一优惠券被重复领取。",
+      "approach": "用条件 UPDATE（stock > 0）并检查影响行数，配合唯一索引保证幂等；需要先读后写时用 SELECT ... FOR UPDATE 缩短锁持有时间，或改用版本号乐观锁。"
+    },
+    {
+      "title": "两个事务互相等待",
+      "signal": "日志出现 Deadlock found when trying to get lock，接口偶发 500。",
+      "approach": "打印 SHOW ENGINE INNODB STATUS 的 LATEST DETECTED DEADLOCK，确认索引与加锁顺序；统一多表访问顺序、补齐索引、缩短事务，并让应用对死锁做有限重试。"
+    },
+    {
+      "title": "上线后中文和 emoji 乱码",
+      "signal": "部分客户端写入失败，库里显示问号，或同一张表不同列排序结果不一致。",
+      "approach": "核对库、表、列、连接四层字符集与 collation；统一为 utf8mb4/utf8mb4_0900_ai_ci，修正 JDBC 连接参数，再用转换脚本修复历史数据。"
+    },
+    {
+      "title": "报表查询把数据库打满",
+      "signal": "白天 CPU 持续 90%，大表 GROUP BY 查询堆积，业务写入也开始超时。",
+      "approach": "把报表拆到只读副本或离线库，限制时间范围与返回行数，必要时用预聚合表；不要在主库上跑无索引的大范围聚合。"
     }
   ]
 }

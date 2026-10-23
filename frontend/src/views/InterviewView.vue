@@ -10,7 +10,7 @@ const level = ref('')
 const category = ref('')
 const keyword = ref('')
 const page = ref(1)
-const size = 10
+const size = ref(20)
 
 const items = ref<InterviewQuestion[]>([])
 const total = ref(0)
@@ -48,7 +48,7 @@ async function load() {
       category: category.value,
       q: keyword.value.trim(),
       page: page.value - 1,
-      size,
+      size: size.value,
     })
     items.value = data.items
     total.value = data.total
@@ -67,6 +67,12 @@ function search() {
 
 function changePage(next: number) {
   page.value = next
+  void load()
+}
+
+function changeSize(next: number) {
+  size.value = next
+  page.value = 1
   void load()
 }
 
@@ -203,13 +209,16 @@ onMounted(async () => {
       </article>
     </div>
 
-    <div v-if="total > size" class="pager">
+    <div v-if="total > 10" class="pager">
       <el-pagination
         :current-page="page"
         :page-size="size"
+        :page-sizes="[10, 20, 50]"
         :total="total"
-        layout="prev, pager, next"
+        layout="total, sizes, prev, pager, next, jumper"
+        background
         @current-change="changePage"
+        @size-change="changeSize"
       />
     </div>
   </main>
@@ -309,6 +318,10 @@ onMounted(async () => {
   }
 }
 @media (max-width: 768px) {
+  .pager :deep(.el-pagination__sizes),
+  .pager :deep(.el-pagination__jump) {
+    display: none;
+  }
   .question {
     padding: 14px;
   }

@@ -50,6 +50,16 @@ public class TrackEntity {
         this.updatedAt = now;
     }
 
+    /**
+     * 覆盖路线标题、受众与阶段结构；用于种子内容同步。
+     */
+    public void apply(String title, String audience, String payload, LocalDateTime now) {
+        this.title = title;
+        this.audience = audience;
+        this.payload = payload;
+        this.updatedAt = now;
+    }
+
     public String getSlug() {
         return slug;
     }

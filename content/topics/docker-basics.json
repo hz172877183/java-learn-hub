@@ -2,12 +2,16 @@
   "slug": "docker-basics",
   "title": "Docker 入门（跑依赖）",
   "category": "engineering",
-  "summary": "用容器起 MySQL/Redis/RabbitMQ，不把中间件安装污染到主机。",
+  "summary": "镜像分层、多阶段构建、网络与卷、资源限制与健康检查：把中间件和 Java 应用都跑进容器。",
   "difficulty": "beginner",
   "estimatedHours": 5,
   "tags": [
     "docker",
-    "compose"
+    "compose",
+    "dockerfile",
+    "container",
+    "volume",
+    "image"
   ],
   "status": "published",
   "integrationStatus": "docs_only",
@@ -18,94 +22,202 @@
     "redis"
   ],
   "relatedTopics": [
-    "actuator"
+    "actuator",
+    "docker-compose",
+    "kubernetes-basics",
+    "linux-basics"
   ],
-  "overviewMd": "一期门户不需要 Docker 也能跑（Java + Node）。二期中间件建议全部用 Compose 启动。镜像与端口写进仓库，避免「我机器上是 3307」。",
+  "overviewMd": "一期门户不需要 Docker 也能跑（本机 JDK + Node）。Docker 的价值在二期显现：MySQL、Redis、RabbitMQ、Nacos 每个都装到主机上，版本冲突、卸载残留、换电脑重装会吃掉大量时间。容器把这些依赖变成「拉镜像、映射端口、挂卷」三步，配置文件随仓库走，避免「我机器上是 3307」这类扯皮。\n\n镜像与容器是最基础的一对概念。镜像是一组只读层的叠加，容器是镜像加上一个可写层后的运行实例；镜像靠内容寻址，同样的输入构建出同样的镜像 ID。Dockerfile 的每条指令生成一层，层会被缓存并跨镜像共享，所以把变化少的指令放前面、变化多的（源码、COPY）放后面，构建速度差别是数量级的。\n\n多阶段构建是 Java 镜像的标准做法：构建阶段用 JDK 镜像编译打包，运行阶段只从构建阶段 COPY 出 jar，基础镜像换成 JRE。产物从七八百 MB 降到两百 MB 左右，攻击面也一起变小。运行阶段还要做三件事：用非 root 用户、把时区与 JVM 内存参数写进环境变量、用 exec 形式的 ENTRYPOINT 让 Java 进程成为 PID 1 以便收到 SIGTERM 优雅停机。\n\n网络与数据是容器化最容易踩坑的两块。默认 bridge 网络里容器之间用服务名互相解析，宿主机要访问必须做端口映射；容器删了可写层就没了，数据必须放命名卷或绑定挂载。资源限制用 --cpus 与 --memory，超内存会被 OOM Killer 直接杀掉——JVM 尤其要注意，容器内要开 UseContainerSupport（JDK 10+ 默认开）并用 MaxRAMPercentage 而不是写死 -Xmx。\n\n把以上拼起来就是日常节奏：单个依赖用 docker run 试水，多依赖用 compose 一条命令起停，镜像推私有仓库供 CI 与 K8s 拉取。健康检查（HEALTHCHECK 或 compose 的 healthcheck）让编排系统区分 running 与 ready，配合 restart 策略避免「进程活着但服务不可用」。本仓库建议：一期本机编译，二期依赖全部进 compose，应用镜像等部署需求明确后再补。",
   "concepts": [
     {
-      "term": "镜像与容器",
-      "explanation": "镜像是只读模板，容器是实例。"
+      "term": "镜像分层",
+      "explanation": "每条 Dockerfile 指令生成一层，层可被多个镜像共享缓存；把易变内容放后面能显著加快构建。"
     },
     {
-      "term": "端口映射",
-      "explanation": "宿主机 3306:容器 3306。冲突就改左边。"
+      "term": "多阶段构建",
+      "explanation": "构建阶段用 JDK 编译，运行阶段只拷贝 jar 到 JRE 镜像；产物体积与攻击面同时下降。"
     },
     {
-      "term": "Volume",
-      "explanation": "数据要持久就挂卷，否则容器一删库也没。"
+      "term": "容器网络",
+      "explanation": "默认 bridge 网络内用容器名互相解析，端口映射才能被宿主机访问；跨主机通信需要 overlay 或外部网络。"
+    },
+    {
+      "term": "数据卷",
+      "explanation": "命名卷由 Docker 管理、可备份迁移，绑定挂载直接映射宿主目录；容器删了数据仍要在卷里。"
+    },
+    {
+      "term": "资源限制",
+      "explanation": "用 --cpus 与 --memory 限住容器，超限会被节流或 OOM 杀掉；JVM 要按容器限额设置堆比例。"
+    },
+    {
+      "term": "健康检查",
+      "explanation": "HEALTHCHECK 让编排系统区分 running 与 ready；探针脚本要短、可重复，并配 start-period 容忍冷启动。"
+    },
+    {
+      "term": "私有仓库",
+      "explanation": "docker tag 打上仓库地址后 push，K8s 拉取时用 imagePullSecrets；不要把凭据写进镜像或代码库。"
     },
     {
       "term": "Compose",
-      "explanation": "多容器编排文件，一条命令起栈。"
+      "explanation": "一个 yaml 描述多容器依赖关系，up/down 即可起停整套环境；depends_on 只管启动顺序，不管就绪。"
+    },
+    {
+      "term": "容器化 Java 应用",
+      "explanation": "JVM 要开 UseContainerSupport 与 MaxRAMPercentage，设置时区与非 root 用户，避免堆按宿主内存算。"
+    },
+    {
+      "term": "容器生命周期",
+      "explanation": "exit 0 表示正常结束，非零要配合 restart 策略；foreground 进程是 PID 1，收不到 SIGTERM 就无法优雅停机。"
     }
   ],
   "pathSteps": [
     {
-      "title": "安装引擎",
-      "goal": "Windows 上 Docker Desktop 或等价引擎能 docker version。",
-      "hours": 1,
+      "title": "装引擎并跑通 hello",
+      "goal": "Windows 上装 Docker Desktop（或等价引擎），确认 docker version 与 docker run hello-world 都正常。",
+      "hours": 0.5,
       "resources": [
-        "官方安装"
+        "Docker 官方安装文档"
       ]
     },
     {
-      "title": "跑 Redis",
-      "goal": "docker run 起一个 Redis 并 redis-cli ping。",
-      "hours": 1,
+      "title": "跑一个 Redis",
+      "goal": "docker run 起 Redis，映射 6379，用 redis-cli ping 验证，再删容器确认数据随可写层消失。",
+      "hours": 0.5,
       "resources": [
-        "本页示例"
+        "本页 compose 示例",
+        "redis"
       ]
     },
     {
-      "title": "读 Compose 草案",
-      "goal": "为二期 MySQL+Redis 做心理准备。",
-      "hours": 2,
+      "title": "写多阶段 Dockerfile",
+      "goal": "为 backend 写两阶段镜像，构建后对比 docker image history 与体积，确认运行层没有 Maven 缓存。",
+      "hours": 1,
       "resources": [
-        "本页 compose"
+        "本页 bash 示例",
+        "Docker 多阶段构建文档"
       ]
     },
     {
-      "title": "本机 JDK",
-      "goal": "开发仍建议本机 JDK 21 编译，容器只跑中间件。",
+      "title": "用 compose 起依赖栈",
+      "goal": "写一份 compose 起 MySQL + Redis，带命名卷与 healthcheck，一条命令起停并验证数据持久化。",
       "hours": 1,
       "resources": [
-        "README"
+        "docker-compose",
+        "本页 compose 示例"
+      ]
+    },
+    {
+      "title": "限制资源并观察 OOM",
+      "goal": "给 MySQL 限 1G 内存，用 docker stats 观察；再故意压测触发 OOM，读 docker inspect 的退出码。",
+      "hours": 1,
+      "resources": [
+        "Docker 资源约束文档"
+      ]
+    },
+    {
+      "title": "配健康检查与重启策略",
+      "goal": "给应用容器加 HEALTHCHECK 指向 actuator/health，确认 unhealthy 状态与 unless-stopped 的行为差异。",
+      "hours": 0.5,
+      "resources": [
+        "actuator",
+        "本页 inspect 示例"
+      ]
+    },
+    {
+      "title": "推一次私有仓库",
+      "goal": "本地起 registry 或登录公司仓库，tag + push + 删除本地镜像后 pull 回来，理解镜像名三段式。",
+      "hours": 0.5,
+      "resources": [
+        "Docker Registry 文档",
+        "kubernetes-basics"
       ]
     }
   ],
   "samples": [
     {
-      "title": "二期 compose 草案",
+      "title": "多阶段构建脚本",
+      "language": "bash",
+      "description": "heredoc 写出 Dockerfile 再构建，方便随仓库脚本一起版本化；运行层非 root、限堆比例、exec 形式启动。",
+      "code": "#!/usr/bin/env bash\nset -euo pipefail\n\n# 多阶段构建：构建层装 JDK 与依赖，运行层只留 JRE\ncat > Dockerfile <<'EOF'\nFROM eclipse-temurin:21-jdk AS build\nWORKDIR /src\nCOPY .mvn/ .mvn/\nCOPY mvnw pom.xml ./\nRUN ./mvnw -q -DskipTests dependency:go-offline\nCOPY src/ src/\nRUN ./mvnw -q -DskipTests package\n\nFROM eclipse-temurin:21-jre\nRUN useradd -r -u 1001 app\nWORKDIR /app\nCOPY --from=build /src/target/*.jar app.jar\nUSER 1001\nENV JAVA_TOOL_OPTIONS=\"-XX:MaxRAMPercentage=75 -Duser.timezone=Asia/Shanghai\"\nEXPOSE 8080\nENTRYPOINT [\"java\",\"-jar\",\"/app/app.jar\"]\nEOF\n\ndocker build -t learnhub/backend:0.1 .\n# 看每层体积，确认没把整个 Maven 仓库带进运行层\ndocker image history learnhub/backend:0.1 | head -n 12"
+    },
+    {
+      "title": "本地依赖栈 compose",
       "language": "yaml",
-      "description": "尚未作为仓库必跑文件。",
-      "code": "services:\n  mysql:\n    image: mysql:8.4\n    ports: [\"3306:3306\"]\n    environment:\n      MYSQL_ROOT_PASSWORD: local\n      MYSQL_DATABASE: learnhub\n  redis:\n    image: redis:7-alpine\n    ports: [\"6379:6379\"]"
+      "description": "MySQL + Redis 的最小可用栈：命名卷保数据、healthcheck 判就绪、资源限额防单容器吃满内存。",
+      "code": "services:\n  mysql:\n    image: mysql:8.4\n    ports:\n      - \"3306:3306\"\n    environment:\n      MYSQL_ROOT_PASSWORD: local\n      MYSQL_DATABASE: learnhub\n    volumes:\n      - mysql-data:/var/lib/mysql\n    healthcheck:\n      test: [\"CMD\", \"mysqladmin\", \"ping\", \"-h\", \"127.0.0.1\"]\n      interval: 10s\n      timeout: 3s\n      retries: 10\n      start_period: 30s\n    deploy:\n      resources:\n        limits:\n          memory: 1g\n          cpus: \"1.0\"\n\n  redis:\n    image: redis:7-alpine\n    ports:\n      - \"6379:6379\"\n    command: [\"redis-server\", \"--appendonly\", \"yes\"]\n    volumes:\n      - redis-data:/data\n\nvolumes:\n  mysql-data:\n  redis-data:"
+    },
+    {
+      "title": "确认健康状态与资源上限",
+      "language": "json",
+      "description": "docker inspect 里能同时看到健康检查日志、内存与 CPU 限额、重启策略和卷挂载，排障时比 logs 更直接。",
+      "code": "{\n  \"Id\": \"sha256:9c1f4b6e2a7d\",\n  \"Name\": \"/learnhub-backend-1\",\n  \"State\": {\n    \"Status\": \"running\",\n    \"Health\": {\n      \"Status\": \"healthy\",\n      \"FailingStreak\": 0,\n      \"Log\": [\n        {\n          \"Start\": \"2026-10-23T15:02:11.321Z\",\n          \"End\": \"2026-10-23T15:02:11.402Z\",\n          \"ExitCode\": 0,\n          \"Output\": \"curl -fsS http://127.0.0.1:9090/actuator/health | grep -q UP\"\n        }\n      ]\n    }\n  },\n  \"HostConfig\": {\n    \"Memory\": 1073741824,\n    \"NanoCpus\": 1000000000,\n    \"RestartPolicy\": { \"Name\": \"unless-stopped\" }\n  },\n  \"Mounts\": [\n    { \"Type\": \"volume\", \"Name\": \"learnhub_mysql-data\", \"Destination\": \"/var/lib/mysql\" }\n  ]\n}"
     }
   ],
   "pitfalls": [
     {
-      "title": "把密钥写进镜像层",
-      "detail": "用环境变量或 secrets，不要 docker commit 含密码的容器当镜像。"
+      "title": "密钥被写进镜像层",
+      "detail": "现象：镜像推到仓库后，任何人 docker history 都能翻到数据库密码。原因：ENV 或 COPY 把密钥写进了层，删掉也没用，历史层仍在。规避：运行时用环境变量或 secrets 注入，敏感文件走挂载，怀疑泄漏就重建镜像并轮换凭据。"
     },
     {
-      "title": "端口习惯不同未文档化",
-      "detail": "README 必须写死开发端口。"
+      "title": "端口约定没写进文档",
+      "detail": "现象：同事本机 3306 被占用，改成 3307 后应用连不上，排查半小时。原因：端口映射只存在于某个人的命令行里。规避：compose 文件与 README 写死开发端口，应用配置只引用同一组环境变量。"
     },
     {
-      "title": "在 Linux 容器里用 Windows 路径当 volume 胡写",
-      "detail": "Compose 路径分隔与盘符要按官方 Windows 说明。"
+      "title": "在 Windows 上胡写卷路径",
+      "detail": "现象：绑定挂载后容器里目录为空，或 MySQL 起不来报权限错误。原因：盘符、反斜杠与 WSL 路径混用，Docker Desktop 的文件共享范围也不一样。规避：优先用命名卷，必须绑定时用正斜杠绝对路径，并把共享目录配进 Docker Desktop 设置。"
+    },
+    {
+      "title": "容器 OOM 却看不出原因",
+      "detail": "现象：Java 容器随机退出，日志没有异常，退出码 137。原因：容器内存上限小于 JVM 实际占用，或堆按宿主内存计算导致超限被杀。规避：设 --memory 并用 MaxRAMPercentage，留出元空间与直接内存余量，用 docker inspect 与 docker events 确认 OOMKilled。"
+    },
+    {
+      "title": "依赖 latest 标签",
+      "detail": "现象：昨天能跑今天拉下来就挂，版本悄悄变了。原因：latest 会随上游更新漂移，构建不可复现。规避：固定到具体小版本或 digest，定期有计划地升级，并把镜像版本写进 compose 与部署清单。"
+    },
+    {
+      "title": "数据没挂卷，容器一删全没",
+      "detail": "现象：docker compose down 之后数据库空了，重装一遍数据。原因：数据写在容器可写层，容器删除即销毁。规避：数据库、上传目录一律挂命名卷，down 时不要加 -v，定期备份卷或走逻辑备份。"
     }
   ],
-  "repoPointers": [],
+  "repoPointers": [
+    {
+      "label": "应用配置",
+      "path": "backend/src/main/resources/application.yml"
+    },
+    {
+      "label": "构建文件",
+      "path": "backend/pom.xml"
+    },
+    {
+      "label": "说明文档",
+      "path": "README.md"
+    }
+  ],
   "scenarios": [
     {
       "title": "本地要跑 MySQL / Redis / MQ，但不想装一堆中间件",
-      "signal": "换电脑、重装系统、或者多个项目需要不同版本的同一中间件",
-      "approach": "用 docker run / compose 起依赖，端口映射到本机，数据放命名卷；项目里只保留一份 compose 文件"
+      "signal": "换电脑、重装系统，或者多个项目需要不同版本的同一中间件",
+      "approach": "用 docker run 或 compose 起依赖，端口映射到本机，数据放命名卷；项目里只保留一份 compose 文件，版本号写死并进版本库。"
     },
     {
-      "title": "“在我机器上是好的”",
-      "signal": "同事拉下代码跑不起来，JDK、Node、数据库版本不一致",
-      "approach": "把运行时和中间件都容器化，镜像固定版本；应用配置只通过环境变量注入，环境差异收敛到 compose"
+      "title": "「在我机器上是好的」",
+      "signal": "同事拉下代码跑不起来，JDK、Node、数据库版本各不相同",
+      "approach": "把运行时和中间件都容器化，镜像固定版本；应用配置只通过环境变量注入，环境差异收敛到 compose 与环境文件。"
+    },
+    {
+      "title": "镜像 800MB，构建要十分钟",
+      "signal": "每次改一行代码都要重新下载依赖，CI 排队时间越来越长",
+      "approach": "改多阶段构建，先 COPY pom 再下载依赖以命中缓存，源码后置；运行层换 JRE 或 distroless，用 .dockerignore 排除 target 与 .git。"
+    },
+    {
+      "title": "容器反复重启或莫名退出",
+      "signal": "docker ps 显示 Restarting，或退出码 137、143",
+      "approach": "先看 docker inspect 的 State 与 OOMKilled，再看健康检查日志；137 多为内存超限，143 是收到 SIGTERM，据此调限额或改启动脚本的 exec 形式。"
+    },
+    {
+      "title": "部署时拉不到镜像",
+      "signal": "K8s 报 ImagePullBackOff，或私有仓库返回 unauthorized",
+      "approach": "确认镜像名三段式与 tag 正确、节点能访问仓库；私有仓库用 imagePullSecrets 注入凭据，并检查仓库证书与网络策略。"
     }
   ]
 }

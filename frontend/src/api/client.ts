@@ -14,6 +14,7 @@ import type {
   TopicDocument,
   TopicListResponse,
   TrackResponse,
+  TrackSummary,
   UserInfo,
 } from './types'
 
@@ -61,7 +62,12 @@ export function fetchQuizzes(slug: string) {
   return getJson<QuizQuestion[]>(`/api/v1/topics/${slug}/quizzes`)
 }
 
-/** 推荐路线与阶段。 */
+/** 全部路线摘要，供前台切换。 */
+export function fetchTracks() {
+  return getJson<TrackSummary[]>('/api/v1/tracks')
+}
+
+/** 某条路线的阶段与学习项。 */
 export function fetchTrack(slug = 'java-backend-job-ready') {
   return getJson<TrackResponse>(`/api/v1/tracks/${slug}`)
 }

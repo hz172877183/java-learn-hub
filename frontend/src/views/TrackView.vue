@@ -1,15 +1,21 @@
 <!-- 推荐路线：阶段目标、整体进度与逐项状态切换。 -->
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { fetchProgress, fetchTrack, setProgress } from '@/api/client'
-import type { LearningState, TrackResponse } from '@/api/types'
+import { useRoute, useRouter } from 'vue-router'
+import { fetchProgress, fetchTrack, fetchTracks, setProgress } from '@/api/client'
+import type { LearningState, TrackResponse, TrackSummary } from '@/api/types'
 import TopicCard from '@/components/TopicCard.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const track = ref<TrackResponse | null>(null)
+const tracks = ref<TrackSummary[]>([])
+const loading = ref(false)
 const error = ref('')
+const currentSlug = computed(() => String(route.params.slug || 'java-backend-job-ready'))
 // slug -> 状态；未出现的 slug 视为 not_started
 const states = ref<Record<string, LearningState>>({})
 
@@ -56,19 +62,55 @@ async function change(slug: string, state: LearningState) {
   }
 }
 
-onMounted(async () => {
+async function loadTrack(slug: string) {
+  loading.value = true
+  error.value = ''
   try {
-    track.value = await fetchTrack()
+    track.value = await fetchTrack(slug)
   } catch {
     error.value = '无法加载路线'
+    track.value = null
+  } finally {
+    loading.value = false
   }
+}
+
+function switchTrack(slug: string | number) {
+  if (String(slug) !== currentSlug.value) {
+    void router.push(`/track/${slug}`)
+  }
+}
+
+onMounted(async () => {
+  try {
+    tracks.value = await fetchTracks()
+  } catch {
+    tracks.value = []
+  }
+  await loadTrack(currentSlug.value)
   await loadProgress()
 })
+
+watch(
+  () => route.params.slug,
+  (slug) => {
+    void loadTrack(slug ? String(slug) : 'java-backend-job-ready')
+  },
+)
 </script>
 
 <template>
   <main class="page">
-    <p v-if="error">{{ error }}</p>
+    <div v-if="tracks.length > 1" class="track-switch">
+      <el-radio-group :model-value="currentSlug" @change="switchTrack">
+        <el-radio-button v-for="item in tracks" :key="item.slug" :value="item.slug">
+          {{ item.title }}
+        </el-radio-button>
+      </el-radio-group>
+    </div>
+
+    <p v-if="loading" class="muted">加载中…</p>
+    <p v-else-if="error">{{ error }}</p>
     <template v-else-if="track">
       <h1>{{ track.title }}</h1>
       <p class="muted">{{ track.audience }}</p>
@@ -121,6 +163,10 @@ onMounted(async () => {
 <style scoped>
 section {
   margin-top: 32px;
+}
+.track-switch {
+  margin-bottom: 18px;
+  overflow-x: auto;
 }
 .progress-box {
   margin-top: 16px;

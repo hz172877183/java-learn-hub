@@ -19,6 +19,9 @@ const items = ref<InterviewQuestion[]>([])
 const meta = ref<InterviewMeta | null>(null)
 const loading = ref(false)
 const error = ref('')
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
 
 const filter = reactive({ level: '', category: '', q: '' })
 
@@ -38,19 +41,7 @@ const form = reactive<InterviewQuestionPayload>({
   explanation: '',
 })
 
-const categoryOptions = [
-  'java-basics',
-  'collections',
-  'concurrency',
-  'jvm',
-  'spring',
-  'mysql',
-  'redis',
-  'mq',
-  'distributed',
-  'architecture',
-  'engineering',
-]
+const categoryOptions = Object.keys(interviewCategoryLabel)
 
 async function load() {
   loading.value = true
@@ -60,15 +51,32 @@ async function load() {
       level: filter.level,
       category: filter.category,
       q: filter.q.trim(),
-      page: 0,
-      size: 100,
+      page: page.value - 1,
+      size: size.value,
     })
     items.value = data.items
+    total.value = data.total
   } catch (e) {
     error.value = (e as Error).message
   } finally {
     loading.value = false
   }
+}
+
+function search() {
+  page.value = 1
+  void load()
+}
+
+function changePage(next: number) {
+  page.value = next
+  void load()
+}
+
+function changeSize(next: number) {
+  size.value = next
+  page.value = 1
+  void load()
 }
 
 function openCreate() {
@@ -164,6 +172,9 @@ async function remove(row: InterviewQuestion) {
   try {
     await adminDeleteInterviewQuestion(row.id)
     ElMessage.success('已删除')
+    if (items.value.length === 1 && page.value > 1) {
+      page.value -= 1
+    }
     await load()
   } catch (e) {
     ElMessage.error((e as Error).message)
@@ -219,8 +230,8 @@ onMounted(async () => {
           :value="item"
         />
       </el-select>
-      <el-input v-model="filter.q" placeholder="搜索题干 / 解析" clearable @keyup.enter="load" />
-      <el-button @click="load">筛选</el-button>
+      <el-input v-model="filter.q" placeholder="搜索题干 / 解析" clearable @keyup.enter="search" />
+      <el-button @click="search">筛选</el-button>
     </div>
 
     <p v-if="error" class="error">{{ error }}</p>
@@ -246,6 +257,19 @@ onMounted(async () => {
         </template>
       </el-table-column>
     </el-table>
+
+    <div class="pager">
+      <el-pagination
+        :current-page="page"
+        :page-size="size"
+        :page-sizes="[20, 50, 100]"
+        :total="total"
+        layout="total, sizes, prev, pager, next"
+        background
+        @current-change="changePage"
+        @size-change="changeSize"
+      />
+    </div>
 
     <el-dialog
       v-model="dialogVisible"
@@ -357,6 +381,11 @@ onMounted(async () => {
 }
 .error {
   color: #c0392b;
+}
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 @media (max-width: 800px) {
   .filters,

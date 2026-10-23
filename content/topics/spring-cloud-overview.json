@@ -2,12 +2,16 @@
   "slug": "spring-cloud-overview",
   "title": "Spring Cloud 地图",
   "category": "cloud",
-  "summary": "网关、配置、服务发现、OpenFeign。先建立地图，一期不拆微服务。",
+  "summary": "注册发现、配置中心、网关、负载均衡、熔断与追踪：先建立组件地图，再决定要不要拆服务。",
   "difficulty": "practical",
   "estimatedHours": 6,
   "tags": [
     "spring-cloud",
-    "microservices"
+    "microservices",
+    "nacos",
+    "gateway",
+    "circuit-breaker",
+    "service-discovery"
   ],
   "status": "published",
   "integrationStatus": "docs_only",
@@ -16,89 +20,202 @@
     "spring-web-rest"
   ],
   "nextTopics": [
+    "spring-cloud-gateway",
     "elasticsearch"
   ],
   "relatedTopics": [
-    "docker-basics"
+    "docker-basics",
+    "kubernetes-basics",
+    "observability-prometheus"
   ],
-  "overviewMd": "单体足够支撑学习门户。微服务解决的是团队规模与独立部署，不是「看起来高级」。本页帮你在面试里能讲清 Gateway / Nacos / OpenFeign 各自解决什么，而不是现在就拆成五个 jar。",
+  "overviewMd": "单体足够支撑学习门户。微服务解决的是团队规模与独立部署，不是「看起来高级」：它把一次方法调用换成一次网络调用，于是多出超时、重试、序列化、版本兼容、链路排查和分布式事务。本页的目标不是让你马上拆五个 jar，而是能在面试和设计评审里说清每个组件解决什么问题、不引入它会怎样。\n\n组件地图可以按请求路径背下来：请求先到网关（路由、鉴权、限流），网关按服务名从注册中心拿到实例列表，再经客户端负载均衡选中一台；服务之间用声明式客户端互相调用，调用外面包一层熔断与超时；配置集中放在配置中心，改完能刷新；全程用 traceId 串起日志。六件事各自有替代品，但缺任何一件，运维成本都会以另一种形式回来。\n\n注册中心是这张图的地基。Eureka 只做注册发现、AP 优先，已进入维护状态；Nacos 同时提供注册与配置、支持 AP/CP 切换，国内落地最多；Consul 强在 CP 与多数据中心。选型的实际约束通常是团队熟悉度、与 K8s 的配合方式，以及版本兼容矩阵——组件版本混搭比选错组件更容易出事故。\n\n拆分边界比技术选型更重要。按业务能力与数据所有权切，一个服务拥有自己的写模型，跨服务只通过接口或事件协作；按技术分层切（controller 服务、dao 服务）会得到「分布式单体」，发布还要一起发。康威定律在这里不是口号：组织结构决定接口形状，两个团队共用一个服务，最终会互相阻塞。\n\n再往上一层是服务网格：把重试、熔断、mTLS、流量镜像下沉到边车代理，业务代码不感知，代价是每跳多一次网络与一整套控制面运维。中小团队通常用 Spring Cloud 组件加 K8s 就够。放到本仓库：一期是单体，等出现「独立的搜索服务」或「独立的通知服务」且它有独立发布节奏时，再按本页顺序引入注册中心、网关、配置中心与熔断。",
   "concepts": [
     {
-      "term": "API Gateway",
-      "explanation": "统一入口、路由、限流。Spring Cloud Gateway 基于 WebFlux。"
-    },
-    {
-      "term": "服务发现",
-      "explanation": "实例上下线由注册中心（Nacos/Eureka）维护，调用方不写死 IP。"
-    },
-    {
-      "term": "OpenFeign",
-      "explanation": "用接口声明式调 HTTP，底层仍是 REST。"
+      "term": "服务注册与发现",
+      "explanation": "实例启动后把地址写入注册中心，调用方按服务名拉取可用列表；健康检查负责剔除下线的实例。"
     },
     {
       "term": "配置中心",
-      "explanation": "集中改配置并刷新，避免每个实例改 yml。"
+      "explanation": "把各环境配置集中管理与版本化，支持运行时刷新；敏感值仍应从密钥管理系统注入，不下发到仓库。"
+    },
+    {
+      "term": "客户端负载均衡",
+      "explanation": "调用方拿到实例列表后自行选择节点，配合重试与权重；服务端负载均衡则由网关或四层代理完成。"
+    },
+    {
+      "term": "API 网关",
+      "explanation": "统一入口做路由、鉴权、限流与灰度；它只做横切关注点，业务校验仍留在服务内部。Spring Cloud Gateway 基于 WebFlux。"
+    },
+    {
+      "term": "熔断与降级",
+      "explanation": "下游持续失败时快速失败，避免线程池被拖垮；打开状态后走兜底逻辑，半开状态试探恢复。"
+    },
+    {
+      "term": "链路追踪",
+      "explanation": "为每次请求分配 traceId 并透传到下游，把跨服务耗时拼成一条链路；日志里带 traceId 才好定位。"
+    },
+    {
+      "term": "声明式调用",
+      "explanation": "用接口加注解描述远程调用，客户端生成代理并接入负载均衡与熔断；超时、重试必须显式配置。"
+    },
+    {
+      "term": "服务网格",
+      "explanation": "把流量治理下沉到边车代理，业务代码不感知；换来的是更重的运维与更强的语言无关治理能力。"
+    },
+    {
+      "term": "拆分边界",
+      "explanation": "按业务能力与数据所有权划分服务，让团队能独立发布；按技术分层拆只会制造分布式单体。"
+    },
+    {
+      "term": "Nacos 与 Eureka",
+      "explanation": "Nacos 同时提供注册与配置、支持 AP/CP 切换；Eureka 只做注册且已停止新功能，新项目优先 Nacos。"
     }
   ],
   "pathSteps": [
     {
-      "title": "对照单体",
-      "goal": "列出本项目如果硬拆会多出的仓库、流水线、联调成本。",
+      "title": "对照单体算成本",
+      "goal": "列出本项目硬拆会多出的仓库、流水线、联调与环境数量，用数字说明现在不该拆。",
+      "hours": 0.5,
+      "resources": [
+        "本仓库结构",
+        "README.md"
+      ]
+    },
+    {
+      "title": "背下六件套职责",
+      "goal": "网关、注册发现、负载均衡、配置中心、熔断、追踪，各用一句话说清「不引入会怎样」。",
       "hours": 1,
       "resources": [
-        "本仓库结构"
+        "Spring Cloud 官方项目页"
       ]
     },
     {
-      "title": "记三件套职责",
-      "goal": "网关、发现、Feign 各用一句话说清。",
-      "hours": 2,
+      "title": "搭一个注册中心",
+      "goal": "用 Docker 起 Nacos，把两个本地实例注册上去，观察实例列表与健康状态变化。",
+      "hours": 1,
       "resources": [
-        "官方项目页"
+        "docker-basics",
+        "Nacos 快速开始"
       ]
     },
     {
-      "title": "等有第二个可部署服务再拆",
-      "goal": "例如独立的搜索服务。",
-      "hours": 3,
+      "title": "跑通网关路由",
+      "goal": "用 lb:// 把网关请求转发到注册中心里的实例，验证停掉一个实例后的表现。",
+      "hours": 1,
       "resources": [
+        "spring-cloud-gateway",
+        "本页 yaml 示例"
+      ]
+    },
+    {
+      "title": "给调用加超时与熔断",
+      "goal": "给远程调用配 connect/read 超时和熔断阈值，人为拖慢下游，观察快速失败与兜底返回。",
+      "hours": 1,
+      "resources": [
+        "Resilience4j 文档",
+        "本页 java 示例"
+      ]
+    },
+    {
+      "title": "把配置搬进配置中心",
+      "goal": "把一份开关配置迁到 Nacos，改完验证刷新生效，并记录敏感项仍走环境变量的原因。",
+      "hours": 1,
+      "resources": [
+        "config-and-secrets",
+        "Nacos 配置管理文档"
+      ]
+    },
+    {
+      "title": "画出拆分边界",
+      "goal": "为「搜索」与「通知」写一页拆分提案：数据所有权、接口契约、失败兜底与回滚方案。",
+      "hours": 0.5,
+      "resources": [
+        "ddd-domain-modeling",
         "elasticsearch"
       ]
     }
   ],
   "samples": [
     {
-      "title": "Feign 声明草案",
+      "title": "Feign 声明与兜底",
       "language": "java",
-      "description": "仅示意，当前无第二个服务。",
-      "code": "@FeignClient(name = \"topic-service\", url = \"http://localhost:8080\")\npublic interface TopicClient {\n    @GetMapping(\"/api/v1/topics/{slug}\")\n    TopicDetail get(@PathVariable String slug);\n}"
+      "description": "服务名代替 IP，超时与熔断在 yaml 里配；兜底工厂让下游不可用时返回可接受结果而不是异常。",
+      "code": "package com.learn.hub.remote;\n\nimport java.util.List;\n\nimport org.springframework.cloud.openfeign.FeignClient;\nimport org.springframework.cloud.openfeign.FallbackFactory;\nimport org.springframework.stereotype.Component;\nimport org.springframework.web.bind.annotation.GetMapping;\nimport org.springframework.web.bind.annotation.PathVariable;\nimport org.springframework.web.bind.annotation.RequestParam;\n\n/** 声明式调用：地址来自注册中心，而不是写死在配置里。 */\n@FeignClient(name = \"topic-service\", fallbackFactory = TopicClientFallback.class)\npublic interface TopicClient {\n\n    @GetMapping(\"/api/v1/topics\")\n    List<TopicSummary> list(@RequestParam(\"q\") String q);\n\n    @GetMapping(\"/api/v1/topics/{slug}\")\n    TopicDetail get(@PathVariable(\"slug\") String slug);\n}\n\n/** 兜底要能区分「可降级」与「必须报错」，否则等于把故障藏起来。 */\n@Component\nclass TopicClientFallback implements FallbackFactory<TopicClient> {\n\n    @Override\n    public TopicClient create(Throwable cause) {\n        return new TopicClient() {\n            @Override\n            public List<TopicSummary> list(String q) {\n                return List.of();\n            }\n\n            @Override\n            public TopicDetail get(String slug) {\n                throw new TopicUnavailableException(slug, cause);\n            }\n        };\n    }\n}"
+    },
+    {
+      "title": "网关路由、注册中心与熔断参数",
+      "language": "yaml",
+      "description": "能对照落地的配置：lb:// 走服务发现，Feign 超时要小于熔断窗口，避免熔断还没打开请求已超时。",
+      "code": "spring:\n  application:\n    name: gateway\n  cloud:\n    nacos:\n      discovery:\n        server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n        namespace: ${NACOS_NAMESPACE:learnhub-dev}\n      config:\n        server-addr: ${NACOS_ADDR:127.0.0.1:8848}\n        file-extension: yaml\n    gateway:\n      routes:\n        - id: topic-service\n          uri: lb://topic-service\n          predicates:\n            - Path=/api/v1/topics/**\n          filters:\n            - StripPrefix=0\n    openfeign:\n      circuitbreaker:\n        enabled: true\n      client:\n        config:\n          default:\n            connectTimeout: 1000\n            readTimeout: 2000\n\nresilience4j:\n  circuitbreaker:\n    instances:\n      topic-service:\n        slidingWindowSize: 20\n        failureRateThreshold: 50\n        waitDurationInOpenState: 10s"
+    },
+    {
+      "title": "验证发现、网关与熔断",
+      "language": "bash",
+      "description": "四个动作：看实例列表、看网关通不通、看配置中心里生效的 dataId、看下游挂掉后是否快速失败。",
+      "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nNACOS=\"${NACOS_ADDR:-127.0.0.1:8848}\"\nGW=\"${GATEWAY:-http://127.0.0.1:8080}\"\n\n# 1. 注册中心里实例是否健康\ncurl -fsS \"http://${NACOS}/nacos/v1/ns/instance/list?serviceName=topic-service\" \\\n  | jq -r '.hosts[] | \"\\(.ip):\\(.port) healthy=\\(.healthy)\"'\n\n# 2. 网关是否能把请求送到实例\ncurl -fsS \"${GW}/api/v1/topics?q=jwt\" -o /dev/null -w 'gateway=%{http_code}\\n'\n\n# 3. 配置中心里当前生效的内容（只看前几行，避免刷屏）\ncurl -fsS \"http://${NACOS}/nacos/v1/cs/configs?dataId=gateway.yaml&group=DEFAULT_GROUP\" | head -n 5\n\n# 4. 停掉下游后连打十次：应快速失败，而不是排队等超时\nfor i in $(seq 1 10); do\n  curl -s -o /dev/null -w \"%{http_code} \" \"${GW}/api/v1/topics/actuator\"\ndone\necho"
     }
   ],
   "pitfalls": [
     {
       "title": "为拆而拆",
-      "detail": "一个内容 JSON 加载器配五个进程，调试全耗在端口上。"
+      "detail": "现象：一个内容 JSON 加载器配了五个进程，本地调试先要起注册中心和网关。原因：把「微服务」当成能力证明，而不是组织问题的解法。规避：先量化发布冲突与容量瓶颈，只有一个模块有独立发布节奏时才拆它。"
     },
     {
       "title": "网关当业务层",
-      "detail": "复杂校验仍应在服务内。网关做横切。"
+      "detail": "现象：网关里长出参数校验、字段拼装和数据库查询，改一次要发全站。原因：图省事把横切逻辑和业务逻辑混在一起。规避：网关只做路由、鉴权、限流、日志与协议转换，业务校验留在服务内。"
     },
     {
-      "title": "国内组件版本矩阵",
-      "detail": "Nacos 与 Boot 版本要对照兼容表，不要最新混搭。"
+      "title": "没配超时的调用",
+      "detail": "现象：下游一慢，调用方线程池在几十秒内被占满，整个服务雪崩。原因：默认超时过长或无限等待，重试又放大了流量。规避：connect/read 超时分开配，重试次数有限且只对幂等请求重试，外面再包熔断。"
+    },
+    {
+      "title": "组件版本矩阵混搭",
+      "detail": "现象：启动报 NoSuchMethodError 或配置项不生效，升级一个组件牵出一串问题。原因：Spring Cloud 版本必须与 Boot 版本按官方兼容表对应，Nacos 客户端也有自己的要求。规避：用 BOM 统一管理，升级前先查兼容表并跑集成测试。"
+    },
+    {
+      "title": "注册中心里躺着死实例",
+      "detail": "现象：请求偶发打到已下线的节点，报连接拒绝。原因：实例非正常退出没注销，心跳剔除有延迟。规避：开优雅停机先反注册，缩短心跳与剔除间隔，消费方配好重试与熔断。"
+    },
+    {
+      "title": "分布式事务想用本地事务解决",
+      "detail": "现象：跨服务写入一半成功，补偿代码越写越多。原因：拆分时没按数据所有权划分，两个服务写同一份数据。规避：一个数据只有一个写方，跨服务用事件与最终一致，必要时引入对账与补偿任务。"
     }
   ],
-  "repoPointers": [],
+  "repoPointers": [
+    {
+      "label": "当前单体入口",
+      "path": "backend/src/main/java/com/learn/hub/JavaLearnHubApplication.java"
+    },
+    {
+      "label": "配置",
+      "path": "backend/src/main/resources/application.yml"
+    }
+  ],
   "scenarios": [
     {
       "title": "单体开始拆分成多个服务",
       "signal": "团队并行开发冲突多、模块发布互相牵制、单机容量见顶",
-      "approach": "先按业务边界拆模块，再引入注册中心、网关、配置中心；跨服务调用明确超时和重试"
+      "approach": "先按业务边界拆模块（进程内），再抽第一个有独立发布节奏的服务；随后补注册中心、网关与配置中心，跨服务调用明确超时、重试与契约版本。"
     },
     {
       "title": "一个下游挂掉拖垮整条链路",
-      "signal": "依赖服务超时导致线程池耗尽，故障扩散",
-      "approach": "给每个远程调用设置超时、舱壁隔离和熔断降级；准备兜底返回值，而不是无限等待"
+      "signal": "依赖服务超时导致线程池耗尽，故障从一个接口扩散到全站",
+      "approach": "给每个远程调用设超时、舱壁隔离和熔断降级，准备兜底返回值；用压测验证下游延迟翻十倍时本服务仍能保住核心接口。"
+    },
+    {
+      "title": "多环境配置改到崩溃",
+      "signal": "每次上线都要改一堆 yml，改错一次就是事故，回滚还得重新打包",
+      "approach": "配置进配置中心并按 namespace 隔离环境，敏感值走密钥管理；给配置变更加审批与审计，应用侧只保留定位配置中心所需的少量引导配置。"
+    },
+    {
+      "title": "线上排障要串起整条链路",
+      "signal": "用户报错但不知道卡在网关、服务 A 还是服务 B，日志时间对不上",
+      "approach": "统一 traceId 透传并在网关生成，日志格式带 traceId；接 OpenTelemetry 后看跨度耗时，先定位最慢一跳再进代码。"
+    },
+    {
+      "title": "该不该上服务网格",
+      "signal": "多语言服务混布，每家都要自己实现重试、熔断与 mTLS，治理策略无法统一",
+      "approach": "先评估团队是否已有 K8s 与控制面运维能力；只有跨语言治理收益大于每跳开销和运维成本时才引入边车，否则 Spring Cloud 组件加网关足够。"
     }
   ]
 }

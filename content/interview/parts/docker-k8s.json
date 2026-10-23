@@ -1,0 +1,312 @@
+[
+  {
+    "category": "docker-k8s",
+    "level": "junior",
+    "type": "choice",
+    "stem": "容器常被说成“轻量级虚拟机”，从实现原理看，容器与虚拟机最本质的区别是什么？",
+    "options": [
+      "容器共享宿主机内核，靠 namespace 与 cgroups 做隔离和限额",
+      "容器由 Hypervisor 直接虚拟化硬件，因此启动速度更快",
+      "容器内运行精简版操作系统，不需要宿主机内核的支持",
+      "容器通过模拟指令集实现隔离，兼容性与虚拟机基本相同"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "容器只是宿主机上的普通进程，用 namespace 隔离视图、cgroups 限制资源，共用同一个内核；虚拟机由 Hypervisor 虚拟硬件并各自跑完整内核，隔离更强但更重。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "junior",
+    "type": "choice",
+    "stem": "拉取一个 Java 应用镜像时，Docker 只下载本地缺失的层，这主要依赖镜像的什么特性？",
+    "options": [
+      "镜像每层都是完整文件系统快照，拉取后按需覆盖解压合并",
+      "镜像由只读层叠加而成，每一层用内容哈希作为唯一标识",
+      "镜像启动时把所有层打包成 tar，再整体交给运行时解压",
+      "镜像每层携带独立内核，拉取时只需补齐缺少的内核版本"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "镜像由一层层只读层叠加，层 ID 来自内容哈希，相同层可跨镜像跨主机复用，所以本地已有的层直接跳过；容器启动时在最上面加一个可写层，删除容器该层即丢弃。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "junior",
+    "type": "text",
+    "stem": "Dockerfile 里 CMD 和 ENTRYPOINT 有什么区别？想让镜像默认以 java -jar app.jar 启动、又允许运行时替换参数，你会怎么写？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）ENTRYPOINT 定义固定入口，CMD 提供默认参数，二者常配合使用；2）docker run 后面跟的参数会覆盖 CMD，但不会覆盖 ENTRYPOINT，除非显式用 --entrypoint；3）可以写成 ENTRYPOINT [\"java\",\"-jar\",\"/app.jar\"]，需要透传 JVM 参数时用 ENTRYPOINT [\"sh\",\"-c\",\"java $JAVA_OPTS -jar /app.jar\"]；4）两者都建议用 exec 数组形式，避免 shell 形式让 sh 变成 1 号进程。",
+    "explanation": "考点是启动命令的覆盖规则。shell 形式会让 sh 成为 1 号进程，Java 进程收不到 SIGTERM，滚动更新时会被强杀，这是生产上最常见的坑。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "junior",
+    "type": "text",
+    "stem": "请说明 Pod、Deployment、Service 三者在 Kubernetes 里各自负责什么，一次集群内请求是怎么落到具体 Pod 上的？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）Pod 是最小调度单元，包含一个或多个共享网络与存储的容器；2）Deployment 管理 Pod 的副本数与版本，通过 ReplicaSet 保证期望数量并支持滚动更新；3）Service 用固定 ClusterIP 和标签选择器为一组 Pod 提供稳定入口，做四层负载均衡；4）请求到达 Service 后由 kube-proxy 按 iptables 或 IPVS 规则转发到 Endpoints 中的某个 Pod。",
+    "explanation": "三者是“调度单元—副本管理—稳定入口”的分层。Service 靠 selector 选 Pod，Pod 重建后 IP 变化不影响访问，集群外访问还需要 Ingress 或 NodePort。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于 ConfigMap 与 Secret 的使用，下列做法正确的是？",
+    "options": [
+      "Secret 存的是密文，kubectl get secret 默认看不到明文",
+      "把配置直接写进镜像更安全，可避免 ConfigMap 被误删",
+      "Secret 默认只做 base64 编码，敏感数据需配合 etcd 加密",
+      "ConfigMap 只能注入环境变量，无法挂载成文件供应用读取"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "Secret 默认只是 base64 编码，能读 API 的人就能解出明文，生产上要开 etcd 静态加密、收紧 RBAC 或用外部密钥系统；ConfigMap 既可注入环境变量也可挂载成文件。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "junior",
+    "type": "text",
+    "stem": "容器里的应用把日志写到 /var/log/app，容器重启后日志就丢了。你会怎么处理？请说明 volume 与 bind mount 的区别。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）容器可写层随容器删除而消失，需要把目录挂到卷上；2）bind mount 直接挂宿主机路径，路径必须预先存在且与宿主机强耦合，适合开发调试；3）volume 由 Docker 管理，数据在 /var/lib/docker/volumes 下，可跨容器复用、便于备份迁移；4）K8s 中对应 emptyDir、hostPath 和 PVC；生产上更推荐把日志打到 stdout 交给采集器，避免依赖本地磁盘。",
+    "explanation": "考点是容器存储的生命周期。emptyDir 只能扛容器重启、扛不住 Pod 重建；写 stdout 由日志驱动收集，通常比挂卷更符合云原生实践。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "choice",
+    "stem": "一个 Spring Boot 项目用 Maven 构建，用多阶段构建把镜像从 800MB 降到 200MB，关键做法是什么？",
+    "options": [
+      "在同一阶段里执行 mvn package 后删除 ~/.m2 缓存目录",
+      "用 docker commit 把编译后的容器保存成新镜像再发布",
+      "把源码和 Maven 都打进运行镜像，靠 .dockerignore 瘦身",
+      "用 builder 阶段编译，再把产物 COPY --from 到 JRE 镜像"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "多阶段构建让编译工具链留在 builder 阶段，最终镜像只 FROM 一个精简运行镜像并 COPY 产物，层数和体积大幅下降；在同一层里 rm 缓存删不掉体积。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "choice",
+    "stem": "一个 Java 服务启动要 90 秒，期间健康检查接口一直返回 503。只配了 liveness 探针且 initialDelaySeconds 为 30，会发生什么？",
+    "options": [
+      "容器会被反复重启，因为存活探针在启动完成前就开始失败",
+      "服务只是延迟就绪，liveness 失败不会触发任何重启动作",
+      "K8s 会等探针连续成功三次后，再开始计算首次延迟时间",
+      "Pod 会停留在 Pending 状态，直到 readiness 探针成功"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "liveness 失败会杀容器并重启，启动慢的服务必须靠 startupProbe 保护，或把 initialDelaySeconds 调到足够大；readiness 失败只是摘掉流量，不会重启容器。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "text",
+    "stem": "requests 和 limits 分别影响什么？请说明 CPU 与内存在这两个字段上的行为差异，以及 QoS 三个等级是怎么定的。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）requests 是调度依据，节点按它预留资源；limits 是运行时上限；2）CPU 超过 limits 会被节流，内存超过 limits 会触发 OOMKilled，所以内存 limit 不宜卡得太紧；3）requests 与 limits 都设置且相等为 Guaranteed，两者都不设为 BestEffort，其余为 Burstable；4）节点资源紧张时按 BestEffort、Burstable、Guaranteed 的顺序驱逐，Guaranteed 最稳。",
+    "explanation": "关键差异是 CPU 属于可压缩资源、内存不可压缩。常见误区是把内存 limit 设成和 -Xmx 一样大，忽略元空间、直接内存和线程栈，结果频繁 OOMKilled。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "choice",
+    "stem": "Deployment 的滚动更新卡在一半，部分新 Pod 一直没 Ready。此时执行 kubectl rollout undo，实际效果是什么？",
+    "options": [
+      "回滚会被卡住，必须先删掉卡住的新 ReplicaSet 才能继续",
+      "把 Pod 模板切回上一个 ReplicaSet，新 Pod 缩容旧 Pod 扩容",
+      "只回滚镜像 tag，副本数与探针配置保持当前值不变",
+      "重建整个 Deployment，期间所有 Pod 先全部终止再启动"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "rollout undo 是把 Deployment 的 Pod 模板指回上一个 revision 的 ReplicaSet，由控制器按策略完成新旧副本替换，不是整体重建；卡住原因可看 rollout status 和新 RS 的事件。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "text",
+    "stem": "团队要把“只能查看本命名空间 Pod 及其日志、不能修改任何资源”的权限给外部运维，你会怎么设计 RBAC？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）在目标 namespace 建 Role，rules 只授予 pods 与 pods/log 的 get、list、watch，verbs 不含 create、update、delete；2）用 RoleBinding 把 Role 绑到对应用户或 ServiceAccount；3）需要跨多个命名空间时用 ClusterRole 定义权限集合，但仍用 RoleBinding 引用，而不是 ClusterRoleBinding；4）用 kubectl auth can-i --as 验证，并注意能读 Secret 约等于能读全部配置。",
+    "explanation": "RBAC 只做权限并集、没有拒绝规则。Role 限定命名空间，ClusterRole 只是可复用的权限集合，用 RoleBinding 引用它才能把权限收在单个命名空间内。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "choice",
+    "stem": "一个 PVC 声明 storageClassName: fast、accessModes: ReadWriteMany，而集群没有名为 fast 的 StorageClass。PVC 会怎样？",
+    "options": [
+      "自动降级为 ReadWriteOnce，并绑定任意可用的 PV",
+      "绑定到默认 StorageClass，accessModes 声明被忽略",
+      "一直 Pending，事件里提示找不到匹配的 StorageClass",
+      "绑定成功，但 Pod 挂载时报错，PVC 状态显示 Bound"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "PVC 绑定要求容量、accessModes、StorageClass 全部匹配，动态供给依赖 StorageClass 存在；缺失时 PVC 保持 Pending，使用它的 Pod 也不会被调度。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "text",
+    "stem": "同一台宿主机上的两个容器默认能互相访问吗？请说明 bridge、host、overlay 三种网络模式的适用场景。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）默认 bridge 网络下每个容器有独立 IP，但默认 bridge 只能靠 IP 互访，自定义 bridge 才提供容器名解析；2）host 模式与宿主机共享网络栈，性能好但端口会冲突，适合对网络性能敏感或需要固定端口的场景；3）overlay 跨主机建虚拟网络，用于多机通信，有封装开销；4）K8s 里对应各种 CNI 插件，要求 Pod 网络扁平、跨节点可直接互通。",
+    "explanation": "默认 bridge 不做 DNS 解析是常见盲点。端口映射 -p 只是宿主机上的 DNAT，容器之间没必要绕宿主机端口，直接用容器名或服务名更直接。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "choice",
+    "stem": "想把集群内 20 个微服务按域名暴露到集群外，并统一做 TLS 终止，最合适的方案是什么？",
+    "options": [
+      "每个服务建一个 LoadBalancer 类型 Service，各申请公网 IP",
+      "每个服务建 NodePort，再用 Nginx 反代到各节点端口",
+      "把所有服务合并成一个进程，只暴露一个 ClusterIP 入口",
+      "一个 Ingress 控制器加多条规则，按 host 与 path 路由"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "Ingress 是七层入口，多个域名和路径共用同一个负载均衡器与证书，避免每个服务一个 LB 的成本；NodePort 暴露高位端口且难做 TLS，不适合对外多域名场景。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "text",
+    "stem": "修改了 ConfigMap 后，Pod 里的配置没有变化，可能的原因有哪些？怎样让配置真正生效？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）以环境变量注入的配置只在容器启动时读取一次，改 ConfigMap 不会更新，必须重建 Pod；2）以 volume 挂载会由 kubelet 异步同步文件，通常几十秒到一分钟，但应用未必会重新加载；3）用 subPath 挂载的单个文件不会跟随更新；4）稳妥做法是加 checksum 注解触发滚动更新，或让应用监听文件变化、接入配置中心推送。",
+    "explanation": "关键要区分注入方式：env 是一次性快照，volume 会刷新但受 subPath 和应用自身缓存影响。改完配置重启 Pod 往往是最省心的做法。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "mid",
+    "type": "choice",
+    "stem": "用 helm upgrade 部署时，chart 内置 values.yaml、-f 指定的文件和 --set 同时存在，最终生效的优先级是？",
+    "options": [
+      "chart 默认 values 最低，-f 覆盖它，--set 优先级最高",
+      "chart 内 values.yaml 覆盖 -f 文件，--set 只做类型校验",
+      "三者按键名逐层合并，冲突时以 chart 内 values.yaml 为准",
+      "只使用 -f 文件，chart 内 values.yaml 被视为注释忽略"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "Helm 按 chart 默认 values、父 chart、-f 文件、--set 的顺序逐层合并，后者覆盖前者，数组通常整体替换而非合并；排查时可用 helm get values 看最终值。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "senior",
+    "type": "choice",
+    "stem": "Pod 频繁重启，kubectl describe pod 显示 Last State: Terminated, Reason: OOMKilled, Exit Code: 137。最可能的直接原因和首要动作是什么？",
+    "options": [
+      "节点磁盘写满导致 kubelet 杀容器，应先清理镜像和日志",
+      "137 是 SIGKILL，应优先核对 JVM 堆外内存与容器 limit",
+      "liveness 探针超时被 kubelet 杀死，应先调大 timeoutSeconds",
+      "镜像层数过多导致启动失败，应先改成多阶段构建瘦身"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "137 = 128 + SIGKILL，OOMKilled 说明容器超过内存 limit 被 cgroup 杀掉。要看堆、元空间、直接内存、线程栈的合计用量，把 -Xmx 控制在 limit 的七到八成。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "senior",
+    "type": "text",
+    "stem": "新节点上的 Pod 一直 ImagePullBackOff，describe 里报 failed to pull image。你会按什么顺序排查？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先看 Events 的具体错误：manifest unknown 多为 tag 写错，unauthorized 是认证问题，i/o timeout 是网络或 DNS；2）确认 imagePullSecrets 是否存在、命名空间是否正确、dockerconfigjson 是否有效；3）私有仓库要确认节点能连通 registry，代理、防火墙、证书是否配置；4）确认镜像确实 push 成功、tag 没被覆盖；5）必要时在节点上用 crictl pull 手动复现。",
+    "explanation": "按“仓库地址与 tag、认证、网络与证书、节点运行时”的顺序收敛范围。Events 里第一行错误通常已指明方向，不要一上来就改配置。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "senior",
+    "type": "text",
+    "stem": "压测时 QPS 涨了 5 倍，HPA 显示 CPU 目标 60%，但副本数一直没变。你会从哪些角度排查？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）确认 metrics-server 正常，kubectl top pod 有数据，HPA 的 TARGETS 不是 unknown；2）检查容器是否设置了 requests，HPA 按 requests 的百分比算利用率，没设 requests 就无法计算；3）看是否已到 maxReplicas，或 behavior 里的 scaleUp 冷却与步长限制了扩容；4）确认扩容出来的 Pod 有没有卡在调度、拉镜像；5）用自定义指标时要核对 adapter 与指标名。",
+    "explanation": "最常见根因是指标缺失或 requests 未设置，此时 TARGETS 显示 unknown，HPA 不会动作。还要区分“没扩容”和“扩了但起不来”，看 ReplicaSet 与 Events 即可。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "senior",
+    "type": "text",
+    "stem": "集群内服务 A 访问 http://service-b:8080 超时，但直接访问 service-b 的 Pod IP 能通。请给出排查思路。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先 kubectl get endpoints service-b，看是否有就绪的 Pod IP，selector 写错或 Pod 未 Ready 都会导致 Endpoints 为空；2）核对 Service 的 port 与 targetPort 是否和容器实际监听端口一致；3）进入 A 的 Pod 用 nslookup service-b 验证 DNS，确认 CoreDNS 与 /etc/resolv.conf 的 search 域；4）检查 NetworkPolicy 是否拦截，用 kubectl exec 直连 ClusterIP 区分是解析问题还是转发问题。",
+    "explanation": "按“名字解析、Endpoints、端口映射、网络策略”四层逐步收敛。Pod IP 能通已排除应用与端口错误，重点落在 Service 转发和 DNS 上。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "senior",
+    "type": "choice",
+    "stem": "一个生产 Pod 处于 Running 但接口返回 500，业务镜像里没有 bash，也没有 curl 等排障工具。最合适的做法是什么？",
+    "options": [
+      "给业务镜像装上 bash 和 curl，重新构建发布后再进容器",
+      "删掉 Pod 让 Deployment 重建，重建后问题通常会自然消失",
+      "kubectl debug 注入 ephemeral 容器，共享网络与进程命名空间",
+      "用 kubectl exec 进容器，靠 /proc 手工读取网络连接信息"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "ephemeral container 可以附到运行中的 Pod 上，共享 network 与 pid 命名空间，用自带工具抓包、看进程，不必改动业务镜像；删 Pod 会丢掉现场，破坏性更大。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "senior",
+    "type": "text",
+    "stem": "用 StatefulSet 部署有状态服务，Pod 一直 Pending，对应的 PVC 也一直 Pending。你会怎么定位？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）kubectl describe pvc 看事件：no persistent volumes available 表示没有匹配的 PV，waiting for first consumer 则可能是 WaitForFirstConsumer 的正常状态；2）确认 StorageClass 是否存在、是否支持动态供给、provisioner 组件是否正常；3）describe pod 看是否因卷未绑定而无法调度，或受节点亲和、资源不足影响；4）核对 accessModes 与容量，云盘类存储常只支持 ReadWriteOnce 且绑定可用区。",
+    "explanation": "有状态服务卡住往往是“卷—调度”互相等待。WaitForFirstConsumer 模式下 PVC Pending 属于预期行为，要先看 Pod 调度事件，别把正常状态误判成故障。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "senior",
+    "type": "text",
+    "stem": "集群里跨节点的两个 Pod 互相 ping 不通，同节点 Pod 之间却正常。请说明可能原因，以及 CNI 在这个过程中起什么作用。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）CNI 插件负责给 Pod 分配 IP、配置 veth pair 与路由，跨节点通信要靠 overlay 隧道或底层网络路由打通；2）跨节点不通常见于节点间 UDP 端口被封（如 VXLAN 的 4789）、Pod CIDR 冲突、路由表缺失或 iptables/eBPF 规则异常；3）确认 CNI 的 DaemonSet 在所有节点 Running，节点上 ip route、ip link 是否正常；4）再排查 NetworkPolicy 与云厂商安全组是否放行。",
+    "explanation": "同节点通、跨节点不通是很典型的分层线索：说明 Pod 网络与 veth 正常，问题出在节点互联或隧道封装，优先查 CNI DaemonSet 和节点间网络策略。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "architect",
+    "type": "text",
+    "stem": "一个团队目前用 Docker Compose 部署十多个服务，现在要迁到 Kubernetes。你认为哪些部分可以平滑迁移、哪些必须重新设计？如何划定边界？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）Compose 的 service、volume、环境变量、健康检查可对应 Deployment、PVC、ConfigMap 和探针，镜像本身不必改；2）必须重做的是网络与入口：depends_on 改成探针加重试，容器名直连改成 Service 与 DNS，端口映射改成 Service/Ingress；3）单机卷改 PVC 并选定存储类；4）发布交给 Helm 或 GitOps，配置与密钥外置；5）建议先迁无状态服务，有状态服务与定时任务最后迁。",
+    "explanation": "迁移不是语法翻译而是运行模型切换：Compose 是单机进程编排，K8s 是声明式调度与自愈，启动顺序、网络寻址、存储和发布方式都是必须重做的部分。"
+  },
+  {
+    "category": "docker-k8s",
+    "level": "architect",
+    "type": "choice",
+    "stem": "要在 K8s 上运行一套需要主从选举、按序扩缩、定时备份、故障切换的有状态中间件，只靠 Deployment 加脚本很难维护。你倾向于怎么做？",
+    "options": [
+      "用 StatefulSet 加 CronJob 覆盖，切换靠运维手册人工处理",
+      "把切换逻辑写进 initContainer，启动时完成主从角色配置",
+      "退回 Docker Compose 部署，用 restart 策略代替故障切换",
+      "用 Operator 提供 CRD 与控制器，持续调谐到期望状态"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "Operator 用 CRD 描述业务对象、用控制器循环把实际状态调谐到期望状态，把备份、扩缩、故障切换等运维知识代码化；StatefulSet 只解决身份与顺序，不解决业务语义。"
+  }
+]

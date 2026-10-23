@@ -29,7 +29,7 @@ onMounted(async () => {
       目录列出学习项；点进去有说明、路线、示例代码。门户本身用 Spring Boot 提供只读 API，中间件按阶段接入。
     </p>
     <div class="actions">
-      <RouterLink class="btn" to="/track">推荐 8～12 周路线</RouterLink>
+      <RouterLink class="btn" to="/track">查看学习路线</RouterLink>
       <RouterLink class="btn ghost" to="/catalog">浏览全部学习项</RouterLink>
     </div>
     <p class="muted">已发布 {{ total }} 项</p>

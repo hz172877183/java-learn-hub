@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "浏览器向另一个源发送 POST /api/topics 且 Content-Type 为 application/json 时，会先发生什么？",
+    "options": [
+      "直接发送 POST，失败后再补发预检请求",
+      "先发一个 OPTIONS 预检请求，确认 Allow-Origin、Allow-Methods 与 Allow-Headers",
+      "先发 HEAD 请求探测服务端是否存活",
+      "先发 GET 确认同源，再发送 POST"
+    ],
+    "correctIndex": 1,
+    "explanation": "带自定义头或 JSON 体的请求属于非简单请求，浏览器会先发 OPTIONS 预检，通过后才发真实请求。预检必须返回 2xx 并带对应的 CORS 头，否则控制台只报跨域错误；Postman 不走同源策略，所以常出现「工具能通、浏览器不行」。"
+  },
+  {
+    "type": "choice",
+    "stem": "Nginx 作为反向代理返回 502 Bad Gateway，最应该先检查什么？",
+    "options": [
+      "客户端到 Nginx 之间的 TLS 握手是否成功",
+      "浏览器是否禁用了 Cookie",
+      "域名的 DNS TTL 是否设置过长",
+      "上游服务的进程、监听地址与 proxy_pass 的端口是否一致"
+    ],
+    "correctIndex": 3,
+    "explanation": "502 表示 Nginx 与上游建连失败或上游返回了无效响应，常见原因是后端进程挂了、端口写错、upstream 地址不可达；504 才是上游处理超时。最快的入口是 error.log 里的 upstream 行，再用 ss -lntp 与 curl 直连上游确认。"
+  },
+  {
+    "type": "text",
+    "stem": "简述 HTTPS 中证书校验的作用，以及「curl 访问正常、部分移动端却握手失败」的常见原因。",
+    "options": [],
+    "referenceAnswer": "TLS 握手时客户端用系统内置的 CA 公钥验证服务器证书的签名链、域名 SAN、有效期与吊销状态，确认对端身份并协商会话密钥，防止中间人攻击和域名劫持。curl 正常而部分客户端失败，最常见的原因是服务端只下发了站点证书、缺少中间证书，桌面环境可能靠缓存或额外补齐而移动端不会；其次是证书域名与 SNI 不匹配、只支持旧版 TLS 协议，或客户端 CA 库过旧不认新的根证书。",
+    "explanation": "证书要下发完整链（fullchain）、域名必须匹配、协议版本要兼容；用 openssl s_client -showcerts 看到的才是真正下发的链，不要只看浏览器的绿锁。"
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "某业务把 Redis 当会话存储，要求机器重启后最多丢约 1 秒数据，同时保留一份全量备份便于快速恢复。最合适的持久化配置是？",
+    "options": [
+      "只开 RDB，save 设为 900 1，靠快照兼顾恢复速度",
+      "关闭持久化，重启后由应用回源重建会话",
+      "开 AOF 并设 appendfsync everysec，同时保留定期 RDB 备份",
+      "开 AOF 并设 appendfsync always，同时关闭 RDB 只留单个 AOF 文件"
+    ],
+    "correctIndex": 2,
+    "explanation": "everysec 每秒刷盘，最坏丢约 1 秒，满足 RPO；RDB 全量备份体积小、恢复快，适合做冷备和误删恢复。只开 RDB 会丢整个快照间隔的数据，关闭持久化直接违反要求；always 虽然 RPO 更小，但每次写都 fsync，吞吐代价高，且关掉 RDB 失去了全量备份。"
+  },
+  {
+    "type": "choice",
+    "stem": "在 Redis Cluster 中对 user:1:name 和 user:2:name 执行 MGET 报 CROSSSLOT。最合理的修复是？",
+    "options": [
+      "用 hash tag 把相关键绑定到同一槽，例如 MGET user:{42}:name user:{42}:age，或合并成一个 Hash 后一次读取",
+      "调大 cluster-node-timeout，让客户端有更多时间处理重定向",
+      "把 maxmemory-policy 改成 allkeys-lru，减少迁移期间的重定向",
+      "在客户端关闭 MOVED 重定向，避免直接报错"
+    ],
+    "correctIndex": 0,
+    "explanation": "Cluster 只允许同槽的多键命令，hash tag 让花括号内的内容参与 CRC16 计算，从而把键固定在同一槽；合并成单键结构则彻底避开跨槽问题。调超时、改淘汰策略、关闭重定向都不改变键的槽位分布，只会掩盖错误或引发读写到错误节点。"
+  },
+  {
+    "type": "text",
+    "stem": "线上接口突然出现 P99 超时，SLOWLOG 里能看到对同一批 key 的反复操作。请说明如何判断是大 key 还是热 key，以及各自怎么治理。",
+    "options": [],
+    "referenceAnswer": "定位：用 --bigkeys、--memkeys 扫全库，MEMORY USAGE 看单键内存，STRLEN/HLEN/SCARD 看元素数量；热 key 看单键访问频次，用客户端埋点、短时 MONITOR 采样、代理统计或 maxmemory-policy=allkeys-lfu 下的 --hotkeys。结合 SLOWLOG、LATENCY 和 INFO commandstats 确认耗时来自单个大命令还是单分片被打满。大 key 治理：把大 Hash 拆成分桶或按时间分片，压缩序列化，删除用 UNLINK 并开 lazyfree，禁止 HGETALL/KEYS，写入侧给元素数量设上限。热 key 治理：加本地缓存并配短 TTL 与广播失效，键加随机后缀打散到多个槽，用只读副本分流，入口限流降级，大促前预热。",
+    "explanation": "大 key 看单键体积和元素数量，热 key 看单键访问频次；两者都会打爆某一个分片，但治理方向不同：大 key 拆数据，热 key 拆流量。只扩容或不加区分地加机器，往往既贵又无效。"
+  }
+]

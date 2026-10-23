@@ -1,0 +1,223 @@
+{
+  "slug": "ddd-domain-modeling",
+  "title": "DDD 领域建模：限界上下文、聚合与领域事件",
+  "category": "engineering",
+  "summary": "先用限界上下文切边界，再用聚合与领域事件承载规则，最后拿上下文映射校验拆分。",
+  "difficulty": "practical",
+  "estimatedHours": 8,
+  "tags": [
+    "ddd",
+    "domain-model",
+    "bounded-context",
+    "aggregate",
+    "cqrs",
+    "event-sourcing"
+  ],
+  "status": "published",
+  "integrationStatus": "snippet",
+  "officialDocsUrl": "https://martinfowler.com/bliki/BoundedContext.html",
+  "prerequisites": [
+    "design-patterns",
+    "spring-data-jpa"
+  ],
+  "nextTopics": [
+    "spring-cloud-gateway"
+  ],
+  "relatedTopics": [
+    "mysql-tuning"
+  ],
+  "overviewMd": "DDD 不是一套代码模板，而是用业务语言切分系统的方法。战略设计——限界上下文、上下文映射、通用语言——决定系统被切成几块、块之间怎么协作；战术设计——聚合、实体与值对象、领域服务、领域事件、仓储——决定一块内部怎么把规则写进代码。多数失败项目死在战略不清、战术先行：一上来就建一堆 Entity 和 Repository，最后边界还是原来那张表。\n\n核心模型要抓住三件事。限界上下文是模型与语言生效的边界，同一个「订单」在销售、履约、结算里含义不同，强行统一成一张表只会让字段越加越多。聚合是一致性边界，聚合根是外部唯一入口并负责维护不变式；一个事务只改一个聚合，跨聚合的一致用领域事件与最终一致。仓储以聚合为单位、返回聚合而不是数据库行，接口放领域层，实现放基础设施层。\n\n贫血与充血不是道德判断而是取舍。贫血模型把规则留在 Service，实体退化成 DTO，简单 CRUD 够用；规则一多就散落在多个 Service 与 SQL 里，改一处漏一处。充血模型把行为放回聚合，适合计价、审批、状态流转这类不变式密集的场景，代价是要与 ORM 映射方式做隔离。CQRS 把读模型从写模型分离，报表查询不再拖累写库；事件溯源以事件为唯一事实来源、靠重放得到状态，换来完整审计与时间旅行，代价是事件版本演化、快照与查询复杂度。\n\n该用与不该用要说清楚。业务规则密集、跨团队对同一个名词理解不一致、或者正准备做服务拆分时，战略设计能省下大量沟通成本。纯 CRUD 后台、以报表和导入导出为主的系统、团队里没有能持续投入的领域专家时，强行 DDD 只会多出几层没人维护的转换。版本注意点：Spring Data JPA 的 @Entity 是持久化模型，不一定是领域模型，常见做法是领域对象与 JPA 实体分离、在适配器里转换；Boot 3.x 与 Hibernate 6 下，聚合里的双向关联与级联会放大 flush 顺序问题；领域事件不要直接在业务事务里发 MQ，优先用事务性发件箱加提交后投递。\n\n放在本仓库看：TopicEntity 是典型的持久化实体（检索字段加 payload，状态由 apply 覆盖），规则实际住在 TopicService 里，正好是贫血模型的样本，可以拿它练「把校验与状态迁移下沉到领域对象」；ContentModels 是只读文档模型，天然适合当 CQRS 的读侧。建议先在一个小上下文试点（例如答题判分与学习进度），把聚合、事件、仓储跑通后再谈服务拆分，别一上来就画十个上下文。",
+  "concepts": [
+    {
+      "term": "限界上下文",
+      "explanation": "模型与通用语言生效的边界，同一个词在不同上下文可以有不同含义；按业务语言差异划，不按表或组织架构划。"
+    },
+    {
+      "term": "上下文映射",
+      "explanation": "描述上下文之间的关系与集成方式：防腐层、共享内核、客户-供应商、遵奉者、开放主机服务；也是拆服务前的边界体检。"
+    },
+    {
+      "term": "聚合与聚合根",
+      "explanation": "聚合是一致性与事务边界，聚合根是外部唯一入口并维护不变式；聚合宜小，一次事务只改一个聚合。"
+    },
+    {
+      "term": "实体与值对象",
+      "explanation": "实体靠标识区分、状态可变；值对象不可变、以属性相等，用 record 实现并把校验放进构造器。"
+    },
+    {
+      "term": "领域服务",
+      "explanation": "承载跨实体、又无自然归属的领域行为；不要退化成事务脚本，用例编排与事务边界属于应用服务。"
+    },
+    {
+      "term": "领域事件",
+      "explanation": "表达领域内已经发生的事实，命名用过去式；用于跨聚合最终一致与对外集成，发布要绑定事务边界。"
+    },
+    {
+      "term": "仓储",
+      "explanation": "以聚合为单位的集合抽象，接口在领域层、实现在基础设施层；返回聚合而不是 Page 或数据行，不暴露框架类型。"
+    },
+    {
+      "term": "防腐层",
+      "explanation": "在上下文边界做协议与模型翻译，隔离外部系统与遗留表结构；与适配器同构，重点是保护领域模型不被污染。"
+    },
+    {
+      "term": "贫血模型与充血模型",
+      "explanation": "贫血把规则留在 Service、实体只有存取器；充血把不变式写进聚合，适合规则密集，代价是 ORM 映射要额外转换。"
+    },
+    {
+      "term": "CQRS 与事件溯源",
+      "explanation": "CQRS 分离读写模型，读侧用投影表或搜索引擎；事件溯源以事件为事实来源、重放得状态，两者常同用但要先解决版本与快照。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "做一次事件风暴",
+      "goal": "用便签把下单、支付、履约、退款的关键事件与命令铺开，标出参与者、热点分歧与说不清的名词。",
+      "hours": 1.5,
+      "resources": [
+        "Event Storming 入门材料",
+        "本页聚合示例"
+      ]
+    },
+    {
+      "title": "划限界上下文",
+      "goal": "把事件按语言差异分组，得到 3-5 个候选上下文，画上下文映射并写清每个边界的一句话职责与集成方式。",
+      "hours": 1.5,
+      "resources": [
+        "martinfowler.com/bliki/BoundedContext.html",
+        "本页领域事件示例"
+      ]
+    },
+    {
+      "title": "找聚合与不变式",
+      "goal": "在每个上下文里选出聚合根，写出必须原子成立的不变式，检查是否存在跨聚合强一致，并把过大的聚合拆小。",
+      "hours": 1.5,
+      "resources": [
+        "《实现领域驱动设计》聚合章节"
+      ]
+    },
+    {
+      "title": "值对象与工厂",
+      "goal": "把金额、时间段、地址等改成 record 值对象，用工厂方法保证创建即合法，去掉散落的 setter 校验。",
+      "hours": 1,
+      "resources": [
+        "本页聚合示例",
+        "spring-data-jpa"
+      ]
+    },
+    {
+      "title": "仓储与事件落地",
+      "goal": "定义仓储端口与领域事件，用 Spring Data JPA 在适配器里实现，验证一次事务只落一个聚合、事件在提交后投递。",
+      "hours": 1.5,
+      "resources": [
+        "本页仓储适配器示例",
+        "Spring Data JPA 文档"
+      ]
+    },
+    {
+      "title": "加一个 CQRS 读模型",
+      "goal": "为列表页建投影表或视图，对比直接 join 查询的延迟、刷新方式与维护成本，明确可接受的延迟。",
+      "hours": 0.5,
+      "resources": [
+        "本页投影示例",
+        "mysql-tuning"
+      ]
+    },
+    {
+      "title": "对照微服务拆分",
+      "goal": "拿上下文映射检查服务边界，列出跨服务一致性与补偿方案，写一份「现在拆还是以后再拆」的结论。",
+      "hours": 0.5,
+      "resources": [
+        "spring-cloud-gateway",
+        "backend/src/main/java/com/learn/hub"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "聚合根：状态只能经由业务方法改变",
+      "language": "java",
+      "description": "行项目不暴露可变集合，提交前必须至少一行，非法操作直接抛错；id 只提供读取，避免外部改标识。真实的聚合还会加上乐观锁版本号与领域事件收集。",
+      "code": "package com.learn.hub.order.domain;\n\nimport java.math.BigDecimal;\nimport java.util.ArrayList;\nimport java.util.List;\n\n/** 聚合根：状态只能经由业务方法改变，行项目不向外暴露可变集合。 */\npublic final class Order {\n\n    private final String id;\n    private final List<Line> lines = new ArrayList<>();\n    private Status status = Status.CREATED;\n\n    public Order(String id) { this.id = id; }\n\n    public void addLine(String sku, BigDecimal price, int quantity) {\n        if (status != Status.CREATED) {\n            throw new IllegalStateException(\"已提交的订单不能再改行项目\");\n        }\n        if (quantity <= 0 || price.signum() < 0) {\n            throw new IllegalArgumentException(\"数量与单价必须为正\");\n        }\n        lines.add(new Line(sku, price, quantity));\n    }\n\n    public BigDecimal total() {\n        return lines.stream()\n                .map(line -> line.price().multiply(BigDecimal.valueOf(line.quantity())))\n                .reduce(BigDecimal.ZERO, BigDecimal::add);\n    }\n\n    public void submit() {\n        if (lines.isEmpty()) {\n            throw new IllegalStateException(\"空订单不能提交\");\n        }\n        status = Status.SUBMITTED;\n    }\n\n    public String id() { return id; }\n\n    public enum Status { CREATED, SUBMITTED, CANCELLED }\n\n    public record Line(String sku, BigDecimal price, int quantity) { }\n}"
+    },
+    {
+      "title": "仓储适配器：领域层看不到 JPA",
+      "language": "java",
+      "description": "领域只声明端口，行结构与转换都锁在适配器里；读出来时按顺序重放 addLine 与 submit，保证聚合从持久化状态恢复到合法状态。",
+      "code": "package com.learn.hub.order.adapter;\n\nimport com.learn.hub.order.domain.Order;\nimport com.learn.hub.order.domain.OrderRepository;\nimport java.util.Optional;\nimport org.springframework.stereotype.Repository;\n\n/** 领域只定义端口，JPA 与行结构都锁在这个适配器里。 */\n@Repository\nclass JpaOrderRepository implements OrderRepository {\n\n    private final OrderJpaRepository jpa;\n\n    JpaOrderRepository(OrderJpaRepository jpa) {\n        this.jpa = jpa;\n    }\n\n    @Override\n    public Optional<Order> byId(String id) {\n        return jpa.findByBusinessId(id).map(this::toDomain);\n    }\n\n    @Override\n    public void save(Order order) {\n        OrderRow row = jpa.findByBusinessId(order.id())\n                .orElseGet(() -> new OrderRow(order.id()));\n        row.apply(order);\n        jpa.save(row);\n    }\n\n    private Order toDomain(OrderRow row) {\n        Order order = new Order(row.getBusinessId());\n        row.getLines().forEach(line -> order.addLine(line.sku(), line.price(), line.quantity()));\n        if (\"SUBMITTED\".equals(row.getStatus())) {\n            order.submit();\n        }\n        return order;\n    }\n}"
+    },
+    {
+      "title": "读模型投影：事件变成查询视图",
+      "language": "ts",
+      "description": "写侧只发事件，读侧用纯函数折叠成视图；重复投递同一个事件不会改变结果，这是做幂等消费与重放对账的前提。",
+      "code": "export type OrderEvent =\n  | { type: 'order.placed'; orderId: string; total: number }\n  | { type: 'order.paid'; orderId: string }\n  | { type: 'order.cancelled'; orderId: string };\n\nexport interface OrderRow {\n  orderId: string;\n  total: number;\n  status: 'placed' | 'paid' | 'cancelled';\n}\n\n/** 读模型只认事件，不反查写库；同一事件重放两次必须得到同一结果。 */\nexport function project(state: Map<string, OrderRow>, event: OrderEvent): Map<string, OrderRow> {\n  const next = new Map(state);\n  switch (event.type) {\n    case 'order.placed':\n      next.set(event.orderId, { orderId: event.orderId, total: event.total, status: 'placed' });\n      break;\n    case 'order.paid': {\n      const row = next.get(event.orderId);\n      if (row?.status === 'placed') next.set(event.orderId, { ...row, status: 'paid' });\n      break;\n    }\n    case 'order.cancelled': {\n      const row = next.get(event.orderId);\n      if (row && row.status !== 'cancelled') next.set(event.orderId, { ...row, status: 'cancelled' });\n      break;\n    }\n  }\n  return next;\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "把表结构当领域模型",
+      "detail": "现象：实体与表一一对应，规则散在 Service 与 SQL 里，加一个状态要改四处。原因：先设计库表再补对象，模型从没被业务语言校验过。规避：先写不变量与用例，再决定持久化结构；聚合与表可以一对多，宁可多一层转换。"
+    },
+    {
+      "title": "聚合过大",
+      "detail": "现象：加载一个订单要带上全部历史与明细，并发下频繁乐观锁冲突。原因：把强一致当默认，聚合跨了多个业务概念。规避：只把必须原子成立的字段放进聚合，其余改为最终一致；用「是否必须同一事务」判断边界。"
+    },
+    {
+      "title": "一个事务改多个聚合",
+      "detail": "现象：本地事务里同时改订单、库存、账户，压测时死锁成片，回滚还丢中间状态。原因：跨聚合强一致。规避：一个事务只改一个聚合，其余用领域事件推进，设计补偿与对账，并明确对用户可见的中间态。"
+    },
+    {
+      "title": "在业务事务里直接发 MQ",
+      "detail": "现象：消息已发出但事务回滚，下游拿到脏事件；或提交前消费方查不到数据。原因：数据库与消息中间件双写没有原子性。规避：事务性发件箱表加提交后投递，或使用 CDC；消费端用事件 id 做幂等。"
+    },
+    {
+      "title": "按团队或按表划上下文边界",
+      "detail": "现象：服务拆完仍互相改库，跨服务事务一堆。原因：按组织架构而非语言与能力边界划。规避：用事件风暴的输出对齐语言差异，先画上下文映射再看是否值得拆成服务，边界变更成本要提前评估。"
+    },
+    {
+      "title": "仓储退化成 DAO",
+      "detail": "现象：仓储接口出现 Page、Specification、findByXxxAndYyy，领域层被迫依赖 JPA 类型。原因：图省事把查询能力全透出去。规避：仓储只按聚合 ID 存取，复杂查询走读模型或查询服务，端口接口里不出现框架类型。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "贫血持久化实体",
+      "path": "backend/src/main/java/com/learn/hub/persistence/TopicEntity.java"
+    },
+    {
+      "label": "应用服务",
+      "path": "backend/src/main/java/com/learn/hub/topic/TopicService.java"
+    },
+    {
+      "label": "只读文档模型",
+      "path": "backend/src/main/java/com/learn/hub/content/ContentModels.java"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "说不清边界的遗留系统",
+      "signal": "同一个「订单」在销售、履约、财务三处字段与状态都不一样，沟通全靠口头解释",
+      "approach": "先做事件风暴铺开关键事件与命令，按语言差异划出 3-5 个上下文，画上下文映射并标出共享内核与防腐层位置，再按「改动最频繁、耦合最重」排序重构顺序。"
+    },
+    {
+      "title": "微服务拆分边界争执不下",
+      "signal": "两个方案都能自圆其说，评审会上谁也说服不了谁",
+      "approach": "用聚合与上下文映射做体检：看哪条边界上的跨服务调用最少、一致性能否用事件解决、团队能否独立演进；把结论写成 ADR，先拿一个试点服务验证再推广。"
+    },
+    {
+      "title": "计价与审批规则越加越乱",
+      "signal": "同一个 Service 里堆了十几种折扣与审批分支，改一次要回归全部",
+      "approach": "把规则下沉到聚合与值对象，用策略或规格对象表达可组合规则，补不变式测试；应用服务只负责编排与事务边界，规则变更不再改控制器。"
+    },
+    {
+      "title": "报表查询拖垮写库",
+      "signal": "运营看板一跑，下单接口 P99 直接翻倍，主从延迟也被拉高",
+      "approach": "拆出读模型：写侧聚合只管不变式，读侧建投影表或同步到搜索引擎，明确刷新延迟与一致性预期，报表不再直连写库。"
+    },
+    {
+      "title": "外部系统模型污染领域",
+      "signal": "领域代码里出现厂商的 Client、DTO 与私有错误码，厂商升级就要改业务逻辑",
+      "approach": "定义领域端口，用防腐层做协议与异常翻译，厂商升级只改适配器；给翻译层写契约测试，防止上游字段变更悄悄破坏映射。"
+    }
+  ]
+}

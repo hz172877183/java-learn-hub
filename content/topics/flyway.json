@@ -7,7 +7,10 @@
   "estimatedHours": 4,
   "tags": [
     "flyway",
-    "migration"
+    "migration",
+    "database",
+    "schema",
+    "devops"
   ],
   "status": "published",
   "integrationStatus": "docs_only",
@@ -21,88 +24,185 @@
   "relatedTopics": [
     "spring-data-jpa"
   ],
-  "overviewMd": "Flyway 在启动时扫描 `db/migration` 下 V1__xxx.sql、V2__xxx.sql，按版本号顺序执行，并记录在 flyway_schema_history。团队协作时这是「表结构的 git」。\n\n一期无数据库，二期接入 MySQL 时再加依赖。",
+  "overviewMd": "Flyway 是数据库 schema 的版本控制工具：它按文件名中的版本号排序执行 SQL，把执行记录写进 flyway_schema_history，使开发、测试、生产用同一组脚本演进，而不是靠人肉改表。\n\n核心模型很朴素：db/migration 下的 V{版本}__{描述}.sql 只执行一次，R__{描述}.sql 在 checksum 变化时重跑；每条记录包含 version、description、checksum、success、installed_on。启动时 migrate 先校验已执行脚本，再补齐未执行版本。\n\n该用：任何需要跨环境演进的关系库 schema，尤其是新项目从 V1 开始、多人协作、CI/CD 自动发布。不该用：当作数据同步/ETL 工具、当作备份、或用它反复修生产数据；大数据量订正应走专门的数据任务。\n\n回滚策略要提前定：社区版没有 undo，生产回滚通常靠“向前修复”加备份，破坏性变更用 expand-contract（先加新列/双写，再切读，最后删旧列），而不是删 history 记录或改旧脚本。\n\n版本注意：Flyway 10 起要求 Java 17，数据库支持拆成独立模块，MySQL 项目除 flyway-core 还要加 flyway-mysql；Flyway 11 延续模块化。Spring Boot 只负责依赖版本，升级时用 dependency tree 确认 Flyway 大版本并补齐对应模块，生产禁用 clean。",
   "concepts": [
     {
-      "term": "版本脚本",
-      "explanation": "文件名 V{版本}__{描述}.sql，版本只能递增，已执行的脚本不要改。"
+      "term": "版本化迁移",
+      "explanation": "V 前缀脚本按版本号执行且只执行一次，适合建表、加列、建索引；进入共享环境后应视为只读。"
+    },
+    {
+      "term": "版本命名",
+      "explanation": "格式 V{版本}__{描述}.sql，版本与描述间是两个下划线；描述用下划线分词，两个分支抢同一版本会冲突。"
     },
     {
       "term": "checksum",
-      "explanation": "改已执行文件会导致校验失败。应该新增 V3 而不是改 V2。"
+      "explanation": "Flyway 对脚本算校验和并存入 history；已执行脚本改一个空格也会 validate 失败，正确做法是新增版本。"
     },
     {
-      "term": "repeatable",
-      "explanation": "R__ 脚本每次 checksum 变化会重跑，适合视图，不适合累积 DDL。"
+      "term": "幂等与可重复迁移",
+      "explanation": "V 脚本只跑一次，不保证 SQL 幂等；R__ 在 checksum 变化时重跑，必须写成 CREATE OR REPLACE 等可重复形式。"
+    },
+    {
+      "term": "基线 baseline",
+      "explanation": "已有库首次接入时，用 baseline-on-migrate 与 baseline-version 标记起点，Flyway 只执行更高版本。"
+    },
+    {
+      "term": "schema history 表",
+      "explanation": "history 表记录版本、校验和、耗时与 success；排查未执行先看它，失败需修复根因后 repair，不能删记录。"
+    },
+    {
+      "term": "回滚策略",
+      "explanation": "社区版没有 undo，回滚靠向前修复：新增补偿版本，配合备份与 expand-contract；DDL 自动提交，无法靠事务回滚。"
+    },
+    {
+      "term": "多环境",
+      "explanation": "各环境共用版本序列，但连接串、基线与占位符可不同；用 spring.flyway.placeholders 注入差异，密码走环境变量。"
+    },
+    {
+      "term": "migrate/validate/info",
+      "explanation": "migrate 执行版本，validate 校验脚本与 history，info 查看状态；流水线至少跑 validate + migrate。"
+    },
+    {
+      "term": "与 ORM 的边界",
+      "explanation": "Flyway 负责 schema，JPA/MyBatis-Plus 只负责映射与查询；ddl-auto 应为 validate 或 none，禁止同时改表。"
     }
   ],
   "pathSteps": [
     {
-      "title": "写 V1",
-      "goal": "把 mysql-basics 里的 DDL 放进 V1__create_topic.sql 练习。",
-      "hours": 1,
+      "title": "接入依赖",
+      "goal": "Spring Boot 加入 flyway-core 与 flyway-mysql，确认 dependency tree 里的 Flyway 主版本，并关闭 ddl-auto=update。",
+      "hours": 0.5,
       "resources": [
-        "mysql-basics"
+        "spring-boot-fundamentals",
+        "docker-basics"
       ]
     },
     {
-      "title": "理解 history 表",
-      "goal": "执行后看 flyway_schema_history 的 success 与 checksum。",
+      "title": "写 V1 建表",
+      "goal": "把 topic 的 DDL 放进 db/migration/V1__create_topic.sql，启动后检查 history 表的 version、checksum 与 success。",
       "hours": 1,
       "resources": [
-        "官方文档"
+        "mysql-basics",
+        "flyway"
       ]
     },
     {
-      "title": "加一列",
-      "goal": "用 V2 加列，而不是改 V1。",
-      "hours": 1,
+      "title": "用 V2 追加变更",
+      "goal": "新增 V2 加列和索引，而不是改 V1；再启动一次确认只执行 V2。",
+      "hours": 0.5,
       "resources": [
-        "本页示例"
+        "flyway"
       ]
     },
     {
-      "title": "和 ORM 对齐",
-      "goal": "实体字段必须能被当前 schema 支撑，禁止只改实体不改迁移。",
-      "hours": 1,
+      "title": "写可重复脚本",
+      "goal": "用 R__ 建一个视图或初始化字典数据，改内容后验证 checksum 变化会触发重跑。",
+      "hours": 0.5,
       "resources": [
+        "flyway",
         "spring-data-jpa"
+      ]
+    },
+    {
+      "title": "给遗留库做基线",
+      "goal": "在已有表的库上设置 baseline-on-migrate 与 baseline-version，确认 V1 被跳过、后续版本正常执行。",
+      "hours": 0.5,
+      "resources": [
+        "flyway",
+        "config-and-secrets"
+      ]
+    },
+    {
+      "title": "演练一次失败与回滚",
+      "goal": "故意让 V3 中途失败，观察 failed 记录，修复后用补偿脚本恢复；不要删 history 或 clean。",
+      "hours": 0.5,
+      "resources": [
+        "flyway",
+        "integration-testing"
+      ]
+    },
+    {
+      "title": "多环境与流水线",
+      "goal": "用 profile 隔离连接串与占位符，在 CI 中跑 validate + migrate，并禁止生产账号执行 clean。",
+      "hours": 0.5,
+      "resources": [
+        "flyway",
+        "docker-basics"
       ]
     }
   ],
   "samples": [
     {
-      "title": "V2 增加标签列",
+      "title": "V1 建 topic 表",
       "language": "sql",
-      "description": "正确做法是新版本脚本。",
-      "code": "-- db/migration/V2__topic_tags.sql\nALTER TABLE topic\n  ADD COLUMN tags_json JSON NULL AFTER summary;"
+      "description": "文件名即版本；已进入共享环境后不再修改内容。",
+      "code": "-- 文件名：V1__create_topic.sql（版本与描述之间两个下划线）\nCREATE TABLE topic (\n    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,\n    slug VARCHAR(64) NOT NULL,\n    title VARCHAR(128) NOT NULL,\n    category VARCHAR(32) NOT NULL,\n    summary VARCHAR(255) NOT NULL DEFAULT '',\n    status VARCHAR(16) NOT NULL DEFAULT 'draft',\n    version INT UNSIGNED NOT NULL DEFAULT 0,\n    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),\n    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)\n        ON UPDATE CURRENT_TIMESTAMP(3),\n    PRIMARY KEY (id),\n    UNIQUE KEY uk_topic_slug (slug),\n    KEY idx_topic_category_status (category, status)\n) ENGINE=InnoDB\n  DEFAULT CHARSET=utf8mb4\n  COLLATE=utf8mb4_0900_ai_ci;"
+    },
+    {
+      "title": "V2 追加标签与发布时间",
+      "language": "sql",
+      "description": "只追加新版本；先加可空列并回填，再收紧为 NOT NULL。",
+      "code": "-- 文件名：V2__add_topic_tags.sql\n-- 已执行的 V1 不改，新增版本追加变更\nALTER TABLE topic\n    ADD COLUMN tags_json JSON NULL AFTER summary;\n\nUPDATE topic\nSET tags_json = JSON_ARRAY()\nWHERE tags_json IS NULL;\n\nALTER TABLE topic\n    MODIFY COLUMN tags_json JSON NOT NULL;\n\nALTER TABLE topic\n    ADD COLUMN published_at DATETIME(3) NULL AFTER status,\n    ADD KEY idx_topic_published (status, published_at);\n\n-- 生产大表先评估元数据锁、复制延迟和在线 DDL 方案"
+    },
+    {
+      "title": "多环境 Flyway 配置",
+      "language": "yaml",
+      "description": "使用占位符与环境变量；生产保持 clean 禁用、版本校验开启。",
+      "code": "spring:\n  datasource:\n    url: jdbc:mysql://localhost:3306/java_learn_hub?characterEncoding=utf8&serverTimezone=Asia/Shanghai\n    username: ${DB_USER}\n    password: ${DB_PASSWORD}\n  flyway:\n    enabled: true\n    locations: classpath:db/migration\n    table: flyway_schema_history\n    baseline-on-migrate: false\n    baseline-version: 1\n    validate-on-migrate: true\n    out-of-order: false\n    clean-disabled: true\n    placeholders:\n      app_schema: java_learn_hub\n\n# Flyway 10+ 还需引入 flyway-mysql，MySQL 支持已从 core 拆出"
     }
   ],
   "pitfalls": [
     {
-      "title": "改历史脚本",
-      "detail": "别人已经执行过的 V1 你再改，他们的 checksum 对不上。只追加。"
+      "title": "改了已执行的脚本",
+      "detail": "现象：启动报 Validate failed，checksum mismatch。原因：V1 已被别人执行，本地又改了内容。规避：新增 V2 修正；只有确认环境未执行或团队统一时才用 repair，不能把 repair 当日常操作。"
     },
     {
-      "title": "用 Hibernate ddl-auto=update 混着飞",
-      "detail": "两套工具改表会漂移。选 Flyway 做唯一事实来源，ddl-auto=validate 或 none。"
+      "title": "生产误跑 clean",
+      "detail": "现象：所有表被删除，history 也清空。原因：把 clean 写进启动脚本或误连生产库。规避：设置 clean-disabled: true，生产账号回收 DROP 权限，CI 中把 clean 限制在一次性测试库。"
     },
     {
-      "title": "大表无默认值的 ADD COLUMN",
-      "detail": "生产锁表策略因版本而异。教学库无所谓，业务库要查官方与 DBA 规范。"
+      "title": "基线版本设错",
+      "detail": "现象：接入遗留库后 V1 没执行，后续脚本却认为表已存在。原因：baseline-on-migrate 自动把库标记为 baseline-version，跳过了之前的脚本。规避：先人工核对现状与 V1 是否等价，再显式设置基线；不确定时先在空库演练。"
+    },
+    {
+      "title": "以为失败会自动回滚",
+      "detail": "现象：V3 中途失败，前半段 DDL 已生效，history 留下 failed 记录。原因：MySQL DDL 自动提交，Flyway 不会替你撤销。规避：脚本拆小、破坏性变更走 expand-contract，发布前备份，失败后写补偿脚本并 repair。"
+    },
+    {
+      "title": "大表 DDL 锁表与延迟",
+      "detail": "现象：加列后主从延迟飙升，业务写入超时。原因：长事务挡住元数据锁，或 DDL 在大表上复制缓慢。规避：低峰执行、控制事务长度、评估 ALGORITHM=INPLACE/LOCK=NONE，必要时用 gh-ost 等在线工具。"
+    },
+    {
+      "title": "Flyway 10+ 缺少数据库模块",
+      "detail": "现象：启动报 No database found to handle jdbc:mysql。原因：Flyway 10 起 MySQL 支持拆到 flyway-mysql，只加 core 不够。规避：按依赖树补齐同版本 flyway-mysql，并确认 Java 17 与 Spring Boot 管理的 Flyway 大版本匹配。"
     }
   ],
   "repoPointers": [],
   "scenarios": [
     {
-      "title": "多人同时改表结构，环境对不上",
-      "signal": "开发库、测试库、生产库字段不一致，靠人肉记 SQL",
-      "approach": "把每次 DDL 写成 V{n}__描述.sql，提交到仓库；启动时 Flyway 按版本执行，schema_history 记录执行结果"
+      "title": "新同事拉代码后表结构不全",
+      "signal": "本地启动报 Unknown column，或测试库字段与开发库不一致。",
+      "approach": "把建表和变更全部放进 db/migration，启动时自动 migrate；新环境从空库执行 V1 到最新，禁止再提供手工 SQL 文档。"
     },
     {
-      "title": "上线需要可追溯的 schema 变更",
-      "signal": "审计要求说清楚每次发布改了哪些表，出问题要能回滚",
-      "approach": "迁移脚本随代码评审，禁止修改已执行的历史脚本；回滚用新增一个反向迁移，而不是删记录"
+      "title": "已有生产库首次接入 Flyway",
+      "signal": "库里有几十张表，不能重建，也不想把历史变更重放一遍。",
+      "approach": "先导出结构并与 V1 对齐，设置 baseline-on-migrate=true、baseline-version=当前版本，首次启动只验证并记录基线；随后所有变更从更高版本开始。"
+    },
+    {
+      "title": "发布到一半失败",
+      "signal": "迁移脚本报错，应用启动中止，部分表已变更。",
+      "approach": "保留现场并查看 history 的 failed 记录，修复根因后用新的补偿版本恢复；必要时从备份恢复。不要删除 history 行或改旧脚本假装成功。"
+    },
+    {
+      "title": "两个分支用了同一个版本号",
+      "signal": "合并后发现两个 V5__xxx.sql，CI 校验冲突或只执行了其中一个。",
+      "approach": "建立版本号分配规则（按时间戳或功能号），合并前跑 validate；已发布的版本不改，冲突方改用更高版本，并开启 out-of-order 前先评估环境顺序。"
+    },
+    {
+      "title": "多环境配置和初始化数据不同",
+      "signal": "测试库需要种子数据，生产只需要字典表；库名和账号也不一样。",
+      "approach": "用 profile 管理连接串与 spring.flyway.placeholders，环境差异放占位符；字典等可重复数据用 R__ 脚本并保证幂等，敏感值走环境变量。"
     }
   ]
 }

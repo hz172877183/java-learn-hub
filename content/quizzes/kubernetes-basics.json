@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "readinessProbe 连续失败时，Kubernetes 的默认行为是？",
+    "options": [
+      "重启容器，直到探针通过",
+      "把 Pod 从 Service 的 Endpoint 中摘除",
+      "删除并重建整个 Pod",
+      "把 Pod 驱逐到其他节点"
+    ],
+    "correctIndex": 1,
+    "explanation": "readiness 失败表示 Pod 暂不接收流量，EndpointSlice 会移除该 Pod，但容器不会被重启；恢复后会自动重新加入。重启是 liveness 的职责。"
+  },
+  {
+    "type": "choice",
+    "stem": "Deployment 更新镜像后发现异常，要回到上一个版本，应使用哪条命令？",
+    "options": [
+      "kubectl rollout undo deployment/topic-service",
+      "kubectl rollback deployment/topic-service",
+      "kubectl apply --revert deployment/topic-service",
+      "kubectl delete pod -l app=topic-service"
+    ],
+    "correctIndex": 0,
+    "explanation": "Deployment 会保留 ReplicaSet 修订历史，kubectl rollout undo 默认回到上一版本；删除 Pod 只会让控制器用当前模板重建，不能回滚。"
+  },
+  {
+    "type": "text",
+    "stem": "说明 requests 与 limits 的区别，以及容器内存超过 limits 时会发生什么。",
+    "options": [],
+    "referenceAnswer": "requests 是调度器为容器预留的资源，也是 HPA 计算利用率的基础；limits 是容器运行时的硬上限。CPU 超过 limits 会被节流，内存超过 limits 会触发 OOMKilled，容器按重启策略重启。requests 过低会导致节点超卖，过高会浪费资源，应结合压测和监控调整。",
+    "explanation": "requests 影响“能不能调度进来”，limits 影响“运行时能用多少”；内存是不可压缩资源，超限直接被杀。"
+  }
+]

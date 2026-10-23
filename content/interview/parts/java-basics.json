@@ -1,0 +1,572 @@
+[
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "执行 Integer count = null; int total = count; 会发生什么？",
+    "options": [
+      "运行期抛出 NullPointerException",
+      "编译报错，Integer 不能赋值给 int",
+      "正常执行，total 等于 0",
+      "正常执行，total 等于 null"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "自动拆箱本质是调用 intValue()，对 null 调用实例方法必然抛 NPE；包装类型作为返回值或集合元素时，参与运算前要先判空。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "Integer a = 127; Integer b = 127; Integer c = 128; Integer d = 128; 下列判断正确的是？",
+    "options": [
+      "a == b 为 true，c == d 为 true",
+      "a == b 为 true，c == d 为 false",
+      "a == b 为 false，c == d 为 true",
+      "a == b 为 false，c == d 为 false"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "自动装箱走 Integer.valueOf，默认缓存 -128 到 127，超出范围会新建对象；比较包装类型的值应使用 equals 或先拆箱。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "text",
+    "stem": "自动装箱与拆箱在性能上有什么代价？哪些场景应该避免使用包装类型？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）装箱可能创建对象、拆箱要调用 xxxValue()，在循环累加、大批量集合运算中会放大对象分配与 GC 压力；2）包装类型可以为 null，拆箱存在 NPE 风险，== 比较还会踩缓存范围的坑；3）集合泛型、允许为空的字段必须用包装类型，而高频计算的局部变量、数组元素、金额中间运算应使用基本类型。",
+    "explanation": "判断标准是“是否需要表达 null、是否要放进集合”；纯计算路径用基本类型，接口边界用包装类型并显式判空。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "text",
+    "stem": "String 为什么被设计成不可变对象？这带来了哪些好处？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）内部存储数组私有且不对外暴露，所有修改方法都返回新对象，实例状态不可变；2）字符串可安全共享，字符串常量池才成立；3）hashCode 可缓存，作为键时更高效；4）天然线程安全，可作为方法参数与配置值传递；5）避免内容被篡改引发的安全问题，例如类名、路径、SQL 参数。",
+    "explanation": "不可变的核心是状态不可被观察到地修改；final 只保证引用不变，还需要私有数组并且不泄露其引用。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "String s = new String(\"abc\"); 在典型 HotSpot 下这行代码涉及几个对象？",
+    "options": [
+      "1 个，只在堆中创建 abc",
+      "3 个，常量池、堆、栈各一个",
+      "2 个，字面量入池一个，new 再创建一个",
+      "0 个，直接复用常量池中的对象"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "字面量首次出现会在字符串常量池登记对象（JDK7 起池位于堆中），new 再创建新对象；若字面量已存在则只创建 1 个。"
+  },
+  {
+    "category": "java-basics",
+    "level": "senior",
+    "type": "text",
+    "stem": "服务中大量使用 String.intern() 或动态拼接做缓存 key，内存持续上涨，你会如何定位与治理？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先做堆快照与类直方图，确认增长的是 String 还是 char[]/byte[]，再顺着引用链区分常量池条目与普通对象；2）intern 要把字符串登记进常量池并查表，频繁 intern 大量唯一值会让池持续膨胀，动态拼接出的 key 最危险；3）治理：限制 intern 的范围，改用有界本地缓存，拼接改用 StringBuilder 并预估容量；4）补充 GC 后老年代残留监控，压测验证效果。",
+    "explanation": "intern 的收益是去重，代价是池膨胀与查表开销；先确认是常量池膨胀还是普通字符串对象堆积，再决定替代方案。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "text",
+    "stem": "重写 equals 需要遵守哪些约定？为什么通常要同时重写 hashCode？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）equals 要满足自反、对称、传递、一致性，对 null 返回 false；2）hashCode 约定：equals 相等的对象 hashCode 必须相等，不相等的对象哈希值应尽量不同；3）只重写 equals 会让相等对象散落到不同哈希桶，出现“存进去却查不到”，所以两者必须成对重写。",
+    "explanation": "反向不成立：hashCode 相同不代表 equals 相等，哈希冲突是允许的，最终仍由 equals 判定。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "下面哪个 equals 实现违反了 equals 契约？",
+    "options": [
+      "if (this == o) return true; if (!(o instanceof User)) return false; return id == ((User) o).id;",
+      "if (!(o instanceof User)) return false; return name.equals(((User) o).name);",
+      "if (o == null || getClass() != o.getClass()) return false; return id == ((User) o).id;",
+      "public boolean equals(Object o) { return o instanceof User; }"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "只判断类型会让任意两个 User 都相等，违反“不同状态的对象不应相等”的语义，哈希集合也失去区分能力；其余实现在字段非空前提下基本合规。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "text",
+    "stem": "实现 equals 时该用 instanceof 还是 getClass() 判断类型？各自的取舍是什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）getClass() 要求运行时类型完全一致，容易保证对称性，适合 final 类或需要严格区分子类的实体；2）instanceof 允许子类与父类相等，但父子类各自实现时容易破坏对称性，通常要配合 canEqual 之类的模式；3）工程上更推荐用 record 或 IDE 生成 equals，并把类设计成不可变或 final，从源头规避继承带来的契约问题。",
+    "explanation": "取舍还取决于是否使用代理：ORM 代理对象的运行时类型不是实体类，此时 getClass() 判断会失败，反而需要用 instanceof。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "text",
+    "stem": "为什么 List<String> 与 List<Integer> 在运行时是同一个类型？这给 instanceof 带来什么限制？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）泛型只在编译期做检查，编译后类型参数被擦除为上界（无界时是 Object），两者的运行时类都是 ArrayList；2）不能写 list instanceof List<String>，因为运行时无法区分，只能判断 List 或 List<?>；3）擦除还导致不能创建泛型数组、不能 new T()，需要显式传入 Class 对象或通过反射补回类型信息。",
+    "explanation": "擦除是为了兼容 Java 5 之前的字节码；代价是运行时类型信息丢失，框架因此需要 Class 或 TypeReference 辅助。"
+  },
+  {
+    "category": "java-basics",
+    "level": "senior",
+    "type": "text",
+    "stem": "泛型擦除在框架与日常开发中会带来哪些真实问题？你如何规避？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）运行时拿不到实参：JSON 反序列化、ORM 映射需要 TypeReference/TypeToken 或方法签名上的泛型信息辅助；2）重载冲突：foo(List<String>) 与 foo(List<Integer>) 擦除后签名相同，无法编译；3）不能 new T()、不能直接创建泛型数组，需传 Class 或用 Array.newInstance；4）堆污染：原始类型或可变参数可能混入错误类型，应在边界处校验并收敛 unchecked 警告。",
+    "explanation": "问题集中在“运行时缺类型”和“签名冲突”，解决思路是显式传 Class/Type、把校验放在边界，而不是到处压制警告。"
+  },
+  {
+    "category": "java-basics",
+    "level": "senior",
+    "type": "choice",
+    "stem": "方法签名 void copy(List<? super T> dst, List<? extends T> src) 这样设计通配符的依据是？",
+    "options": [
+      "读取用 extends、写入用 super，即 PECS 原则",
+      "extends 更适合写入，super 更适合读取",
+      "两者完全等价，只是书写风格不同",
+      "这样写可以绕过泛型的类型擦除"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "需要读取（生产者）时用 extends，需要写入（消费者）时用 super；写成 extends 的元素只能按上界读取，往里 add 会被编译器拒绝。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "受检异常与非受检异常的区别，下列说法正确的是？",
+    "options": [
+      "受检异常继承自 RuntimeException，非受检异常继承自 Error",
+      "受检异常必须捕获或声明抛出，非受检异常继承自 RuntimeException 或 Error",
+      "两类异常都必须在方法签名上声明",
+      "非受检异常必须被捕获，否则编译不通过"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "Throwable 下分 Error 与 Exception，Exception 中除 RuntimeException 及其子类外都是受检异常，编译器强制处理，否则编译失败。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "用 try-with-resources 依次声明资源 A、B，若关闭时两者都抛异常，结果是？",
+    "options": [
+      "先关 A 再关 B，A 的异常为主异常，B 的异常被附加",
+      "两个异常都会作为主异常同时抛出",
+      "先关 B 再关 A，B 的异常为主异常，A 的异常被附加",
+      "关闭阶段抛出的异常会被静默忽略"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "资源按声明逆序关闭，先 B 后 A；先抛出的成为主异常，后续 close 异常通过 addSuppressed 附加，可用 getSuppressed 查看。"
+  },
+  {
+    "category": "java-basics",
+    "level": "senior",
+    "type": "text",
+    "stem": "catch 里只打印日志、finally 里写 return，各会带来什么问题？异常处理规范应怎么定？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）finally 中的 return 或 throw 会覆盖 try 的返回值与异常，导致异常被吞、问题极难排查；2）catch 只打印不处理，调用方无法感知失败，事务可能已提交，数据出现不一致；3）规范：catch 要么恢复、要么包装成业务异常并保留 cause 抛出，禁止空 catch；资源释放交给 try-with-resources；finally 只做清理；对外统一错误码并记录上下文。",
+    "explanation": "原则是“异常要么被处理、要么被传递，不能消失”；finally 只用于清理，任何改变控制流的语句都应禁止。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "text",
+    "stem": "反射能做什么？在业务代码中使用反射需要注意什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）反射可在运行时获取 Class 的构造器、方法、字段与注解，并动态创建对象、调用方法、访问私有成员，依赖注入、ORM、序列化框架都依赖它；2）代价是绕过编译期检查、性能低于直接调用、可读性差，还能破坏封装；3）业务代码应优先用接口与多态，把反射限制在框架或基础设施层，并缓存 Method、校验入参。",
+    "explanation": "常见追问是“反射为什么慢”和 setAccessible 的作用；运行时解析与方法内联受限是主因，框架缓存后开销可接受。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "通过反射读取类上的自定义注解，前提条件是什么？",
+    "options": [
+      "注解使用 @Retention(RetentionPolicy.CLASS) 修饰",
+      "注解必须标注 @Inherited 才能被读到",
+      "注解必须定义在接口而不是类上",
+      "注解使用 @Retention(RetentionPolicy.RUNTIME) 修饰"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "SOURCE 在编译后丢弃，CLASS 只留在 class 文件而不进运行时，只有 RUNTIME 才能通过 getAnnotation 读到；@Inherited 只影响类继承时的可见性。"
+  },
+  {
+    "category": "java-basics",
+    "level": "senior",
+    "type": "text",
+    "stem": "框架因大量反射导致启动慢、CPU 偏高，你会怎么优化？JDK9+ 模块化下还有哪些限制？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）缓存 Class、Method、Field 与注解解析结果，避免重复查找；2）用 setAccessible、MethodHandle 或 LambdaMetafactory 生成访问器，把反射调用降到接近直接调用；3）缩小扫描范围，改为按需注册而不是全包扫描，并让互不依赖的初始化并行；4）JDK9+ 强封装下，对未 exports/opens 的包调用 setAccessible 会抛 InaccessibleObjectException，需要模块描述符 opens 或 --add-opens 过渡。",
+    "explanation": "优化顺序是“少扫、缓存、换实现”；模块化之后反射不再是万能钥匙，依赖内部 API 的框架会直接失败。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于字节流与字符流，说法正确的是？",
+    "options": [
+      "字节流以 byte 为单位，字符流以 char 为单位并涉及字符集编解码",
+      "字符流可以直接读写图片等二进制文件",
+      "字节流只能用于网络，字符流只能用于文件",
+      "字符流不需要关闭，字节流必须关闭"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "字符流建立在字节流之上做编解码，适合文本；图片、压缩包等二进制数据必须用字节流，否则编码转换会损坏内容。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于 BIO、NIO、AIO 三种 IO 模型，描述正确的是？",
+    "options": [
+      "NIO 是同步阻塞模型，AIO 是同步非阻塞模型",
+      "BIO 一连接一线程阻塞等待，NIO 用 Selector 做多路复用，AIO 由操作系统完成后回调",
+      "BIO 面向缓冲区，NIO 面向流",
+      "AIO 只在 Linux 上可用，其他平台不支持"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "BIO 面向流且阻塞，NIO 面向 Buffer/Channel 并用 Selector 监听就绪事件，AIO 是异步回调；NIO 本质是同步非阻塞加多路复用。"
+  },
+  {
+    "category": "java-basics",
+    "level": "senior",
+    "type": "text",
+    "stem": "高并发网络服务中，多路复用解决了什么问题？零拷贝与直接内存又各有什么代价？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）epoll 等多路复用用少量线程监听大量连接的就绪事件，避免一连接一线程带来的线程数与上下文切换开销，适合连接多、消息小的场景；2）零拷贝通过 sendfile/mmap 减少用户态与内核态之间的复制和切换，适合大文件传输，但传输中难以修改数据；3）直接内存省去一次堆内到堆外的复制，但分配回收成本高、不受堆上限约束，需要单独监控防止 OOM。",
+    "explanation": "回答要落到“减少线程、减少复制、减少切换”；直接内存在堆外，堆 dump 看不到，需借助 NMT 或平台指标排查。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "为可序列化类显式声明 serialVersionUID 的主要目的是？",
+    "options": [
+      "增大序列化后的字节数，便于压缩",
+      "让所有字段自动变成 transient",
+      "固定版本号，避免类结构微调后反序列化抛 InvalidClassException",
+      "保证序列化过程线程安全"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "未显式声明时由编译器根据类结构计算，字段或方法一变就变，旧数据反序列化会失败；显式固定后由开发者自行控制兼容性。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "类实现了 Serializable，下列哪些字段不会被默认序列化？",
+    "options": [
+      "private 字段与 final 字段",
+      "所有基本类型字段",
+      "实现了 Serializable 的引用类型字段",
+      "transient 字段与 static 字段"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "transient 表示不参与序列化，static 属于类而不属于对象实例；final 字段只要不是 transient 仍会被序列化并可被还原。"
+  },
+  {
+    "category": "java-basics",
+    "level": "senior",
+    "type": "choice",
+    "stem": "下列反序列化使用方式中，安全风险最高的是？",
+    "options": [
+      "对来自外部的不可信字节流直接执行 readObject()",
+      "只反序列化本服务写入并带签名的数据",
+      "使用 ObjectInputFilter 限制可反序列化的类型白名单",
+      "改用 JSON 或 Protobuf 传输对象"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "原生反序列化会按字节流中的类描述实例化对象并执行 readObject，攻击者可构造利用链执行任意代码；应改用文本或 IDL 序列化，必要时加白名单与长度限制。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于函数式接口与 @FunctionalInterface，说法正确的是？",
+    "options": [
+      "接口只能有一个方法，default 方法也计入其中",
+      "接口只有一个抽象方法，可以同时有多个 default 与 static 方法",
+      "必须标注 @FunctionalInterface 才能配合 Lambda 使用",
+      "函数式接口只能由 Lambda 实现，普通类不能实现"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "@FunctionalInterface 只是编译期校验，不标注同样可以用于 Lambda；default、static 方法与 Object 的 public 方法都不计入抽象方法数量。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于 Stream 的中间操作与终端操作，说法正确的是？",
+    "options": [
+      "每个中间操作都会立即遍历一次数据源",
+      "同一个流可以反复消费，多次终端操作没问题",
+      "中间操作是惰性的，没有终端操作就不会真正执行",
+      "peek 是终端操作，可以替代 forEach"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "filter、map 等只构建流水线，collect、forEach、count 等终端操作才触发执行；流只能消费一次，重复使用会抛 IllegalStateException。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "text",
+    "stem": "Optional 的设计初衷是什么？日常使用中有哪些常见误用？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）初衷是让“可能没有值”出现在方法签名上，减少调用方对 null 的猜测；2）常见误用：直接 get() 不判断、用 isPresent() 加 get() 代替 orElse/map、把它当作字段或方法参数、在集合元素里嵌套 Optional；3）推荐用法是作为返回值，配合 orElse、orElseGet、orElseThrow 与 map/flatMap 链式处理。",
+    "explanation": "Optional 是返回值容器，不是替代所有 null 的通用方案；orElse 会立即求值，需要惰性构造时用 orElseGet。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于用 var 声明局部变量，说法正确的是？",
+    "options": [
+      "var 是动态类型，运行时可指向不同类型",
+      "var 可用于方法参数和成员字段",
+      "var 声明的变量可以不初始化",
+      "var 是编译期类型推断，变量依然是静态类型"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "var 只省略类型书写，编译器根据初始化表达式推断出确定类型，之后不能改变；它只能用于局部变量、循环变量和 try-with-resources。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于 record 类型，说法正确的是？",
+    "options": [
+      "它是 final 类，组件字段隐式 private final，自动生成访问器与 equals、hashCode、toString",
+      "它可以继承其他类，并能声明可变的实例字段",
+      "它的组件访问器遵循 getXxx 命名规范",
+      "它默认实现 Serializable，可直接用于所有序列化场景"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "record 隐式 final 且不可变，访问器是 name() 而不是 getName()；它可以实现接口、定义额外方法，但不能继承类，也不自动实现 Serializable。"
+  },
+  {
+    "category": "java-basics",
+    "level": "senior",
+    "type": "text",
+    "stem": "sealed 类或接口配合模式匹配能解决什么问题？什么情况下不建议使用？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）sealed 显式限定可继承的子类型，配合 switch 模式匹配可做穷尽性检查，新增子类型时编译期就能发现遗漏的分支；2）它把领域模型封闭成代数数据类型，适合状态机、支付结果、表达式树这类分支有限且稳定的场景；3）不建议用于需要外部扩展的 SPI 或实现频繁新增的地方，会让使用方被迫改代码，也要验证与序列化、反射框架的兼容性。",
+    "explanation": "价值在于“封闭加穷尽检查”，代价是牺牲开放性；是否采用取决于该类型由谁扩展、扩展频率有多高。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "text",
+    "stem": "为什么说 Java 只有值传递？传入一个对象时到底传了什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）调用方法时总是把实参的值复制给形参：基本类型复制数值，引用类型复制引用的副本也就是地址值；2）因此在方法内修改对象属性会影响外部，因为两个引用指向同一个对象；3）但在方法内让形参指向新对象只改变了副本，外部引用不受影响，这正说明它不是引用传递。",
+    "explanation": "判断标准是“形参重新赋值能否影响实参”：能改对象内容、不能改外部引用本身，就是值传递。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "已知 User 有 name 属性，方法体为 void change(User u) { u.setName(\"b\"); u = new User(\"c\"); }，调用后外部对象的名字是？",
+    "options": [
+      "c，因为形参重新赋值会改变外部引用",
+      "b，因为引用副本指向同一个对象",
+      "原值，因为方法内的修改不会生效",
+      "null，因为对象已经被替换"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "setName 作用在副本指向的同一对象上，外部看到 b；随后 u 指向新对象只影响形参副本，外部引用不变。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "text",
+    "stem": "把 ArrayList 作为参数传给方法，方法内 clear() 与重新赋值分别会怎样？如何避免这类副作用？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）clear() 操作的是同一个对象，外部集合会被清空；2）形参重新赋值为新集合只改变副本，外部仍指向原集合，不会感知变化；3）避免方式：签名尽量接收只读接口或不可变视图，如 List.copyOf、Collections.unmodifiableList，明确约定方法是否修改入参，必要时做防御性拷贝，并用命名体现副作用。",
+    "explanation": "共享可变对象是副作用的主要来源；约定好“谁创建、谁负责、是否转移所有权”，比事后排查更有效。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于浅拷贝，说法正确的是？",
+    "options": [
+      "复制对象以及其引用字段指向的所有对象",
+      "浅拷贝等价于直接赋值一个引用",
+      "复制对象本身，引用类型字段仍指向同一个对象",
+      "浅拷贝只能通过序列化实现"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "Object.clone 默认是浅拷贝：基本类型字段复制值，引用字段只复制引用；直接赋值只是多一个引用，对象并没有被复制。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "使用 clone() 实现拷贝时，正确的做法是？",
+    "options": [
+      "只要重写 clone() 就会自动变成深拷贝",
+      "不实现 Cloneable 也能正常调用 super.clone()",
+      "clone() 是 final 方法，子类无法重写",
+      "实现 Cloneable，调用 super.clone()，并对可变引用字段继续 clone 或替换"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "未实现 Cloneable 时 super.clone() 抛 CloneNotSupportedException；默认 clone 是浅拷贝，引用字段必须手动处理，否则新旧对象共享内部状态。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "text",
+    "stem": "实现深拷贝有哪几种常见方式？各自适合什么场景？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）拷贝构造器或手动递归 clone：可控、性能好，但字段多时容易漏；2）Java 序列化再反序列化：实现简单、天然深拷贝，但要求对象可序列化且性能较差；3）JSON 等文本序列化：跨语言方便，会丢失类型信息并可能受循环引用影响；4）把对象设计成不可变：从源头消除拷贝需求。字段少且固定用拷贝构造器，结构复杂又不追求性能时可用序列化。",
+    "explanation": "选型看三点：对象是否可序列化、性能要求、是否存在循环引用；能设计成不可变对象时，深拷贝问题直接消失。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "为什么金额计算不建议使用 double？",
+    "options": [
+      "二进制浮点无法精确表示 0.1 等十进制小数，累加会累积误差",
+      "double 的取值范围太小，容易溢出",
+      "double 只能表示整数，不能表示小数",
+      "double 的运算不是线程安全的"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "0.1 在二进制中是无限循环小数，只能近似存储；金额应使用 BigDecimal，并通过字符串构造或 valueOf 避免引入误差。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "BigDecimal a = new BigDecimal(\"1.0\"); BigDecimal b = new BigDecimal(\"1.00\"); 下列判断正确的是？",
+    "options": [
+      "a.equals(b) 为 true，a.compareTo(b) 为 0",
+      "a.equals(b) 为 false，a.compareTo(b) 为 0",
+      "a.equals(b) 与 a.compareTo(b) 都为 false",
+      "a.equals(b) 为 false，a.compareTo(b) 不为 0"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "equals 同时比较数值与 scale，1.0 与 1.00 精度不同故不相等；compareTo 只比较数值大小返回 0，因此判等应使用 compareTo。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "text",
+    "stem": "BigDecimal 使用中有哪些常见坑？分别怎么规避？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）用 double 构造会带入误差，应使用 String 构造或 BigDecimal.valueOf；2）除法不指定精度时除不尽会抛 ArithmeticException，必须传 scale 与 RoundingMode；3）equals 会比较 scale，判等要用 compareTo；4）setScale 不传舍入模式时，遇到需要舍入同样抛异常；5）团队统一金额的 scale 与舍入策略，数据库用 DECIMAL 对应。",
+    "explanation": "坑集中在构造、除法、比较、舍入四处；应统一金额工具类与舍入规则，避免各业务线各自为政。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "text",
+    "stem": "什么是 SPI？它和普通的 API 有什么区别？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）SPI 是“接口由框架定义、实现由第三方提供”的扩展机制，调用方面向接口编程，实现类在运行时被发现；2）API 是框架提供能力给调用方使用，SPI 是框架预留扩展点给实现方接入；3）JDK 中通过 META-INF/services/接口全限定名 文件声明实现类，由 ServiceLoader 加载，JDBC 驱动就是典型例子。",
+    "explanation": "一句话区分：API 是“我给你用”，SPI 是“你来实现、我来调用”；常追问 ServiceLoader 的加载与惰性实例化。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "text",
+    "stem": "ServiceLoader 如何发现并加载 SPI 实现？它有哪些已知局限？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）ServiceLoader.load(接口) 会扫描类路径下所有 META-INF/services/接口全限定名 文件，逐行读取实现类名并反射实例化，迭代时才真正创建对象；2）局限：只能用无参构造、无法按 key 选择实现、每次 load 都全量解析、没有优先级与依赖注入、配置文件分散在各 jar 中难以治理；3）因此 Dubbo、Spring 等自建了可排序、带 key、支持注入的扩展机制。",
+    "explanation": "要点是“约定路径加反射实例化加迭代惰性”；这些局限正是大框架不直接使用原生 SPI 的原因。"
+  },
+  {
+    "category": "java-basics",
+    "level": "architect",
+    "type": "text",
+    "stem": "设计可扩展的插件机制时，如何权衡 JDK SPI、自定义扩展加载器与 JPMS/OSGi 方案？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先明确需求：是否需要按 key 选择实现、是否需要优先级与依赖、是否需要热插拔与类隔离；2）JDK SPI 零依赖、实现简单，适合实现方少且稳定的场景，但缺少选择与依赖管理；3）自定义 ExtensionLoader 可加 key、排序、注入与懒加载，成本是自维护一套约定；4）JPMS/OSGi 提供模块边界与类隔离，学习与运维成本高，多用于平台型产品；5）无论哪种都要考虑版本兼容、失败隔离与可观测性。",
+    "explanation": "主线是扩展点数量、隔离要求和团队维护成本；不要为了“可扩展”提前引入重量级模块化方案。"
+  },
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "在 module-info.java 中，声明本模块对外暴露包使用哪个指令？",
+    "options": [
+      "requires",
+      "opens",
+      "exports",
+      "uses"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "requires 声明依赖的模块，exports 导出包供其他模块编译期与运行期访问，opens 只开放反射，uses 与 provides 用于服务声明和实现。"
+  },
+  {
+    "category": "java-basics",
+    "level": "mid",
+    "type": "choice",
+    "stem": "模块系统中 exports 与 opens 的区别，说法正确的是？",
+    "options": [
+      "opens 允许编译期访问，exports 只允许反射访问",
+      "两者完全等价，只是命名不同",
+      "opens 只能用于 java.base 模块",
+      "exports 导出 public API 供编译期访问，opens 允许运行期深度反射访问包内类型"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "opens 允许对包内所有类型做深度反射包括私有成员，常用于框架；exports 只导出 public 类型，非 public 成员仍然无法反射访问。"
+  },
+  {
+    "category": "java-basics",
+    "level": "architect",
+    "type": "text",
+    "stem": "把已有的大型多模块项目迁移到 JPMS，你会如何评估与推进？主要风险是什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先评估收益：强封装、可靠配置、可用 jlink 裁剪运行时，判断是否真能解决当前痛点；2）盘点依赖的模块化程度，大量自动模块、拆分包与深度反射是主要障碍；3）推进时自底向上，先模块化无外部依赖的基础模块，用 --add-opens 与 --add-exports 过渡，逐步替换对内部 API 的依赖；4）风险是反射失效、三方库不兼容、构建与 IDE 支持不足，需保留回退方案并充分回归。",
+    "explanation": "模块化的收益主要在平台与基础设施层，业务系统迁移成本常高于收益；先解决拆分包与反射依赖再谈切换。"
+  }
+]

@@ -99,6 +99,16 @@ public class TopicService {
     }
 
     /**
+     * 全部路线摘要，供前台选择要查看的路线。
+     */
+    public List<TopicDtos.TrackSummary> tracks() {
+        return catalog().tracks().stream()
+                .map(track -> new TopicDtos.TrackSummary(track.slug(), track.title(), track.audience()))
+                .sorted(Comparator.comparing(TopicDtos.TrackSummary::title))
+                .toList();
+    }
+
+    /**
      * 展开路线：把阶段里引用的学习项解析为摘要，自动跳过草稿与失效引用。
      */
     public TopicDtos.TrackResponse track(String slug) {

@@ -8,7 +8,10 @@
   "tags": [
     "junit",
     "mockito",
-    "test"
+    "testing",
+    "assertj",
+    "tdd",
+    "test-coverage"
   ],
   "status": "published",
   "integrationStatus": "runtime",
@@ -17,102 +20,199 @@
     "spring-boot-fundamentals"
   ],
   "nextTopics": [
-    "actuator"
+    "integration-testing"
   ],
   "relatedTopics": [
-    "spring-web-rest"
+    "spring-web-rest",
+    "http-error-contract",
+    "actuator"
   ],
-  "overviewMd": "本项目的 TopicService 是纯内存过滤，非常适合单测：给定一组 published/draft，断言列表不含草稿。\n\n**该用时：** 分支逻辑、错误码、分页边界。\n\n**不必事事 @SpringBootTest：** 全容器测试慢，适合控制器契约或加载 JSON 的集成测试。",
+  "overviewMd": "JUnit 5（Jupiter）把测试从“继承 TestCase”变成注解与扩展模型：每个测试方法都跑在新创建的测试类实例上，`@BeforeEach` 负责准备，`@Nested` 用内部类组织场景，断言失败即中止当前用例。这些规则决定了用例之间能不能互不干扰——测试字段不是共享变量，而是每个用例的私有上下文。\n\n本项目的 `TopicService` 是纯内存过滤，非常适合单测：给定一组 published/draft，断言列表不含草稿。这类测试不启动 Spring，几十毫秒跑完，改一行逻辑立刻知道有没有碰坏分支。判断标准很简单——被测代码不依赖容器、网络和时钟，就写纯单测，别为了“像生产”去拉整个上下文。\n\n需要外部协作时再上 Mockito：给仓储打桩（`when/thenReturn/thenThrow`），用 `verify` 确认调用次数与参数。原则是只 mock 边界（仓储、HTTP 客户端、消息发送），不要 mock 值对象、DTO 和自己写的纯函数；mock 得越深，测试越像在复述实现，重构时反而变成负担。\n\n只有要测 Spring 的“接线”时才升级到切片：`@WebMvcTest` 只加载 Web 层并用测试替身替换服务，`@DataJpaTest` 只加载 JPA 与真实方言，完整上下文留给 `@SpringBootTest`。注意每引入一组不同的 mock Bean 都会生成新的上下文缓存，套件会明显变慢，这是“什么都想集成测”的隐性成本。\n\n最后是覆盖率：行覆盖率高不代表断言有效，一个没有断言的测试同样能刷满覆盖率。看分支覆盖、看异常路径是否被断言，比追 80% 这个数字有用。命名建议“方法_条件_期望”，失败列表里不点进去也能看出坏的是哪条业务规则。",
   "concepts": [
     {
-      "term": "@Test",
-      "explanation": "JUnit 5（Jupiter）的测试方法，不再继承 TestCase。"
+      "term": "@Test 与实例生命周期",
+      "explanation": "JUnit 5 为每个测试方法新建实例，@BeforeEach/@AfterEach 逐用例执行，@BeforeAll 必须是 static；字段因此不会串味。"
     },
     {
-      "term": "assertThrows",
-      "explanation": "断言某调用抛出指定异常，用来测未知 slug。"
+      "term": "断言与 assertAll",
+      "explanation": "assertEquals/assertTrue/assertThrows 在第一个失败处中止；assertAll 收集全部失败，一次看清多个字段错在哪。"
     },
     {
-      "term": "Mockito",
-      "explanation": "给仓储打桩，服务层不依赖真实文件。"
+      "term": "断言库选择",
+      "explanation": "JUnit 原生断言够用；AssertJ 的 assertThat(...).extracting(...).containsExactly(...) 更适合集合与嵌套字段。"
     },
     {
-      "term": "@SpringBootTest",
-      "explanation": "拉起完整上下文，适合验证 ContentLoader 能读 classpath JSON。"
+      "term": "参数化测试",
+      "explanation": "@ParameterizedTest 配 @ValueSource/@CsvSource/@MethodSource，用一组边界值替代多个复制粘贴的用例。"
+    },
+    {
+      "term": "测试命名与 @DisplayName",
+      "explanation": "命名写清“方法_条件_期望”，或用 @DisplayName 写业务语言，失败报告里能直接定位是哪条规则破了。"
+    },
+    {
+      "term": "Mockito stub",
+      "explanation": "when(repo.findBySlug(\"x\")).thenReturn(Optional.of(doc)) 定义返回值，thenThrow 模拟异常；匹配器不能与字面量混用。"
+    },
+    {
+      "term": "Mockito verify",
+      "explanation": "verify(repo, times(1)).save(any()) 断言交互，never() 断言未发生；只验证对外协作，不验证内部调用顺序。"
+    },
+    {
+      "term": "@MockBean 与切片测试",
+      "explanation": "@WebMvcTest 只装 Web 层，测试替身替换协作 Bean；Boot 3.4 起 @MockBean 由 @MockitoBean 取代。"
+    },
+    {
+      "term": "测试隔离",
+      "explanation": "用例自己造数据、用临时目录或随机后缀，不依赖执行顺序和上一条用例的残留；并行执行时这条尤其关键。"
+    },
+    {
+      "term": "覆盖率误区",
+      "explanation": "行覆盖只说明代码被执行过，不说明断言有效；无断言的用例同样能刷满覆盖率，应看分支与异常路径。"
     }
   ],
   "pathSteps": [
     {
-      "title": "跑仓库里的测试",
-      "goal": "在 backend 执行 mvn test。",
+      "title": "跑通现有测试",
+      "goal": "在 backend 执行 mvn test，确认 TopicServiceTest 全绿，并看懂每个用例在验证哪条业务规则。",
       "hours": 0.5,
       "resources": [
-        "README"
+        "junit-mockito",
+        "spring-boot-fundamentals"
       ]
     },
     {
-      "title": "补一个过滤用例",
-      "goal": "按 category 过滤时 draft 仍不可见。",
+      "title": "补纯逻辑用例",
+      "goal": "围绕过滤、搜索大小写、分页边界补用例，草稿与未知 slug 必须断言成 404 而不是空列表。",
       "hours": 1,
       "resources": [
-        "TopicServiceTest"
+        "junit-mockito"
       ]
     },
     {
-      "title": "学 Mockito",
-      "goal": "mock 仓储返回两篇文档，断言分页 total。",
-      "hours": 2,
+      "title": "用参数化替代复制",
+      "goal": "把 page/size 的边界值改成 @ParameterizedTest + @CsvSource，一条用例覆盖多组输入并带上期望值。",
+      "hours": 0.75,
       "resources": [
-        "Mockito 文档"
+        "junit-mockito"
       ]
     },
     {
-      "title": "切片测试",
-      "goal": "了解 @WebMvcTest 只加载 Web 层。",
-      "hours": 2.5,
+      "title": "让失败信息可读",
+      "goal": "引入 AssertJ 或 assertAll，给关键断言补 message，让 CI 输出直接指出坏掉的字段。",
+      "hours": 0.75,
       "resources": [
-        "Spring Boot Testing"
+        "junit-mockito"
+      ]
+    },
+    {
+      "title": "Mockito 打桩与验证",
+      "goal": "用 @ExtendWith(MockitoExtension.class) 给仓储打桩，覆盖成功、空结果、数据库异常三条路径。",
+      "hours": 1.5,
+      "resources": [
+        "junit-mockito",
+        "spring-data-jpa"
+      ]
+    },
+    {
+      "title": "写第一个切片测试",
+      "goal": "用 @WebMvcTest + @MockitoBean 只测控制器，确认参数绑定与错误码映射，不连数据库。",
+      "hours": 1,
+      "resources": [
+        "spring-web-rest",
+        "http-error-contract"
+      ]
+    },
+    {
+      "title": "接入 CI 与覆盖率",
+      "goal": "在流水线跑 mvn test，把覆盖率当趋势而不是目标，重点核对分支与异常路径是否被覆盖。",
+      "hours": 0.5,
+      "resources": [
+        "junit-mockito",
+        "integration-testing"
       ]
     }
   ],
   "samples": [
     {
-      "title": "断言草稿不可见",
+      "title": "参数化 + assertAll 的列表单测",
       "language": "java",
-      "description": "服务层单测思路，不启动 Web 容器。",
-      "code": "@Test\nvoid listHidesDrafts() {\n    TopicService service = new TopicService(fixtureLoader());\n    TopicListResponse res = service.list(null, null, null, null, 0, 20);\n    assertTrue(res.items().stream().noneMatch(i -> \"draft\".equals(i.status())));\n}"
+      "description": "不启动 Spring，一个 @BeforeEach 准备夹具，参数化覆盖分页边界，assertAll 一次断言多个规则。",
+      "code": "package com.learn.hub.topic;\n\nimport org.junit.jupiter.api.BeforeEach;\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.params.ParameterizedTest;\nimport org.junit.jupiter.params.provider.CsvSource;\n\nimport java.util.Map;\n\nimport static org.junit.jupiter.api.Assertions.*;\n\nclass TopicListTest {\n\n    private TopicService service;\n\n    @BeforeEach\n    void setUp() {\n        // fixture(...) 返回 ContentModels.TopicDocument，字段多时抽到独立夹具类\n        service = new TopicService(new ContentCatalog(\n                Map.of(\"redis\", fixture(\"redis\", \"cache\", \"published\"),\n                       \"secret\", fixture(\"secret\", \"cache\", \"draft\")),\n                Map.of()));\n    }\n\n    @ParameterizedTest(name = \"page={0}, size={1} 应被拒绝\")\n    @CsvSource({\"-1, 20\", \"0, 0\", \"0, 101\"})\n    void invalidPagingIsRejected(int page, int size) {\n        assertThrows(IllegalArgumentException.class,\n                () -> service.list(null, null, null, null, page, size));\n    }\n\n    @Test\n    void listHidesDrafts() {\n        var res = service.list(null, null, null, null, 0, 20);\n\n        assertAll(\n                () -> assertEquals(1, res.total(), \"草稿不应计入 total\"),\n                () -> assertEquals(\"redis\", res.items().getFirst().slug()),\n                () -> assertTrue(res.items().stream().noneMatch(i -> \"draft\".equals(i.status())))\n        );\n    }\n}"
+    },
+    {
+      "title": "Mockito 打桩与 verify",
+      "language": "java",
+      "description": "仓储是唯一的 mock 边界；空结果转 404，数据库异常转 503，并验证没有发生写操作。",
+      "code": "package com.learn.hub.topic;\n\nimport org.junit.jupiter.api.Test;\nimport org.junit.jupiter.api.extension.ExtendWith;\nimport org.mockito.InjectMocks;\nimport org.mockito.Mock;\nimport org.mockito.junit.jupiter.MockitoExtension;\nimport org.springframework.dao.DataAccessResourceFailureException;\n\nimport java.util.Optional;\n\nimport static org.junit.jupiter.api.Assertions.*;\nimport static org.mockito.ArgumentMatchers.any;\nimport static org.mockito.ArgumentMatchers.anyString;\nimport static org.mockito.Mockito.*;\n\n@ExtendWith(MockitoExtension.class)\nclass TopicQueryServiceTest {\n\n    @Mock\n    private TopicRepository repository;\n\n    @InjectMocks\n    private TopicQueryService service;\n\n    @Test\n    void missingTopicBecomesNotFound() {\n        when(repository.findBySlug(\"nope\")).thenReturn(Optional.empty());\n\n        NotFoundException ex = assertThrows(NotFoundException.class, () -> service.detail(\"nope\"));\n\n        assertEquals(\"TOPIC_NOT_FOUND\", ex.getCode());\n        verify(repository).findBySlug(\"nope\");\n        verify(repository, never()).save(any());\n    }\n\n    @Test\n    void databaseFailureIsWrapped() {\n        when(repository.findBySlug(anyString()))\n                .thenThrow(new DataAccessResourceFailureException(\"connection refused\"));\n\n        assertThrows(ServiceUnavailableException.class, () -> service.detail(\"redis\"));\n    }\n}"
+    },
+    {
+      "title": "@WebMvcTest 切片",
+      "language": "java",
+      "description": "只加载 Web 层，用 @MockitoBean 替换服务，验证状态码、错误码与 traceId 三个契约点。",
+      "code": "package com.learn.hub.web;\n\nimport org.junit.jupiter.api.Test;\nimport org.springframework.beans.factory.annotation.Autowired;\nimport org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;\nimport org.springframework.test.context.bean.override.mockito.MockitoBean;\n\nimport static org.mockito.Mockito.when;\nimport static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;\nimport static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;\nimport static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;\n\n@WebMvcTest(TopicController.class)\nclass TopicControllerSliceTest {\n\n    @Autowired\n    private MockMvc mvc;\n\n    // Spring Boot 3.4+ 用 @MockitoBean 取代已废弃的 @MockBean\n    @MockitoBean\n    private TopicService service;\n\n    @Test\n    void unknownSlugReturns404WithErrorCode() throws Exception {\n        when(service.detail(\"nope\"))\n                .thenThrow(new NotFoundException(\"TOPIC_NOT_FOUND\", \"学习项不存在\"));\n\n        mvc.perform(get(\"/api/v1/topics/nope\"))\n                .andExpect(status().isNotFound())\n                .andExpect(jsonPath(\"$.code\").value(\"TOPIC_NOT_FOUND\"))\n                .andExpect(jsonPath(\"$.traceId\").isNotEmpty());\n    }\n}"
     }
   ],
   "pitfalls": [
     {
-      "title": "测试依赖真实磁盘路径写死 C 盘",
-      "detail": "用 classpath 或临时目录。别人克隆下来会红。"
+      "title": "用例顺序一变就红",
+      "detail": "现象：单独跑绿、全量跑红，或换台机器报唯一键冲突。原因：共享静态数据、写死用户名/ID，上一条用例的残留被下一条读到。规避：每个用例自己造数据（唯一后缀、临时目录），不依赖执行顺序，也别用 @TestMethodOrder 掩盖问题。"
+    },
+    {
+      "title": "mock 到自己都信了",
+      "detail": "现象：单测全绿，联调时字段名和类型全对不上。原因：when(...) 返回的是自己编的假对象，没有校验真实序列化契约。规避：只 mock 边界，另用 @WebMvcTest 或契约测试锁定真实 JSON 结构。"
+    },
+    {
+      "title": "when() 里混用字面量与匹配器",
+      "detail": "现象：抛 InvalidUseOfMatchersException，或 stub 永远不命中。原因：同一个方法调用里既有 any() 又有裸值。规避：一个调用里要么全用匹配器（eq/isNull/any），要么全用字面量。"
+    },
+    {
+      "title": "测试替身拖慢整个套件",
+      "detail": "现象：单个测试类几秒，全量十分钟，日志反复重建上下文。原因：每组不同的 @MockitoBean 组合都是新 ApplicationContext，缓存无法复用。规避：按 mock 组合聚合测试类，能用纯单测就不启动 Spring。"
+    },
+    {
+      "title": "没有断言的“通过”",
+      "detail": "现象：覆盖率很高，线上仍然错。原因：只调用了方法没写断言，异常被 try/catch 吞掉。规避：每个用例至少一条断言，异常路径用 assertThrows 显式断言类型与 code。"
     },
     {
       "title": "断言整个 JSON 字符串",
-      "detail": "字段一换全挂。断言关键字段。"
-    },
-    {
-      "title": "没有失败用例",
-      "detail": "只测 happy path 等于没测 404 契约。"
+      "detail": "现象：加一个字段全挂，排查成本高。原因：把序列化细节当成了契约。规避：用 jsonPath 只断言关键字段、类型和数组长度。"
     }
   ],
   "repoPointers": [
     {
       "label": "示例测试",
       "path": "backend/src/test/java/com/learn/hub/topic/TopicServiceTest.java"
+    },
+    {
+      "label": "集成测试入口",
+      "path": "backend/src/test/java/com/learn/hub/AuthAndPrivacyTest.java"
     }
   ],
   "scenarios": [
     {
       "title": "改一处逻辑，怕碰坏别的分支",
       "signal": "筛选、分页、状态流转这类分支多的纯逻辑，手工回归成本高",
-      "approach": "先给纯逻辑写参数化单测，覆盖边界值和异常分支；不启动 Spring，跑得快"
+      "approach": "先给纯逻辑写参数化单测，覆盖边界值和异常分支；不启动 Spring，保证几秒内跑完"
     },
     {
       "title": "依赖的外部服务在测试环境不可用",
       "signal": "支付、短信、对象存储这类第三方依赖，联调前无法验证自己的逻辑",
       "approach": "用 Mockito 打桩返回成功/超时/异常，验证自己的重试、降级和错误转换是否正确"
+    },
+    {
+      "title": "想验证错误码契约又不想连数据库",
+      "signal": "每次测 404/405 都要起 MySQL，反馈太慢",
+      "approach": "用 @WebMvcTest 切片 + 测试替身，只断言状态码、错误码和响应字段"
+    },
+    {
+      "title": "覆盖率达标但线上仍出问题",
+      "signal": "JaCoCo 80% 以上，异常路径却从没被断言过",
+      "approach": "把覆盖率当趋势，逐条检查失败分支和边界，去掉没有断言的“空跑”用例"
+    },
+    {
+      "title": "CI 偶发失败，重跑就过",
+      "signal": "同一份代码有时红有时绿，本地却稳定",
+      "approach": "排查共享状态与顺序依赖，改用唯一数据、临时目录和固定时钟，确认用例可单独运行"
     }
   ]
 }

@@ -1,0 +1,201 @@
+{
+  "slug": "docker-compose",
+  "title": "Docker Compose 编排实战",
+  "category": "engineering",
+  "summary": "用一份 compose.yaml 起全栈：网络、卷、健康检查、多环境与资源限制。",
+  "difficulty": "intermediate",
+  "estimatedHours": 5,
+  "tags": [
+    "docker",
+    "compose",
+    "devops",
+    "container",
+    "yaml"
+  ],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://docs.docker.com/compose/",
+  "prerequisites": [
+    "docker-basics"
+  ],
+  "nextTopics": [
+    "kubernetes-basics"
+  ],
+  "relatedTopics": [
+    "nginx-basics",
+    "mysql-basics"
+  ],
+  "overviewMd": "Docker Compose 是单机多容器的声明式编排工具：把一组容器的镜像、端口、依赖、网络和卷写进 compose.yaml，再用 docker compose up -d 一条命令拉起整栈。它替代的是散落在 README 里的一串 docker run，而不是 Kubernetes：没有多节点调度，也没有自愈和滚动发布。\n\n核心模型只有三层：services 描述容器，networks 决定谁能解析到谁，volumes 决定数据活多久。Compose 以项目名为前缀创建资源，默认网络内服务名就是 DNS，容器之间用「服务名 + 容器端口」通信；ports 只用于把端口暴露到宿主机，给本机浏览器和 IDE 使用。\n\n依赖与配置是最容易踩坑的部分。depends_on 的短语法只保证启动顺序，不保证对方可用；长语法配合 healthcheck 的 condition: service_healthy 才能等到真正就绪。变量插值 ${VAR:-default} 先读 shell 环境再读 .env，容器内的最终值则由 environment 覆盖 env_file、再覆盖镜像 ENV。\n\n工程化能力集中在构建与运行约束：build 支持 context、dockerfile、多阶段 target 和 args，同时写 image 才能得到固定镜像名；logging 的 max-size/max-file 防止日志撑爆磁盘；deploy.resources.limits 的 cpus/memory 在 Compose V2 生效，也可用 mem_limit/cpus 旧写法；healthcheck 的 start_period 给 JVM 慢启动留余量。\n\n边界要提前想清楚：Compose 适合本地开发、CI 集成测试和单机小流量部署；需要多节点、副本自愈、滚动发布和统一入口时应该迁到 Kubernetes，映射关系大致是 service → Deployment + Service、networks → Service DNS、volumes → PVC、healthcheck → 探针。版本上注意顶层 version 字段已随 Compose Spec 废弃，docker-compose（v1）已停止维护，命令统一用 docker compose 插件；本仓库只用它跑中间件，K8s 清单另存。",
+  "concepts": [
+    {
+      "term": "services 顶层键",
+      "explanation": "compose.yaml 的主体：每个 service 一组同镜像容器，声明 image 或 build 后再配 ports、environment、volumes 与 depends_on，其余顶层键只有 name、networks、volumes。"
+    },
+    {
+      "term": "networks 与服务发现",
+      "explanation": "自定义网络提供隔离与内置 DNS，同一网络内用服务名解析到容器 IP；未声明时落到 default 网络，跨网络访问必须让服务同时接入两个网络。"
+    },
+    {
+      "term": "volumes 与绑定挂载",
+      "explanation": "命名卷由 Docker 管理、适合数据库数据，删容器不丢；绑定挂载指向宿主机路径，适合源码热更新；顶层声明后服务内用「卷名:容器路径」引用。"
+    },
+    {
+      "term": "depends_on 与就绪",
+      "explanation": "短语法只按顺序启动容器，不等服务可用；长语法 condition: service_healthy 才等到健康检查通过，避免应用先于数据库就绪而连接失败。"
+    },
+    {
+      "term": "healthcheck",
+      "explanation": "用 test、interval、timeout、retries 定义探活，start_period 内的失败不计入重试；容器状态变为 healthy 后，依赖它的服务才被放行。"
+    },
+    {
+      "term": "环境变量与 .env",
+      "explanation": "${VAR:-default} 做插值与默认值，.env 默认加载且不应提交；容器内优先级为 environment 覆盖 env_file，再覆盖镜像自带 ENV。"
+    },
+    {
+      "term": "多环境 override",
+      "explanation": "compose.override.yaml 会自动叠加，也可用 -f 显式指定多个文件；标量覆盖、列表追加，合并结果用 docker compose config 验证。"
+    },
+    {
+      "term": "build 与镜像",
+      "explanation": "build 支持 context、dockerfile、target 多阶段与 args 构建参数；同时写 image 才有固定名字，推送前用版本 tag，避免 latest 漂移。"
+    },
+    {
+      "term": "资源限制与日志",
+      "explanation": "deploy.resources.limits 的 cpus/memory 在 Compose V2 生效，也可用 mem_limit、cpus；logging 配 max-size 与 max-file 做轮转，防止日志写满磁盘。"
+    },
+    {
+      "term": "常用命令与 K8s 边界",
+      "explanation": "up -d、ps、logs -f、exec、config、down 是日常组合，down -v 会连卷一起删；Compose 只管单机，多节点、自愈和滚动发布属于 Kubernetes。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "写出第一份 compose.yaml",
+      "goal": "用官方镜像起 MySQL 与 Redis，docker compose config 校验后 up -d，ps 里能看到容器与端口映射。",
+      "hours": 1,
+      "resources": [
+        "Compose 官方 Quickstart",
+        "本页全栈示例"
+      ]
+    },
+    {
+      "title": "网络、卷与依赖",
+      "goal": "自定义 network 并声明命名卷，故意让 app 先启动，观察连接被拒后再加 healthcheck 与 service_healthy。",
+      "hours": 1,
+      "resources": [
+        "Networking in Compose",
+        "Volumes 文档"
+      ]
+    },
+    {
+      "title": "环境变量与多环境",
+      "goal": "用 .env 与 ${VAR:-default} 注入配置，写 compose.override.yaml 暴露调试端口，用 config 对比合并前后的差异。",
+      "hours": 1,
+      "resources": [
+        "Environment variables",
+        "Merge Compose files"
+      ]
+    },
+    {
+      "title": "构建应用镜像",
+      "goal": "写多阶段 Dockerfile，用 build.context、target、args 构建 Spring Boot 镜像，打上版本 tag 并 up --build 验证。",
+      "hours": 1,
+      "resources": [
+        "Dockerfile 多阶段构建",
+        "Compose build 参考"
+      ]
+    },
+    {
+      "title": "日志与资源限制",
+      "goal": "配置 json-file 轮转与 deploy.resources.limits，压测观察 CPU 节流和内存超限后的容器退出。",
+      "hours": 0.5,
+      "resources": [
+        "Logging driver 配置",
+        "Resource constraints"
+      ]
+    },
+    {
+      "title": "命令与迁移预演",
+      "goal": "练熟 logs、exec、config、down -v 的语义，把每个 service 对照 K8s 的 Deployment、Service、PVC、探针做一次映射。",
+      "hours": 0.5,
+      "resources": [
+        "docker compose CLI",
+        "本页迁移说明"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "全栈 compose.yaml：网络、卷与健康依赖",
+      "language": "yaml",
+      "description": "MySQL 与 Redis 先通过健康检查，app 才启动；命名卷保留数据，backend/frontend 两个网络隔离内部与对外。",
+      "code": "services:\n  mysql:\n    image: mysql:8.4\n    environment:\n      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local}\n      MYSQL_DATABASE: learnhub\n    volumes: [mysql-data:/var/lib/mysql]\n    healthcheck:\n      test: [\"CMD-SHELL\", \"mysqladmin ping -uroot -p$$MYSQL_ROOT_PASSWORD --silent\"]\n      interval: 5s\n      timeout: 3s\n      retries: 20\n      start_period: 30s\n    networks: [backend]\n  redis:\n    image: redis:7-alpine\n    volumes: [redis-data:/data]\n    healthcheck:\n      test: [\"CMD\", \"redis-cli\", \"ping\"]\n      interval: 5s\n      retries: 10\n    networks: [backend]\n  app:\n    build: { context: ., target: runtime }\n    image: learnhub/app:local\n    env_file: [.env]\n    environment:\n      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}\n      DB_HOST: mysql\n    ports: [\"8080:8080\"]\n    depends_on:\n      mysql: { condition: service_healthy }\n      redis: { condition: service_healthy }\n    networks: [backend, frontend]\nnetworks:\n  backend:\n  frontend:\nvolumes:\n  mysql-data:\n  redis-data:"
+    },
+    {
+      "title": "compose.override.yaml：开发态调试与日志轮转",
+      "language": "yaml",
+      "description": "只写增量：端口与 JVM 调试参数、日志轮转。列表字段是追加语义，所以不要再重复基础文件里已有的 8080 映射。",
+      "code": "services:\n  app:\n    environment:\n      SPRING_PROFILES_ACTIVE: dev\n      JAVA_TOOL_OPTIONS: \"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005\"\n    ports:\n      - \"5005:5005\"\n    volumes:\n      - ./target/classes:/app/classes:ro\n    depends_on:\n      mysql:\n        condition: service_healthy\n    logging:\n      driver: json-file\n      options:\n        max-size: \"10m\"\n        max-file: \"3\""
+    },
+    {
+      "title": "日常命令：校验、启动、排障与清理",
+      "language": "bash",
+      "description": "先 config 看合并后的最终配置，再 up --build；down 保留命名卷，down -v 才会连数据一起删。",
+      "code": "# 渲染最终配置，检查变量与 override 合并结果\ndocker compose config\n\n# 后台启动；--build 只重建有变化的镜像\ndocker compose up -d --build\n\n# 状态与健康，Health 列为 healthy 才算就绪\ndocker compose ps\n\n# 跟随日志，先看 app 再看依赖\ndocker compose logs -f --tail=100 app\n\n# 进容器验证连通性：这里必须用服务名，不能用 localhost\ndocker compose exec app sh\ngetent hosts mysql\n\n# 只起依赖，应用交给本机 IDE\ndocker compose up -d mysql redis\n\n# 停止并删除容器与网络，命名卷保留\ndocker compose down\n# 连数据卷一起删除：仅本地重置时使用\ndocker compose down -v"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "depends_on 当成就绪信号",
+      "detail": "现象是 app 启动即报 Connection refused，手动重启一次又好了。短语法只保证容器先启动，MySQL 初始化要几十秒；改成 condition: service_healthy 并配 mysqladmin ping，应用侧仍要保留连接重试。"
+    },
+    {
+      "title": "容器里用 localhost 连其它服务",
+      "detail": "每个容器有独立网络命名空间，localhost 指向自己。同栈服务用服务名加容器端口（mysql:3306），宿主机上的服务用 host.docker.internal；ports 映射只影响宿主机访问。"
+    },
+    {
+      "title": ".env 进仓库或变量静默为空",
+      "detail": "缺变量时 ${DB_PASSWORD} 会插成空串，镜像照样启动但连不上库。提交 .env.example、把 .env 写进 .gitignore，CI 用密钥注入，启动前用 docker compose config 检查最终值。"
+    },
+    {
+      "title": "down -v 顺手清掉数据卷",
+      "detail": "down 删除容器和网络但保留命名卷，down -v 连卷一起删。脚本里图省事加 -v，本地库和测试数据一起没；重置前先备份，生产脚本不要带 -v。"
+    },
+    {
+      "title": "override 的列表是追加不是替换",
+      "detail": "标量字段覆盖，ports、volumes、environment 列表则追加；在 override 里重复写基础文件的端口会触发端口冲突。只写增量，合并后用 docker compose config 核对。"
+    },
+    {
+      "title": "把 Compose 当生产编排",
+      "detail": "单机没有多节点调度、副本自愈和滚动发布，宿主机挂了整栈就没了。本地与 CI 用它，单机小流量可接受；需要弹性与高可用时迁 Kubernetes，配置逐项映射。"
+    }
+  ],
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "一条命令拉起整套依赖",
+      "signal": "新人入职要装 MySQL、Redis、MQ，版本还各不相同",
+      "approach": "把镜像版本、端口、卷和健康检查写进 compose.yaml，README 只写 docker compose up -d；数据放命名卷，重置用 down -v 并注明后果"
+    },
+    {
+      "title": "集成测试要独立数据库",
+      "signal": "CI 里测试互相污染，或依赖共享测试库导致偶发失败",
+      "approach": "CI 用 docker compose up -d --wait 起临时 MySQL，测试跑完 down -v；用项目名或随机端口隔离，避免并行任务抢端口"
+    },
+    {
+      "title": "开发与生产配置差异大",
+      "signal": "本地要调试端口和源码挂载，生产要资源限制和日志轮转",
+      "approach": "基础 compose.yaml 只写公共部分，compose.override.yaml 放开发增量，生产用 -f 指定单独文件；敏感值走环境变量，不用默认值上线"
+    },
+    {
+      "title": "JVM 慢启动被误判失败",
+      "signal": "app 容器反复重启，日志显示依赖未就绪或健康检查失败",
+      "approach": "healthcheck 配 start_period 覆盖启动时间，depends_on 用 service_healthy；应用侧加重试与超时，别用 restart: always 掩盖真实错误"
+    },
+    {
+      "title": "要迁到 Kubernetes",
+      "signal": "单机资源吃紧，需要多副本、滚动发布和统一入口",
+      "approach": "先把每个 service 的镜像、环境变量、卷、健康检查整理成清单，再映射到 Deployment/Service/PVC/探针；Compose 保留给本地开发"
+    }
+  ]
+}

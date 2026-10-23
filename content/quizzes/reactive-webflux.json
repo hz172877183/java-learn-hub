@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "需要按上游顺序串行执行异步调用，应该选哪个操作符？",
+    "options": [
+      "flatMap",
+      "concatMap",
+      "mergeWith",
+      "zipWith"
+    ],
+    "correctIndex": 1,
+    "explanation": "concatMap 等价于并发为 1 的 flatMap，下一个元素要等前一个完成；flatMap 并发执行且不保证顺序，mergeWith 只做交织，zipWith 是配对聚合。"
+  },
+  {
+    "type": "choice",
+    "stem": "在 WebFlux 的控制器方法里直接调用阻塞 JDBC，会发生什么？",
+    "options": [
+      "Reactor 自动把调用切换到 boundedElastic",
+      "只影响该请求的日志级别",
+      "占住事件循环线程，吞吐骤降并可能抛 block() not supported",
+      "Spring 自动降级为 Spring MVC 处理"
+    ],
+    "correctIndex": 2,
+    "explanation": "请求线程被标记为 NonBlocking，阻塞调用会占死事件循环，少线程撑不起并发；Reactor 也不会自动帮你换线程，必须显式用 subscribeOn 隔离。"
+  },
+  {
+    "type": "text",
+    "stem": "为什么在 map 里调用 block() 会失败？正确的替代写法是什么？",
+    "options": [],
+    "referenceAnswer": "WebFlux 的请求线程属于 NonBlocking 调度器，Reactor 检测到在其上调用 block()、blockFirst() 会直接抛 IllegalStateException，因为它会占住事件循环并可能死锁。替代写法是把阻塞逻辑包成 Mono.fromCallable(() -> 调用)，再 subscribeOn(Schedulers.boundedElastic()) 交给弹性线程池，然后继续用 flatMap 组合；根治办法是换成非阻塞客户端或 R2DBC 驱动。",
+    "explanation": "响应式的约束是「不要在事件循环上等待」；block 只适合启动、脚本这类边界入口，测试也应优先用 StepVerifier 断言信号序列。"
+  }
+]

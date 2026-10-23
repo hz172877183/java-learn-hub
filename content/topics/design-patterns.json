@@ -1,0 +1,222 @@
+{
+  "slug": "design-patterns",
+  "title": "设计模式：从 GoF 到 Spring 的落地选型",
+  "category": "engineering",
+  "summary": "把 23 个模式还原成封装变化的手段，用 Spring 源码与坏味道决定该不该用。",
+  "difficulty": "intermediate",
+  "estimatedHours": 6,
+  "tags": [
+    "design-patterns",
+    "solid",
+    "spring",
+    "refactoring",
+    "architecture"
+  ],
+  "status": "published",
+  "integrationStatus": "snippet",
+  "officialDocsUrl": "https://refactoring.guru/design-patterns",
+  "prerequisites": [
+    "spring-boot-advanced"
+  ],
+  "nextTopics": [
+    "ddd-domain-modeling"
+  ],
+  "relatedTopics": [
+    "spring-web-rest",
+    "junit-mockito"
+  ],
+  "overviewMd": "设计模式不是 23 个需要背诵的名词，而是对「哪里会变、怎么把变化关起来」的命名。它处理的永远是同一类结构问题：对象从哪里来、对象怎么拼、职责怎么分。多数失败并非不会写模式，而是在变化点还没出现时就提前搭好三层抽象，最后维护成本比重复代码更高。\n\n整族模式可以压到两条判据上：依赖倒置（依赖抽象而不是实现）与组合优先于继承。在这个视角下，创建型管的是 new 放在哪——单例收口实例、工厂推迟具体类型的选择、建造者分步装配并在最后校验；结构型管的是怎么在不改原对象的前提下改变行为——代理控制访问、装饰器叠加职责、适配器翻译接口、门面收敛子系统入口；行为型管的是变化的分支放哪——策略把算法变成对象、模板方法固定骨架留钩子、责任链让请求逐级传递、观察者广播变化、状态机把迁移显式成表。\n\nSpring 本身就是模式密集的框架：BeanFactory 是工厂，ApplicationContext 在工厂外又套了门面与注册表，singleton 作用域是容器级单例而非 GoF 单例，JdbcTemplate 是模板方法，@Transactional 与 AOP 走 JDK 动态代理或 CGLIB，ApplicationEvent 是观察者，FilterChain 与 HandlerInterceptor 是责任链，命名里的 *Adapter、*Template、*Strategy 就是作者留下的结构提示。读框架源码时把模式名字贴上去，比背定义有用得多。\n\n不该用的场景也要说得出来：一个接口只有一个实现、且半年内不会有第二个实现，策略与工厂都是噪音；变化点来自猜测而不是需求或事故，抽象层只增加跳转成本。过度设计的典型信号是抽象层数量超过变化点数量、改一个字段要动五个文件。版本上，Java 17+/21 的 sealed 接口、record 与模式匹配让策略和状态机可以写成 switch + sealed 收口，比抽象类继承更轻；Spring 6 默认 CGLIB 代理，final 类、final 方法与同类自调用都会绕过切面，排查事务与缓存失效时最常踩这一点。\n\n放在本仓库看：backend 里已有现成对照样本——TopicService 是应用服务，ContentModels 是只读文档模型，ApiExceptionHandler 用集中处理替代散落的 try/catch，WebConfig 注册的过滤器与拦截器是责任链。建议把重构实验放在独立练习模块，先用手写测试锁住行为（junit-mockito 的切片测试足够），再换结构，最后写一段「为什么选这个模式、什么条件下回滚」的记录。",
+  "concepts": [
+    {
+      "term": "单例与容器单例",
+      "explanation": "GoF 单例靠私有构造与静态实例；Spring 的 singleton 是容器内一 Bean 一实例，不必再手写双重检查锁。"
+    },
+    {
+      "term": "工厂方法与抽象工厂",
+      "explanation": "工厂方法把具体类型的选择推迟到子类或配置，抽象工厂负责一族相关产品；BeanFactory 是前者的超集。"
+    },
+    {
+      "term": "建造者",
+      "explanation": "链式分步装配复杂对象，build() 时统一校验；参数超过四个或必填与可选组合多时收益最大。"
+    },
+    {
+      "term": "代理",
+      "explanation": "同一接口的包装对象在调用前后插入逻辑；JDK 动态代理要接口，CGLIB 生成子类，Spring AOP 与 @Transactional 都走这里。"
+    },
+    {
+      "term": "适配器",
+      "explanation": "把不兼容的第三方接口翻译成领域需要的接口，只做协议与异常转换，不加业务规则；防腐层与它同构。"
+    },
+    {
+      "term": "装饰器",
+      "explanation": "保持接口不变地叠加职责，可任意组合且顺序显式；与代理的区别在意图：装饰器加能力，代理控访问。"
+    },
+    {
+      "term": "门面",
+      "explanation": "为复杂子系统提供收敛的入口，降低调用方与内部结构的耦合；门面只做编排与委派，不承载领域规则。"
+    },
+    {
+      "term": "策略与模板方法",
+      "explanation": "策略用组合替换算法、运行期可换；模板方法用继承固定骨架、把差异留成钩子，编译期即确定。"
+    },
+    {
+      "term": "责任链",
+      "explanation": "请求沿处理者链传递直到被处理或链结束；FilterChain、拦截器与校验链都是它的实现，要关注顺序与短路。"
+    },
+    {
+      "term": "观察者与状态机",
+      "explanation": "观察者把变化广播给订阅方（ApplicationEvent）；状态机把状态与迁移显式成表，替代膨胀的 if/switch。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "先写坏味道，不急着套模式",
+      "goal": "在 backend 里找出一处分支臃肿或横切逻辑复制的代码，用一段话写清变化点、触发频率与当前改动成本。",
+      "hours": 0.5,
+      "resources": [
+        "backend/src/main/java/com/learn/hub/topic/TopicService.java",
+        "《重构：改善既有代码的设计》"
+      ]
+    },
+    {
+      "title": "创建型：把 new 收口",
+      "goal": "把一个直接 new 的领域对象改成工厂或建造者，让参数校验在创建时失败，而不是运行到一半才失败。",
+      "hours": 1,
+      "resources": [
+        "本页策略示例",
+        "Effective Java 第 2 章"
+      ]
+    },
+    {
+      "title": "结构型：包一层而不是改一层",
+      "goal": "用装饰器给一个查询接口叠加缓存与计时，再用动态代理实现同样功能，写下两者在意图与可组合性上的差别。",
+      "hours": 1,
+      "resources": [
+        "java.lang.reflect.Proxy",
+        "Spring AOP 文档"
+      ]
+    },
+    {
+      "title": "行为型：拆分支与校验链",
+      "goal": "把渠道分支改成策略注册表，把三段校验改成责任链，并且给每条链补一个失败用例。",
+      "hours": 1,
+      "resources": [
+        "本页策略示例",
+        "本页状态机示例"
+      ]
+    },
+    {
+      "title": "读 Spring 源码里的模式",
+      "goal": "在 BeanFactory、JdbcTemplate、ApplicationEventMulticaster、FilterChain 里各指出一个模式，说明它封装了哪个变化点。",
+      "hours": 1,
+      "resources": [
+        "Spring Framework 源码",
+        "Spring Framework 官方文档"
+      ]
+    },
+    {
+      "title": "做一次模式选型评审",
+      "goal": "对三个候选方案列出变化点、间接层成本与维护成本，给出引入或不引入的结论，以及回滚触发条件。",
+      "hours": 0.75,
+      "resources": [
+        "本页反模式清单"
+      ]
+    },
+    {
+      "title": "重构一个上帝类",
+      "goal": "把超过 500 行的服务按职责拆成应用服务、领域对象与适配器，行为先用测试锁住再动手。",
+      "hours": 0.75,
+      "resources": [
+        "backend/src/main/java/com/learn/hub",
+        "junit-mockito"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "策略注册表：把渠道 if/else 收进 Map",
+      "language": "java",
+      "description": "sealed 接口把实现收口，Spring 注入 List 后按 channel 建注册表，新增渠道只加一个实现类；注册表用 toMap 收集，key 重复会在启动期直接失败。",
+      "code": "package com.learn.hub.pricing;\n\nimport java.math.BigDecimal;\nimport java.util.List;\nimport java.util.Map;\nimport java.util.stream.Collectors;\nimport org.springframework.stereotype.Component;\n\nsealed interface DiscountStrategy permits NoDiscount, MemberDiscount, CouponDiscount {\n    String channel();\n\n    BigDecimal apply(BigDecimal amount);\n}\n\nrecord NoDiscount() implements DiscountStrategy {\n    public String channel() { return \"none\"; }\n    public BigDecimal apply(BigDecimal amount) { return amount; }\n}\n\nrecord MemberDiscount(int level) implements DiscountStrategy {\n    public String channel() { return \"member\"; }\n    public BigDecimal apply(BigDecimal amount) {\n        return amount.multiply(BigDecimal.valueOf(1 - level * 0.05));\n    }\n}\n\nrecord CouponDiscount(BigDecimal off) implements DiscountStrategy {\n    public String channel() { return \"coupon\"; }\n    public BigDecimal apply(BigDecimal amount) {\n        return amount.subtract(off).max(BigDecimal.ZERO);\n    }\n}\n\n@Component\nclass DiscountStrategies {\n    private final Map<String, DiscountStrategy> byChannel;\n    DiscountStrategies(List<DiscountStrategy> strategies) {\n        this.byChannel = strategies.stream()\n                .collect(Collectors.toMap(DiscountStrategy::channel, strategy -> strategy));\n    }\n\n    BigDecimal price(String channel, BigDecimal amount) {\n        return byChannel.getOrDefault(channel, new NoDiscount()).apply(amount);\n    }\n}"
+    },
+    {
+      "title": "枚举式状态机：迁移表就是唯一事实来源",
+      "language": "java",
+      "description": "状态与允许的迁移集中在静态表里，控制器和测试只依赖 move 的结果；非法迁移立刻抛错，而不是在数据库里留下一个谁也解释不了的状态。",
+      "code": "package com.learn.hub.order;\n\nimport java.util.EnumMap;\nimport java.util.EnumSet;\nimport java.util.Map;\nimport java.util.Set;\n\n/** 状态迁移显式成表，新增状态必须同时给出入口与出口。 */\nfinal class OrderStateMachine {\n\n    enum Status { CREATED, PAID, SHIPPED, CLOSED, REFUNDED }\n\n    private static final Map<Status, Set<Status>> ALLOWED = new EnumMap<>(Status.class);\n\n    static {\n        ALLOWED.put(Status.CREATED, EnumSet.of(Status.PAID, Status.CLOSED));\n        ALLOWED.put(Status.PAID, EnumSet.of(Status.SHIPPED, Status.REFUNDED));\n        ALLOWED.put(Status.SHIPPED, EnumSet.of(Status.CLOSED));\n        ALLOWED.put(Status.CLOSED, EnumSet.noneOf(Status.class));\n        ALLOWED.put(Status.REFUNDED, EnumSet.noneOf(Status.class));\n    }\n\n    private Status state = Status.CREATED;\n\n    Status move(Status target) {\n        Set<Status> next = ALLOWED.get(state);\n        if (next == null || !next.contains(target)) {\n            throw new IllegalStateException(\"非法迁移: \" + state + \" -> \" + target);\n        }\n        state = target;\n        return state;\n    }\n\n    Status current() {\n        return state;\n    }\n}"
+    },
+    {
+      "title": "门面 + 观察者：前端只认一个入口",
+      "language": "ts",
+      "description": "界面层只 dispatch 与 subscribe，写接口、重试和订阅者生命周期都收在门面里；reduce 是纯函数，视图可由事件重放得到，便于测试与调试。",
+      "code": "export type LearningEvent =\n  | { type: 'enrolled'; topicId: string }\n  | { type: 'completed'; topicId: string }\n  | { type: 'reset' };\n\nexport interface LearningView {\n  enrolled: number;\n  completed: number;\n  lastTopic?: string;\n}\n\ntype Listener = (view: LearningView) => void;\n\nconst empty = (): LearningView => ({ enrolled: 0, completed: 0 });\n\nfunction reduce(view: LearningView, event: LearningEvent): LearningView {\n  switch (event.type) {\n    case 'enrolled':\n      return { ...view, enrolled: view.enrolled + 1, lastTopic: event.topicId };\n    case 'completed':\n      return { ...view, completed: view.completed + 1, lastTopic: event.topicId };\n    case 'reset':\n      return empty();\n  }\n}\n\n/** 门面：调用方不关心写接口、重试与订阅者的注册细节。 */\nexport class LearningFacade {\n  private view = empty();\n  private readonly listeners = new Set<Listener>();\n  constructor(private readonly post: (event: LearningEvent) => Promise<void>) {}\n\n  subscribe(listener: Listener): () => void {\n    this.listeners.add(listener);\n    listener(this.view);\n    return () => this.listeners.delete(listener);\n  }\n\n  async dispatch(event: LearningEvent): Promise<void> {\n    await this.post(event);\n    this.view = reduce(this.view, event);\n    this.listeners.forEach((listener) => listener(this.view));\n  }\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "为了用模式而用模式",
+      "detail": "现象：三层接口只包一个实现，改一个字段要动五个文件。原因：先有模式后有变化点，把 YAGNI 反过来做。规避：确认第二个实现的具体需求与出现时间，抽象层数量不超过变化点数量；拿不出第二实现就先写最直接的代码。"
+    },
+    {
+      "title": "单例退化成全局可变状态",
+      "detail": "现象：测试之间互相污染，并行跑必挂。原因：用单例缓存可变状态，把依赖藏了起来。规避：生命周期交给容器，需要共享状态时显式传参或使用请求作用域；测试里每次新建实例，不要复用静态字段。"
+    },
+    {
+      "title": "代理失效：自调用绕过切面",
+      "detail": "现象：@Transactional、@Cacheable 在同类内部调用时完全不生效。原因：代理只拦截外部调用，this.b() 直达目标对象。规避：把方法拆到另一个 Bean，或注入自身代理，并补一个断言事务、缓存确实生效的测试。"
+    },
+    {
+      "title": "模板方法的钩子过多",
+      "detail": "现象：父类十几个 protected 方法，子类只能靠猜调用顺序。原因：骨架与扩展点混在一起，继承层次失控。规避：骨架固定 3-5 步，可变部分用策略对象注入而不是再加 protected 方法；能用组合就别加深继承。"
+    },
+    {
+      "title": "上帝类：一个 Service 装下所有用例",
+      "detail": "现象：单文件两千行，改一处要回归全部。原因：按技术分层而非按业务能力切分，规则没有下沉到领域对象。规避：按用例拆应用服务，把规则移进领域对象，对外用门面收敛入口，先测试后拆分。"
+    },
+    {
+      "title": "策略注册表 key 冲突或缺少兜底",
+      "detail": "现象：新增渠道后线上 NPE，或请求被分派到错误的策略。原因：Map 收集时 key 重复被静默覆盖，取不到时没有默认实现。规避：收集时让重复 key 直接抛错，显式提供默认策略，并补一个未知渠道的测试用例。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "应用服务",
+      "path": "backend/src/main/java/com/learn/hub/topic/TopicService.java"
+    },
+    {
+      "label": "统一异常处理",
+      "path": "backend/src/main/java/com/learn/hub/api/ApiExceptionHandler.java"
+    },
+    {
+      "label": "Web 配置与拦截器",
+      "path": "backend/src/main/java/com/learn/hub/config/WebConfig.java"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "渠道分支越写越长",
+      "signal": "同一个方法里按 type 写 if/else，每加一个渠道都要改核心类并全量回归",
+      "approach": "抽出策略接口，用 Spring 注入 List 建注册表并按 key 分派，重复 key 在启动期失败；保留默认策略兜底，旧分支按渠道逐个迁移，每迁一个补一组回归用例。"
+    },
+    {
+      "title": "横切逻辑散落各处",
+      "signal": "缓存、重试、耗时统计在每个查询方法里复制粘贴，顺序还各不相同",
+      "approach": "用装饰器叠加职责，顺序在装配处一次写清（缓存→重试→计时），每个装饰器单独单测；需要按注解声明时再交给 AOP 代理，同时确认没有自调用。"
+    },
+    {
+      "title": "第三方 SDK 侵入领域层",
+      "signal": "领域代码里到处是厂商的 Client、DTO 与私有异常类型",
+      "approach": "定义领域自己的端口接口，用适配器完成协议转换与异常翻译；厂商升级只改适配器，领域层单测不再依赖网络与密钥。"
+    },
+    {
+      "title": "请求校验与风控规则不断追加",
+      "signal": "一个 handle 方法里串了鉴权、限流、参数校验、风控四段逻辑，顺序靠注释维护",
+      "approach": "改成责任链，每段一个处理器并显式声明顺序，短路与继续由链决定；链尾加统一异常处理，保证半途失败时上下文不丢。"
+    },
+    {
+      "title": "评审时判断该不该引入模式",
+      "signal": "有人提议引入事件总线或抽象工厂，却说不清第二个变化点在哪",
+      "approach": "要求提案写清变化点、出现频率、间接层成本与回滚方式；拿不出第二实现就先按最简单写法落地，把结论记进 ADR 而不是留在口头约定里。"
+    }
+  ]
+}

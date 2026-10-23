@@ -1,0 +1,382 @@
+[
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "choice",
+    "stem": "使用 new ArrayList<>() 创建集合后，第一次调用 add 时底层数组会扩容到多大？",
+    "options": [
+      "10",
+      "0",
+      "5",
+      "16"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "无参构造先用长度为 0 的共享空数组，首次 add 触发 grow，容量扩到 DEFAULT_CAPACITY=10；此后按旧容量的 1.5 倍扩容。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "choice",
+    "stem": "下列操作中，LinkedList 的时间复杂度明显优于 ArrayList 的是？",
+    "options": [
+      "按下标 get(i) 读取元素",
+      "在已定位节点后插入或删除元素",
+      "对元素做二分查找",
+      "随机打乱元素顺序"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "LinkedList 是双向链表，插入删除只改前后指针，复杂度 O(1)；按下标访问需要从头遍历，是 O(n)，也无法做高效的二分查找。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "choice",
+    "stem": "HashMap 的默认初始容量和默认负载因子分别是多少？",
+    "options": [
+      "16 和 1.0",
+      "8 和 0.75",
+      "16 和 0.75",
+      "32 和 0.5"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "默认容量 16、负载因子 0.75，扩容阈值是 16×0.75=12；容量必须是 2 的幂，才能用 (n-1)&hash 定位桶。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "choice",
+    "stem": "HashSet 判断两个元素是否重复时，实际依据是什么？",
+    "options": [
+      "只要 hashCode 相同就算重复",
+      "只要 equals 返回 true 就算重复",
+      "compareTo 返回 0 才算重复",
+      "hashCode 相同且 equals 返回 true"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "HashSet 底层复用 HashMap，先按哈希值找桶，再在桶内用 equals 比较；只重写其中一个方法，就可能出现“相等却重复”的问题。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "choice",
+    "stem": "用 for-each 遍历 ArrayList 并调用 list.remove() 删除元素，通常会怎样？",
+    "options": [
+      "抛出 ConcurrentModificationException",
+      "正常删除，不会报错",
+      "抛出 UnsupportedOperationException",
+      "静默漏删最后一个元素"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "for-each 编译成 Iterator 遍历，list.remove 会修改 modCount，下一次 next 时校验失败抛 CME；应改用 Iterator.remove 或 removeIf。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "choice",
+    "stem": "以下集合中，遍历时按元素自然顺序（而非插入顺序）输出的是？",
+    "options": [
+      "HashSet",
+      "TreeSet",
+      "LinkedHashSet",
+      "ArrayList"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "TreeSet 基于 TreeMap 的红黑树，按 compareTo 或 Comparator 排序；LinkedHashSet 保持插入顺序，HashSet 不保证遍历顺序。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "text",
+    "stem": "ArrayList 和 LinkedList 的底层结构不同，请说明它们各自适合什么场景。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "ArrayList 基于动态数组，支持 O(1) 随机访问，尾部追加均摊 O(1)，但中间插入删除要移动元素。LinkedList 基于双向链表，已定位节点的插入删除是 O(1)，随机访问是 O(n)，每个节点还有额外指针开销。读多写少、以下标访问为主选 ArrayList；频繁在头尾增删可选 LinkedList 或 ArrayDeque。",
+    "explanation": "不要只背“数组 vs 链表”的结论，要结合访问模式、内存开销和 CPU 缓存局部性来选型，LinkedList 的节点开销常被忽略。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "text",
+    "stem": "简述 HashMap 执行一次 put(key, value) 的主要步骤。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "先对 key 的 hashCode 做扰动得到 hash，再用 (n-1)&hash 定位桶；桶为空则直接放入新节点；桶首节点 key 相同则覆盖 value；若是树节点则走红黑树插入；否则遍历链表，尾部插入并在长度达 8 时尝试树化。插入后 size 超过阈值就扩容，最后视情况触发 afterNodeInsertion。",
+    "explanation": "重点说清定位、冲突处理、树化与扩容四个环节；JDK8 链表用尾插，JDK7 用头插，这也是两者并发表现不同的原因之一。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "text",
+    "stem": "既然可以用下标 for 循环遍历 List，为什么还推荐使用 Iterator？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "Iterator 把“遍历”和“集合内部结构”解耦，同一套代码可遍历 List、Set 以及 Map 的视图；它提供统一的 hasNext/next/remove 语义，能在遍历中安全删除元素，for-each 本质也是迭代器。对 LinkedList 这类不支持随机访问的集合，用下标遍历每次 get 都要从头找，整体会退化成 O(n²)。",
+    "explanation": "Iterator 的价值是抽象与安全删除；fail-fast 机制也依赖迭代器发现并发修改，所以遍历中删除应交给 remove。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "text",
+    "stem": "有一个 List 中存在重复元素，如何去重并保持原有顺序？请给出思路。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "最简单是遍历并放入 LinkedHashSet，再转回 List，时间复杂度 O(n) 且保留首次出现顺序；也可用 Stream 的 distinct()，它内部同样依赖 LinkedHashSet。若元素没有重写 equals/hashCode，需要先补上；要按业务字段去重，可用 TreeSet 配 Comparator，或 Collectors.toMap 按唯一键覆盖。",
+    "explanation": "去重的前提是正确的 equals/hashCode；需要排序时再用 TreeSet 或 sorted()，注意 distinct 的判断依然依赖 hashCode。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "choice",
+    "stem": "JDK 8 的 HashMap 在计算 key 的 hash 时执行 h ^ (h >>> 16)，这样做的目的是？",
+    "options": [
+      "把 hash 值压缩到 16 位以节省内存",
+      "保证 hash 值一定是正数",
+      "让高位也参与桶下标运算，减少碰撞",
+      "为红黑树排序准备比较值"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "桶下标只用 (n-1)&hash 的低位，容量较小时高位被丢弃；右移异或把高 16 位混入低位，让分布更均匀，降低冲突概率。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "choice",
+    "stem": "JDK 8 的 HashMap 扩容时，一个链表中的节点会被拆到新表的哪两个位置？",
+    "options": [
+      "原下标的一半，或原下标的两倍",
+      "重新取模后得到的随机位置",
+      "统一移动到新表的最后一个桶",
+      "原下标，或原下标 + 旧容量"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "容量翻倍后多出一个参与位运算的位，JDK8 用 (e.hash & oldCap) 判断：为 0 留在原下标，否则移到原下标 + oldCap，无需重算 hash。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "choice",
+    "stem": "JDK 8 的 HashMap 中，链表转红黑树需要满足的条件是？",
+    "options": [
+      "链表长度达到 8 且 table 容量不小于 64",
+      "链表长度达到 8 即可，与容量无关",
+      "链表长度达到 6 且负载因子超过 0.75",
+      "只要发生哈希冲突就转红黑树"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "链表长度到 8 但容量不足 64 时优先扩容而不是树化；红黑树节点数降到 6 才退化为链表，中间留出缓冲避免频繁转换。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "choice",
+    "stem": "JDK 7 的 ConcurrentHashMap 通过分段锁实现并发，默认并发度是多少？",
+    "options": [
+      "1",
+      "16",
+      "32",
+      "等于 CPU 核数"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "默认 Segment 数组长度为 16，即并发度 16，每个 Segment 继承 ReentrantLock 独立加锁；并发度一旦初始化就不能再扩容。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "choice",
+    "stem": "JDK 8 的 ConcurrentHashMap 执行 put 时，对空桶和非空桶分别采用什么同步方式？",
+    "options": [
+      "都使用 Segment 分段锁",
+      "都使用 ReentrantReadWriteLock",
+      "空桶用 CAS 写入，非空桶用 synchronized 锁住首节点",
+      "空桶加锁，非空桶直接覆盖"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "空桶通过 CAS 放置首节点，失败则自旋重试；桶非空时 synchronized 锁住链表头或树根，锁粒度细化到单个桶。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "choice",
+    "stem": "ArrayList 的迭代器是通过什么机制发现集合被并发修改的？",
+    "options": [
+      "对集合对象加读写锁",
+      "复制一份数组快照",
+      "依赖元素 hashCode 是否变化",
+      "比较 modCount 与 expectedModCount"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "迭代器创建时记录 expectedModCount，每次 next/remove 前检查 modCount 是否一致，不一致就抛 ConcurrentModificationException，这就是 fail-fast。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "text",
+    "stem": "HashMap 的负载因子为什么默认取 0.75，而不是 0.5 或 1？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "负载因子是空间与时间的折中：取值越大，桶越满、冲突和链表长度上升，查询变慢；取值越小，扩容越早，内存浪费越多。0.75 在泊松分布下能让桶内节点数保持很低，同时把空间利用率维持在较合理水平。它也是 JDK 给出的经验值，可通过构造器调整，但通常不建议随意改。",
+    "explanation": "回答要落到“冲突概率、扩容频率、空间利用率”三者的权衡，而不是只背默认值 0.75 这个数字。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "text",
+    "stem": "fail-fast 和 fail-safe 有什么区别？各举一个集合例子。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "fail-fast 在遍历时检测到结构性修改立即抛 ConcurrentModificationException，如 ArrayList、HashMap 的迭代器，它不保证并发安全，只是尽早失败。fail-safe 在遍历时基于快照或弱一致视图，不抛异常，如 CopyOnWriteArrayList 的迭代器和 ConcurrentHashMap 的迭代器，但可能读不到最新数据。",
+    "explanation": "fail-fast 是错误检测机制，不是线程安全保证；并发场景应换用并发容器，而不是依赖 fail-safe 的弱一致性。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "text",
+    "stem": "ConcurrentHashMap 在 JDK 7 和 JDK 8 中的实现有什么主要差异？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "JDK7 用 Segment 分段锁，默认 16 段，每段独立 ReentrantLock，并发度受段数限制。JDK8 去掉 Segment，改为数组加链表或红黑树，空桶 CAS 插入，非空桶 synchronized 锁首节点，锁粒度更细；计数改为 baseCount 加 CounterCell 分散，size 只是弱一致的估计值。",
+    "explanation": "核心变化是锁粒度从“段”降到“桶”，并用 CAS 处理无竞争写入；扩容也支持多线程协助迁移。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "text",
+    "stem": "TreeMap 为什么要求 key 可比较？它的底层结构带来哪些能力与限制？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "TreeMap 底层是红黑树，靠 compareTo 或 Comparator 决定节点位置，因此 key 必须实现 Comparable 或传入 Comparator，且比较结果要与 equals 语义一致。它保证 key 有序，支持 firstKey、headMap、subMap 等范围查询，增删查都是 O(log n)；代价是自然排序下不允许 null key，性能也不如 HashMap。",
+    "explanation": "红黑树是自平衡二叉查找树，用颜色约束保证近似平衡；排序需求明确时选 TreeMap，否则 HashMap 更快。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "text",
+    "stem": "Arrays.asList 返回的 List 有哪些容易踩的坑？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "一是返回固定大小的视图，add/remove 会抛 UnsupportedOperationException，但 set 可以且会回写原数组；二是它只是数组的视图，修改原数组会影响这个 List；三是传入 int[] 等基本类型数组时，整个数组被当成一个元素；四是需要可变列表时应 new ArrayList<>(Arrays.asList(...)) 再使用。",
+    "explanation": "asList 返回的是 Arrays 内部的 ArrayList，不是 java.util.ArrayList；List.of 则连 set 都不允许，也不接受 null 元素。"
+  },
+  {
+    "category": "collections",
+    "level": "mid",
+    "type": "text",
+    "stem": "Stream 与集合互相转换时，有哪些常见写法与注意点？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "集合转 Stream 用 list.stream() 或 parallelStream()；Stream 转集合用 collect(Collectors.toList())、toSet() 或 toMap()，JDK16 起可直接 toList()。toMap 遇到重复 key 会抛 IllegalStateException，需要传合并函数；需要指定集合类型时用 toCollection(ArrayList::new)。",
+    "explanation": "注意 Collectors.toMap 的重复 key 与 null 值问题，以及 parallelStream 共用 ForkJoinPool 带来的线程安全风险。"
+  },
+  {
+    "category": "collections",
+    "level": "senior",
+    "type": "choice",
+    "stem": "多线程同时向同一个 HashMap 写入，最可能出现的后果是？",
+    "options": [
+      "JDK7 可能形成环形链表导致 CPU 飙高，JDK8 可能丢数据",
+      "内部自动加锁，结果安全",
+      "只会抛 ConcurrentModificationException",
+      "自动退化为 Hashtable，性能下降"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "HashMap 非线程安全，JDK7 头插法在并发扩容时可能成环，get 会死循环；JDK8 改尾插后仍可能覆盖丢数据。并发写应使用 ConcurrentHashMap。"
+  },
+  {
+    "category": "collections",
+    "level": "senior",
+    "type": "choice",
+    "stem": "关于 CopyOnWriteArrayList，下面说法正确的是？",
+    "options": [
+      "读写都加同一把锁，适合写多读少",
+      "写操作加锁并复制整个数组，读操作无锁",
+      "迭代器会抛 ConcurrentModificationException",
+      "底层是链表，插入删除是 O(1)"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "COW 写时复制新数组再替换引用，写加锁、读不加锁，迭代器基于旧快照；适合读多写少、数据量不大的场景，写多时复制和内存开销很大。"
+  },
+  {
+    "category": "collections",
+    "level": "senior",
+    "type": "choice",
+    "stem": "关于 SynchronousQueue，下面说法正确的是？",
+    "options": [
+      "它是无界队列，可以无限堆积任务",
+      "它按元素的延迟时间出队",
+      "它没有内部容量，put 必须等待对应的 take",
+      "它是基于数组的有界 FIFO 队列"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "SynchronousQueue 容量为 0，生产者与消费者直接配对，newCachedThreadPool 用它实现任务即时移交；需要堆积任务时应选有界队列并设计拒绝策略。"
+  },
+  {
+    "category": "collections",
+    "level": "senior",
+    "type": "choice",
+    "stem": "内存只有 512MB，要对 5000 万条字符串去重并排序，最合适的方案是？",
+    "options": [
+      "全部放入 HashSet 后统一排序",
+      "全部放入 TreeSet，边插入边排序",
+      "用 parallelStream().distinct().sorted() 一次完成",
+      "按哈希分片落盘，各分片排序去重后多路归并"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "数据量远超内存，一次性装入任何内存集合都会 OOM；应按 hash 分片写磁盘，分片内排序去重，再多路归并，这是外部排序的标准解法。"
+  },
+  {
+    "category": "collections",
+    "level": "senior",
+    "type": "text",
+    "stem": "线上应用 CPU 占用 100%，线程栈显示大量线程停在 HashMap.resize，你会怎么排查和处理？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "先用 top -H 加 jstack 定位高 CPU 线程，确认是否卡在 HashMap 扩容或 get 死循环；再查共享 HashMap 是否被多线程并发写，JDK7 并发扩容成环是典型原因。处理上先摘流量或重启止损，把共享结构换成 ConcurrentHashMap，或改为线程封闭；同时补并发测试与代码评审。",
+    "explanation": "先定位线程与数据结构，再判断是并发写、死循环还是容量规划问题；根因通常是共享可变状态没做同步。"
+  },
+  {
+    "category": "collections",
+    "level": "senior",
+    "type": "text",
+    "stem": "一个 List 要存放百万级元素，从内存和性能角度你会做哪些优化？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "预估容量后用 new ArrayList<>(size) 一次性分配，避免反复扩容复制；尽量减少装箱，必要时改用数组或原始类型集合；批量处理时不要全量加载，可分批流式读取；遍历优先用下标或迭代器，避免 Stream 产生中间对象；不再使用的大集合及时清空，防止长期持有撑爆老年代。",
+    "explanation": "扩容复制和装箱是两大隐性成本；容量预估与分批处理往往比换集合类型更有效，也要关注对象头开销。"
+  },
+  {
+    "category": "collections",
+    "level": "senior",
+    "type": "text",
+    "stem": "在 API 设计和并发共享场景中，如何使用不可变集合？有哪些注意点？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "对外返回集合时用 List.copyOf 做防御性拷贝，避免调用方修改内部状态；常量集合用 List.of、Set.of、Map.of 创建。注意这些工厂方法不允许 null 元素，且不可变只指结构不可变，元素本身仍可能可变；不要用 Arrays.asList 冒充不可变集合，它的 set 仍会修改底层数组。",
+    "explanation": "不可变集合天然线程安全、可安全共享；关键是入口和出口都做拷贝，而不是只把一个字段声明成 final。"
+  },
+  {
+    "category": "collections",
+    "level": "architect",
+    "type": "text",
+    "stem": "设计一个读多写少、需要整体替换的本地路由表，你会如何选择和组合集合实现？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "把路由表建模为不可变 Map，用 volatile 引用持有当前版本，更新时构建新 Map 后整体替换，读路径完全无锁；数据量大且需并发构建时，先用 ConcurrentHashMap 增量装载，再复制成不可变视图发布。容量按路由数量预估，避免频繁扩容，同时考虑哈希冲突、内存占用和旧版本引用的及时释放。",
+    "explanation": "架构题考的是“不可变发布加无锁读”的取舍，而不是背某个集合的 API；要说明一致性、内存与更新成本。"
+  }
+]

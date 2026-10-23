@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * 公开只读接口：学习项目录、详情、路线和分类统计。
  */
@@ -42,6 +44,14 @@ public class TopicController {
     @GetMapping("/topics/{slug}")
     public TopicDtos.TopicDetail detail(@PathVariable String slug) {
         return topicService.detail(slug);
+    }
+
+    /**
+     * 路线列表：供前台切换不同学习路线。
+     */
+    @GetMapping("/tracks")
+    public List<TopicDtos.TrackSummary> tracks() {
+        return topicService.tracks();
     }
 
     /**

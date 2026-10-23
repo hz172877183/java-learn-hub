@@ -10,6 +10,7 @@ export const categoryLabel: Record<string, string> = {
   cloud: '微服务',
   search: '搜索',
   observability: '可观测',
+  ai: 'AI 应用',
 }
 
 export const difficultyLabel: Record<string, string> = {
@@ -39,10 +40,22 @@ export const interviewCategoryLabel: Record<string, string> = {
   concurrency: '并发',
   jvm: 'JVM',
   spring: 'Spring',
+  'spring-boot': 'Spring Boot',
+  'spring-cloud': '微服务',
   mysql: 'MySQL',
   redis: 'Redis',
   mq: '消息队列',
   distributed: '分布式',
   architecture: '架构设计',
   engineering: '工程实践',
+  'docker-k8s': '容器与 K8s',
+  network: '计算机网络',
+  'os-linux': '操作系统 / Linux',
+  'design-pattern': '设计模式',
+  algorithm: '算法与数据结构',
+  frontend: '前端',
+  security: 'Web 安全',
+  testing: '测试与质量',
+  ai: 'AI 应用',
+  project: '项目与软技能',
 }

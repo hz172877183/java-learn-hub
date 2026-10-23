@@ -1,0 +1,32 @@
+{
+  "slug": "cloud-native-ai-ready",
+  "title": "云原生与 AI 应用进阶路线",
+  "audience": "已能独立开发 Spring Boot 服务，希望把容器、网关、可观测性与 AI 能力接进真实项目",
+  "stages": [
+    {
+      "title": "1. 容器化交付",
+      "goal": "从单机 Docker 走到 Compose 编排与 Kubernetes 部署，理解镜像、探针与滚动发布。",
+      "topicSlugs": ["docker-basics", "docker-compose", "kubernetes-basics"]
+    },
+    {
+      "title": "2. 流量入口",
+      "goal": "能设计从 Nginx 到网关再到服务的请求链路，处理路由、鉴权、限流与灰度。",
+      "topicSlugs": ["nginx-basics", "spring-cloud-gateway", "spring-cloud-overview"]
+    },
+    {
+      "title": "3. 稳定性与可观测",
+      "goal": "会用指标、日志、链路定位问题，并能治理缓存与数据库的性能瓶颈。",
+      "topicSlugs": ["actuator", "observability-prometheus", "redis-advanced", "mysql-tuning"]
+    },
+    {
+      "title": "4. 响应式与领域建模",
+      "goal": "理解响应式编程的适用边界，能用 DDD 划清服务与聚合边界。",
+      "topicSlugs": ["reactive-webflux", "ddd-domain-modeling", "design-patterns"]
+    },
+    {
+      "title": "5. AI 应用",
+      "goal": "把大模型能力接进 Java 服务：RAG、工具调用、提示词与评测。",
+      "topicSlugs": ["spring-ai-rag", "elasticsearch"]
+    }
+  ]
+}

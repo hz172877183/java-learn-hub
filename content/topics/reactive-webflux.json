@@ -1,0 +1,227 @@
+{
+  "slug": "reactive-webflux",
+  "title": "WebFlux 与 Reactor 响应式编程",
+  "category": "spring-core",
+  "summary": "用 Mono/Flux 组装异步流水线，在事件循环上处理背压、错误与阻塞隔离。",
+  "difficulty": "practical",
+  "estimatedHours": 8,
+  "tags": [
+    "reactor",
+    "webflux",
+    "r2dbc",
+    "backpressure",
+    "non-blocking",
+    "webclient"
+  ],
+  "status": "published",
+  "integrationStatus": "snippet",
+  "officialDocsUrl": "https://docs.spring.io/spring-framework/reference/web/webflux.html",
+  "prerequisites": [
+    "spring-web-rest",
+    "spring-boot-fundamentals"
+  ],
+  "nextTopics": [
+    "spring-cloud-gateway",
+    "observability-prometheus"
+  ],
+  "relatedTopics": [
+    "actuator",
+    "redis",
+    "kafka"
+  ],
+  "overviewMd": "响应式不是更快的 MVC，它换的是并发模型：用少量事件循环线程加非阻塞 IO 和背压，把等待时间从线程里挪出去。Spring WebFlux 默认跑在 Reactor Netty 上，请求进来先组装一条 Mono/Flux 流水线并返回，容器在数据就绪时再写响应，线程不陪着等。\n\n核心模型只有三件事：发布者（Mono 表示 0 或 1 个元素，Flux 表示 0 到 N 个）、操作符链、订阅者。声明是惰性的，没有 subscribe 就不会有任何 IO 发生；flatMap 并发合并、concatMap 串行保序、zip 聚合多个源、timeout 与 onErrorResume 负责兜底。执行位置由 Scheduler 决定：parallel 是固定的事件循环线程，boundedElastic 专给阻塞任务；publishOn 切换下游线程，subscribeOn 影响上游订阅位置。背压则是 request(n) 协议，下游不请求，上游就不该硬推。\n\n该用时：IO 密集且并发高、BFF 聚合多个下游、SSE 或长连接推送、网关类转发。不该用时：CPU 密集计算、依赖只有阻塞 JDBC 或同步 SDK、团队没有时间建立响应式调试习惯的增删改查后台——Spring MVC 配上虚拟线程也能拿到接近的并发收益，选型看生态与人力，不看潮流。\n\n版本注意点：Boot 3.5 对应 Spring Framework 6.2、Reactor 3.7 与 Reactor Netty 1.2；R2DBC 走 spring-boot-starter-data-r2dbc 加对应驱动，测试用 reactor-test 的 StepVerifier。Reactor 在标记为 NonBlocking 的线程上调用 block() 会直接抛异常；Boot 3.2+ 的虚拟线程与 WebFlux 是两条并行路线，别拿虚拟线程去救写坏的响应式代码。\n\n放在本仓库里看：主线是 MVC 加 JPA，本页是迁移判断与技术对照。动手时建议单开一个 reactive 沙盒模块，用 StepVerifier 写测试、用 boundedElastic 包住遗留阻塞调用，最后拿同一个接口在 MVC 与 WebFlux 下各压一轮，用数据决定值不值得换。",
+  "concepts": [
+    {
+      "term": "Mono 与 Flux",
+      "explanation": "Mono 表示 0 或 1 个元素，Flux 表示 0 到 N 个；它们是发布者而不是容器，声明时不执行，subscribe 才触发整条链。"
+    },
+    {
+      "term": "操作符选型",
+      "explanation": "flatMap 并发合并且不保证顺序，concatMap 串行保序，zip 等齐再聚合，switchIfEmpty 处理空流；选错是顺序错乱的主因。"
+    },
+    {
+      "term": "Scheduler 与事件循环",
+      "explanation": "parallel 跑在固定事件循环线程上，boundedElastic 承接阻塞任务，single 用于定时；publishOn 切下游，subscribeOn 定上游订阅线程。"
+    },
+    {
+      "term": "背压",
+      "explanation": "订阅者用 request(n) 告诉上游能接多少；limitRate、onBackpressureBuffer、onBackpressureDrop 是常用手段，无界请求会撑爆内存。"
+    },
+    {
+      "term": "WebFlux 控制器",
+      "explanation": "@RestController 直接返回 Mono/Flux，或用 RouterFunction 函数式声明；返回值本身就是流水线，方法体内不应有阻塞等待。"
+    },
+    {
+      "term": "WebClient",
+      "explanation": "非阻塞 HTTP 客户端，retrieve 后接 bodyToMono 或 bodyToFlux 得到流水线；超时、重试、错误映射都在链上完成。"
+    },
+    {
+      "term": "R2DBC",
+      "explanation": "关系库的响应式驱动，Repository 返回 Mono/Flux；事务要 ReactiveTransactionManager，和 JPA 的同步事务不能混用。"
+    },
+    {
+      "term": "阻塞调用隔离",
+      "explanation": "遗留 JDBC、文件 IO 用 Mono.fromCallable 包起来并 subscribeOn(boundedElastic)；直接跑在请求线程上会占死事件循环。"
+    },
+    {
+      "term": "错误处理",
+      "explanation": "onErrorResume 兜底、onErrorMap 翻译、retryWhen 重试、timeout 限时；返回 Flux.empty 会把失败伪装成空结果，必须配日志。"
+    },
+    {
+      "term": "Context",
+      "explanation": "随订阅传播的不可变键值，contextWrite 从下游往上游写入；适合放 traceId、租户标识，不适合当可变缓存或全局状态。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "跑通第一个 Mono 与 Flux",
+      "goal": "写一个返回 Mono 与 Flux 的控制器，用 curl 和浏览器各调一次，确认返回值是流而不是一次性组装好的对象。",
+      "hours": 0.5,
+      "resources": [
+        "Reactor 核心文档",
+        "本页示例"
+      ]
+    },
+    {
+      "title": "练操作符与调试",
+      "goal": "把同一组数据分别用 flatMap、concatMap、zip 组合，打印结果顺序；再用 log() 与 Hooks.onOperatorDebug 观察信号流。",
+      "hours": 1,
+      "resources": [
+        "Reactor 操作符参考",
+        "Reactor 调试文档"
+      ]
+    },
+    {
+      "title": "用 StepVerifier 写测试",
+      "goal": "给上一步的流水线补测试，覆盖 expectNext、expectError、verifyComplete，并把超时断言改成虚拟时间。",
+      "hours": 1,
+      "resources": [
+        "reactor-test 文档",
+        "本页示例"
+      ]
+    },
+    {
+      "title": "控制器加 WebClient 聚合",
+      "goal": "用一个 WebClient 并行调两个下游，用 zip 合并结果，给单个下游加 timeout 与降级，并用 WebTestClient 覆盖。",
+      "hours": 1.5,
+      "resources": [
+        "WebClient 文档",
+        "WebTestClient 文档"
+      ]
+    },
+    {
+      "title": "R2DBC 读写与事务",
+      "goal": "接一个 R2DBC 数据源，实现分页查询与一次跨表写入，确认抛出异常时事务回滚。",
+      "hours": 1.5,
+      "resources": [
+        "Spring Data R2DBC 文档",
+        "R2dbcTransactionManager"
+      ]
+    },
+    {
+      "title": "做背压与阻塞隔离实验",
+      "goal": "用 limitRate 限制消费速率并观察上游节奏；再把一个阻塞调用放进 boundedElastic，对比放在请求线程上的吞吐差异。",
+      "hours": 1.5,
+      "resources": [
+        "背压文档",
+        "Schedulers 文档"
+      ]
+    },
+    {
+      "title": "与 MVC 做同场景对比",
+      "goal": "用同一份压测脚本比较 MVC（含虚拟线程）与 WebFlux 的吞吐、P99 与内存，写下选型结论而不是只看峰值 QPS。",
+      "hours": 1,
+      "resources": [
+        "WebFlux 与 MVC 对比文档",
+        "本仓库 backend 模块"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "响应式控制器与 WebClient 聚合",
+      "language": "java",
+      "description": "列表接口给下游调用加超时与降级，详情接口用 SSE 持续推送；返回值就是流水线，方法体里没有任何阻塞等待。",
+      "code": "package com.learn.hub.reactive;\n\nimport java.time.Duration;\nimport org.springframework.http.MediaType;\nimport org.springframework.web.bind.annotation.GetMapping;\nimport org.springframework.web.bind.annotation.PathVariable;\nimport org.springframework.web.bind.annotation.RequestMapping;\nimport org.springframework.web.bind.annotation.RestController;\nimport org.springframework.web.reactive.function.client.WebClient;\nimport reactor.core.publisher.Flux;\n\n@RestController\n@RequestMapping(\"/api/v1/reactive/topics\")\npublic class ReactiveTopicController {\n\n    private final WebClient contentClient;\n\n    public ReactiveTopicController(WebClient.Builder builder) {\n        this.contentClient = builder.baseUrl(\"http://content-service:8080\").build();\n    }\n\n    @GetMapping\n    public Flux<TopicSummary> list() {\n        return contentClient.get().uri(\"/api/v1/topics\")\n                .retrieve()\n                .bodyToFlux(TopicSummary.class)\n                .timeout(Duration.ofSeconds(2))\n                .onErrorResume(error -> Flux.just(TopicSummary.fallback()));\n    }\n\n    @GetMapping(path = \"/{slug}\", produces = MediaType.TEXT_EVENT_STREAM_VALUE)\n    public Flux<String> stream(@PathVariable String slug) {\n        return contentClient.get().uri(\"/api/v1/topics/{slug}\", slug)\n                .retrieve()\n                .bodyToFlux(String.class)\n                .onErrorResume(error -> Flux.empty());\n    }\n\n    public record TopicSummary(String slug, String title) {\n        public static TopicSummary fallback() {\n            return new TopicSummary(\"fallback\", \"内容服务暂不可用\");\n        }\n    }\n}"
+    },
+    {
+      "title": "R2DBC 仓储与响应式事务",
+      "language": "java",
+      "description": "接口与实现放在同一文件只为示例紧凑，实际项目要拆开；事务方法返回 Mono，且内部不能出现 block。",
+      "code": "package com.learn.hub.reactive;\n\nimport org.springframework.data.r2dbc.repository.Query;\nimport org.springframework.data.r2dbc.repository.R2dbcRepository;\nimport org.springframework.stereotype.Repository;\nimport org.springframework.stereotype.Service;\nimport org.springframework.transaction.annotation.Transactional;\nimport reactor.core.publisher.Flux;\nimport reactor.core.publisher.Mono;\n\n@Repository\ninterface TopicRepository extends R2dbcRepository<TopicEntity, Long> {\n\n    @Query(\"select id, slug, title, category from topic \"\n            + \"where category = :category order by id limit :size offset :offset\")\n    Flux<TopicEntity> pageBy(String category, int size, long offset);\n}\n\n@Service\npublic class TopicQueryService {\n\n    private final TopicRepository repository;\n\n    public TopicQueryService(TopicRepository repository) {\n        this.repository = repository;\n    }\n\n    public Flux<TopicEntity> page(String category, int page, int size) {\n        return repository.pageBy(category, size, (long) page * size)\n                .limitRate(size);\n    }\n\n    @Transactional\n    public Mono<TopicEntity> rename(Long id, String title) {\n        return repository.findById(id)\n                .switchIfEmpty(Mono.error(new IllegalArgumentException(\"topic not found\")))\n                .flatMap(topic -> repository.save(topic.withTitle(title)));\n    }\n}"
+    },
+    {
+      "title": "StepVerifier 与 Context 测试",
+      "language": "java",
+      "description": "用 StepVerifier 断言信号序列而不是断言最终值；第二个用例验证超时后从 Context 读到 traceId 生成降级内容。",
+      "code": "package com.learn.hub.reactive;\n\nimport java.time.Duration;\nimport org.junit.jupiter.api.Test;\nimport reactor.core.publisher.Flux;\nimport reactor.core.publisher.Mono;\nimport reactor.test.StepVerifier;\nimport reactor.util.context.Context;\n\nclass TopicPipelineTest {\n\n    @Test\n    void filterThenMap() {\n        Flux<String> pipeline = Flux.just(\"spring-core\", \"data\", \"spring-core\")\n                .filter(\"spring-core\"::equals)\n                .map(String::toUpperCase);\n\n        StepVerifier.create(pipeline)\n                .expectNext(\"SPRING-CORE\", \"SPRING-CORE\")\n                .verifyComplete();\n    }\n\n    @Test\n    void timeoutFallsBackWithTraceId() {\n        Mono<String> pipeline = Mono.<String>never()\n                .timeout(Duration.ofMillis(50))\n                .onErrorResume(error -> Mono.deferContextual(ctx ->\n                        Mono.just(\"fallback:\" + ctx.get(\"traceId\"))))\n                .contextWrite(Context.of(\"traceId\", \"t-1\"));\n\n        StepVerifier.create(pipeline)\n                .expectNext(\"fallback:t-1\")\n                .verifyComplete();\n    }\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "在事件循环线程上阻塞",
+      "detail": "现象：并发一上来吞吐骤降，日志出现 block()/blockFirst() is blocking, which is not supported in thread reactor-http-nio。原因：请求线程是 NonBlocking 的，被同步调用占住。规避：阻塞逻辑包进 Mono.fromCallable 并 subscribeOn(boundedElastic)，或换成非阻塞客户端。"
+    },
+    {
+      "title": "flatMap 并发无界",
+      "detail": "现象：下游数据库连接被打满，返回顺序和请求顺序对不上。原因：flatMap 默认并发较高且不保证顺序。规避：需要顺序用 concatMap，需要限流用 flatMap(mapper, concurrency)，或先 buffer 再 limitRate。"
+    },
+    {
+      "title": "定义了流水线却没订阅",
+      "detail": "现象：接口返回 200，但副作用没发生或返回空对象。原因：Mono 是惰性的，方法里 subscribe 之后又返回了另一个新建的空流。规避：把流水线作为返回值交出去由框架订阅，不要中途 subscribe。"
+    },
+    {
+      "title": "onErrorResume 吞掉异常",
+      "detail": "现象：上游故障时接口返回 204 或空列表，日志干净得像一切正常。原因：兜底返回 Flux.empty() 且没有记录错误。规避：兜底前用 doOnError 打日志，或用 onErrorMap 转成带错误码的业务异常再交给全局处理。"
+    },
+    {
+      "title": "R2DBC 事务没有生效",
+      "detail": "现象：方法抛异常后数据仍然写入，回滚只对 JPA 有效。原因：沿用同步事务管理器，或事务方法里调用了 block。规避：确认容器里是 R2dbcTransactionManager，事务方法返回 Mono/Flux，回滚由信号驱动而不是 try-catch。"
+    },
+    {
+      "title": "用 block 写测试",
+      "detail": "现象：测试偶发超时，或根本无法验证背压与时序。原因：block() 把异步拉回同步，丢掉了信号序列与错误信号。规避：用 StepVerifier 的 expectNext、expectError、verifyComplete，时间相关用虚拟时间。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "对照的 MVC 控制器",
+      "path": "backend/src/main/java/com/learn/hub/api/TopicController.java"
+    },
+    {
+      "label": "运行配置",
+      "path": "backend/src/main/resources/application.yml"
+    },
+    {
+      "label": "构建文件",
+      "path": "backend/pom.xml"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "BFF 聚合多个下游",
+      "signal": "一个页面要串行调用三个服务，串起来总耗时等于三者之和",
+      "approach": "用 WebClient 发三个请求再 zip 合并，单个下游加 timeout 与 onErrorResume 降级；整条链返回 Mono，不在控制器里等待。"
+    },
+    {
+      "title": "长连接与实时推送",
+      "signal": "需要把变更实时推给前端，轮询成本太高",
+      "approach": "控制器返回 Flux 并声明 text/event-stream，数据源用 Sinks 或消息中间件适配成 Flux；配好心跳与超时，客户端断线后要能重连。"
+    },
+    {
+      "title": "遗留阻塞 SDK 接入",
+      "signal": "必须调用一个只有同步 API 的老客户端，又不能改它",
+      "approach": "用 Mono.fromCallable 包装调用并 subscribeOn(Schedulers.boundedElastic())，给外部客户端单独划线程池与超时，再逐步替换成非阻塞实现。"
+    },
+    {
+      "title": "选型：继续 MVC 还是上 WebFlux",
+      "signal": "团队在评审新服务的并发模型，两种方案都有人支持",
+      "approach": "先看依赖是否非阻塞（驱动、客户端、缓存），再看团队调试能力，最后用同一接口压测对比吞吐、P99 与内存；数据不支持的场景优先留在 MVC 加虚拟线程。"
+    },
+    {
+      "title": "线上出现 block() not supported",
+      "signal": "告警日志里出现 reactor-http-nio 线程上的阻塞异常",
+      "approach": "按线程名定位入口，沿调用栈找同步库；短期用 boundedElastic 隔离并加熔断，长期替换为响应式客户端，同时给网关加超时避免线程堆积。"
+    }
+  ]
+}

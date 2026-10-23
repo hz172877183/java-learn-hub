@@ -1,0 +1,432 @@
+[
+  {
+    "category": "redis",
+    "level": "junior",
+    "type": "choice",
+    "stem": "以下业务场景与 Redis 数据类型的搭配，最不合适的是？",
+    "options": [
+      "用 List 存放订单消息，靠 LPOP 实现多消费者确认消费",
+      "用 ZSet 的 score 排序积分榜，ZRANGE 取 TopN 榜单",
+      "用 Set 对活动参与用户去重，SADD 返回 1 表示首次参与",
+      "用 Hash 存放用户画像字段，按 field 单独更新"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "List 做队列取出即删除，没有消费确认、消费组和失败重投，多消费者也无法分摊；需要 ACK 与回溯时应改用 Stream。"
+  },
+  {
+    "category": "redis",
+    "level": "junior",
+    "type": "choice",
+    "stem": "一个 key 已经到了过期时间，Redis 会立刻把它删除并释放内存吗？",
+    "options": [
+      "会，过期瞬间由定时器精确删除并回收内存",
+      "不会，采用惰性删除加定期抽样删除，访问时才顺带清理",
+      "会，主线程每秒全量扫描一次所有过期键",
+      "不会，只有执行 FLUSHDB 时才统一清理过期键"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "Redis 用惰性删除（访问时判断）加定期抽样删除（每秒多次随机抽查）组合，避免全量扫描的开销；因此过期 key 可能短期驻留内存，内存压力下才由淘汰策略兜底。"
+  },
+  {
+    "category": "redis",
+    "level": "junior",
+    "type": "choice",
+    "stem": "需要一次性写入 1000 个 key，下面哪种方式网络往返次数最少？",
+    "options": [
+      "循环调用 1000 次 SET，每次等待返回结果",
+      "起 1000 个线程并发执行 SET",
+      "把 1000 条 SET 放进 Pipeline 一次发送",
+      "用 MULTI/EXEC 把 1000 条 SET 包起来执行"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "Pipeline 把命令批量发送、批量读回复，RTT 从 1000 次降到 1 次；MULTI/EXEC 只是把命令打包执行，命令仍逐条传输，并不减少往返次数。"
+  },
+  {
+    "category": "redis",
+    "level": "junior",
+    "type": "choice",
+    "stem": "线上要遍历所有匹配 user:* 的 key，为什么不建议直接用 KEYS？",
+    "options": [
+      "KEYS 只支持 String 类型，匹配不到 Hash",
+      "KEYS 返回结果不准确，可能漏掉部分 key",
+      "KEYS 只能在从节点执行，主节点会直接报错",
+      "KEYS 是 O(N) 全量遍历且一次返回，会阻塞主线程"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "KEYS 会遍历整个键空间并一次性返回，key 多时长时间阻塞主线程；应改用 SCAN 游标分批遍历，虽然可能重复返回，但不会长时间占用主线程。"
+  },
+  {
+    "category": "redis",
+    "level": "junior",
+    "type": "text",
+    "stem": "Redis 有哪五种基本数据类型？各自适合什么场景？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① String：缓存对象、计数器（INCR）、分布式锁标记。② Hash：存对象的多个字段，可单字段更新。③ List：栈或队列、最新列表，配合 LPUSH 与 LPOP。④ Set：去重、交并差集，如共同关注、抽奖。⑤ ZSet：带权重的排行榜、延时队列（score 存时间戳）。选型看访问模式。",
+    "explanation": "答题先给类型再落到场景，能说出 ZSet 做延时队列、Set 做交并差是加分项；只背定义容易被追问底层编码。"
+  },
+  {
+    "category": "redis",
+    "level": "junior",
+    "type": "text",
+    "stem": "RDB 和 AOF 分别是什么？生产环境怎么选？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① RDB 是某一时刻的全量二进制快照，文件小、恢复快，但宕机会丢最后一次快照之后的数据。② AOF 追加写命令日志，everysec 刷盘最多丢约 1 秒数据，文件更大、恢复更慢。③ 生产常两者都开，或开启混合持久化：AOF 重写时前半段存 RDB，兼顾恢复速度与数据安全。",
+    "explanation": "本质区别是快照与日志：RDB 面向恢复速度，AOF 面向数据安全；回答要落到可接受的丢失窗口和恢复耗时上。"
+  },
+  {
+    "category": "redis",
+    "level": "junior",
+    "type": "text",
+    "stem": "缓存旁路（Cache Aside）、读写穿透、写回这三种缓存模式有什么区别？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① Cache Aside：应用自己管缓存，读未命中回填、写时删缓存，最常用也最可控。② Read/Write Through：应用只访问缓存，由缓存层同步读写数据库，逻辑集中但实现复杂。③ Write Behind：先写缓存再异步批量落库，写性能最好，但宕机可能丢数据。互联网业务多用 Cache Aside。",
+    "explanation": "考点是谁负责访问数据库、写何时落库；Cache Aside 的写操作是删缓存而不是更新缓存，这一点常被追问。"
+  },
+  {
+    "category": "redis",
+    "level": "junior",
+    "type": "text",
+    "stem": "Redis 为什么快？单线程模型又是怎么回事？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 数据在内存中，避免磁盘 IO。② 命令执行是单线程，没有锁竞争和线程切换开销，单条命令天然原子。③ 用 IO 多路复用（epoll）一个线程处理大量连接。④ 数据结构专门优化，如 SDS、listpack、跳表。注意 6.0 的多线程只用于网络读写和协议解析，命令执行仍是单线程。",
+    "explanation": "常被追问单线程为何还能高并发，要区分网络 IO 与命令执行；6.0 多线程不是命令并行，别答成 Redis 变成多线程了。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "choice",
+    "stem": "执行 SET num 100 之后，num 这个 String 的底层编码是什么？",
+    "options": [
+      "int，整数值直接用整数编码存储",
+      "embstr，因为字符串长度小于 44 字节",
+      "raw，因为所有 String 最终都是 SDS",
+      "listpack，小对象统一用紧凑编码"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "整数值且长度不超过 20 位时用 int 编码，数字直接存在指针位置；非整数且不超过 44 字节用 embstr，超过则转 raw，修改 embstr 也会先转 raw。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "choice",
+    "stem": "一个实例同时存会话数据和页面缓存，只希望淘汰设置了过期时间的 key，应选哪个策略？",
+    "options": [
+      "allkeys-lru，从所有 key 中按最近最少使用淘汰",
+      "volatile-lru，只从设置了过期时间的 key 中淘汰",
+      "noeviction，内存满时拒绝写入并返回错误",
+      "allkeys-random，从所有 key 中随机淘汰"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "volatile-lru 只淘汰带 TTL 的 key，适合缓存与会话混布；allkeys-lru 会连没有过期时间的 key 一起淘汰，noeviction 在内存满时直接对写命令报错。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "choice",
+    "stem": "appendfsync everysec 的实际语义是什么？",
+    "options": [
+      "每条写命令都 fsync，最安全但吞吐最低",
+      "从不主动 fsync，完全交给操作系统决定",
+      "每秒 fsync 一次，由后台线程刷盘，最多丢约 1 秒数据",
+      "每次 AOF 重写完成后 fsync 一次"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "everysec 是默认配置，后台线程每秒刷盘，兼顾性能与安全；always 每条命令刷盘最安全但吞吐骤降，no 交给 OS，宕机可能丢更多数据。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "choice",
+    "stem": "主从断连重连后，满足什么条件才能做增量复制（续传）？",
+    "options": [
+      "从节点执行过 SLAVEOF 命令，就一定能增量复制",
+      "从节点内存足够大，能放下断连期间的全部数据",
+      "主节点开启 AOF 持久化，就支持增量复制",
+      "master runid 未变，且断连期间的 offset 仍在 repl_backlog 缓冲区内"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "增量复制依赖复制偏移量和 repl_backlog 环形缓冲：runid 不匹配或 offset 已被覆盖，就只能全量重同步；调大 backlog 能提高续传成功率但会占内存。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "choice",
+    "stem": "Cluster 扩容迁移槽的过程中，客户端访问一个正在迁移的 key 收到 ASK 重定向，说明什么？",
+    "options": [
+      "该 key 可能已迁到目标节点，本次请求带 ASKING 转发，槽表暂不更新",
+      "该槽已永久归属目标节点，客户端应立即刷新本地槽表",
+      "集群暂时不可用，应对原节点重试直到成功",
+      "该 key 不存在，应直接回源数据库查询"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "MOVED 表示槽归属已永久变更，需要刷新客户端槽缓存；ASK 是迁移期间的临时重定向，只对本次请求转发并先发 ASKING，不能据此更新槽表。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "choice",
+    "stem": "在 Cluster 模式下执行 Lua 脚本，下面说法正确的是？",
+    "options": [
+      "脚本可以访问任意节点的 key，集群会自动转发",
+      "脚本访问的所有 key 必须在同一槽，可用 hash tag 控制",
+      "集群模式不支持 EVAL，只能使用 EVALSHA",
+      "脚本会被放到从节点执行，以保证读一致性"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "Cluster 只支持单机语义的脚本，脚本内所有 key 必须落在同一节点同一槽，否则报 CROSSSLOT；用 {user1}:a、{user1}:b 这类 hash tag 可以把相关 key 固定到同一槽。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "choice",
+    "stem": "MULTI 开启事务后，入队阶段有命令语法错误、运行时又出现类型错误，Redis 会怎么处理？",
+    "options": [
+      "整个事务回滚，所有命令都不生效",
+      "所有命令都执行失败，但事务仍标记为已提交",
+      "语法错误会拒绝 EXEC；运行时错误只该条失败，其余命令继续执行",
+      "Redis 会自动重试执行失败的那条命令"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "Redis 事务没有回滚：入队阶段命令不存在或语法错误会标记事务失败并拒绝 EXEC；运行期错误（如对 String 执行 LPUSH）只影响该条，其余命令照常执行，需业务补偿。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "text",
+    "stem": "过期删除策略和内存淘汰策略有什么区别？maxmemory-policy 怎么选？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 过期删除解决 key 到期后怎么清理，用惰性删除加定期抽样删除。② 内存淘汰解决内存达到 maxmemory 后删谁，有 noeviction、allkeys 与 volatile 下的 lru、lfu、random、ttl 等策略。③ 纯缓存用 allkeys-lru，冷热分明用 allkeys-lfu，混布会话用 volatile-*，存储型数据用 noeviction 并告警扩容。",
+    "explanation": "两者常被混为一谈：前者按时间维度清理，后者按内存压力取舍；LFU 能抗偶发全表扫描，LRU 简单但容易被一次性遍历污染。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "text",
+    "stem": "AOF 重写解决什么问题？重写期间的新写命令会丢吗？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① AOF 记录命令流水，文件会持续膨胀，且含大量无效命令（反复 INCR、已删除的 key）。② 重写时 fork 子进程，按当前内存数据生成最小命令集，体积缩小、恢复更快。③ 重写期间主进程把新命令同时写入 AOF 缓冲和重写缓冲，子进程完成后由主进程追加这部分增量，因此不会丢。",
+    "explanation": "关键是 fork 加增量缓冲：重写不是复制旧文件，而是按内存现状重建；fork 时写时复制会带来内存峰值，重写期间的写放大要评估。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "text",
+    "stem": "描述主从复制的建立过程，并说明主从延迟的常见原因。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 从节点发 PSYNC 并携带 runid 与 offset，主节点判断能否增量，否则全量：bgsave 生成 RDB 传输，期间写命令进 repl_backlog，传完补发。② 之后主节点持续异步传播写命令。③ 延迟原因有从节点执行慢命令、大 key、主节点写入过快、网络带宽不足、从节点负载高，可用 offset 差值监控。",
+    "explanation": "全量与增量是同一套机制的两条路径；要承认异步复制必然有延迟，并给出 offset 监控、大 key 拆分、增加从节点等排查方向。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "text",
+    "stem": "哨兵如何判定主节点故障并完成故障转移？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 哨兵定时 PING 主节点，超过 down-after-milliseconds 未响应则标记主观下线。② 向其他哨兵询问，达到 quorum 后确认客观下线。③ 哨兵间基于 Raft 投票选出 leader，由 leader 按优先级、复制 offset、runid 选新主。④ 对新主执行 SLAVEOF NO ONE，其余从节点改指向新主并通知客户端。",
+    "explanation": "分清主观下线与客观下线是关键；quorum 决定能否判定故障，majority 决定能否选出 leader，两个数字的用途不同，容易答混。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "text",
+    "stem": "更新数据时为什么建议删除缓存而不是更新缓存？延迟双删解决什么问题？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 更新缓存存在并发覆盖：两个写请求可能让旧值后落缓存；若缓存值由多表计算而来，更新成本高且容易算出旧值。② 删除缓存让下次读自然回填，逻辑更简单。③ 但先删缓存再写库，并发读仍可能把旧值回填，可在写库后延迟几百毫秒再删一次，并用 TTL 兜底；更彻底的是订阅 binlog 异步删除。",
+    "explanation": "删除缓存的本质是让缓存失效而不是同步值；延迟双删的延迟要大于一次读回填的耗时，不能拍脑袋，且仍需要 TTL 兜底。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "text",
+    "stem": "热点 key 失效瞬间大量请求打到数据库（击穿），你会怎么防？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 互斥重建：未命中时用 SETNX 抢锁，只有拿到锁的线程查库回填，其他线程短暂等待后重试缓存。② 逻辑过期：value 内保存过期时间，物理上不设 TTL，发现逻辑过期后异步重建，读请求先返回旧值。③ 热点 key 可设为不过期，由后台任务更新。④ 再配合限流、熔断和本地缓存兜底。",
+    "explanation": "互斥重建保证只有一个请求打库，逻辑过期保证读不被阻塞，本质是数据新鲜度与可用性的取舍；要说清各自适用场景。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "text",
+    "stem": "Pipeline 提升性能的原理是什么？使用时要注意什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 原理：客户端把多条命令一次性发出，服务端顺序执行后批量返回，把 N 次 RTT 压缩为 1 次，减少网络往返和系统调用。② 注意：每批命令数要控制（几百到一千），否则缓冲过大阻塞主线程；Pipeline 不保证原子性，中间可能插入其他客户端命令；出错时要逐条判断结果。",
+    "explanation": "Pipeline 优化的是网络往返而不是服务端执行速度；它与事务、Lua 的原子性语义不同，面试常把三者放在一起对比。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "choice",
+    "stem": "主节点与从节点、哨兵之间发生网络分区，新主被提升后旧主恢复，最容易出现什么问题？",
+    "options": [
+      "旧主会被立即降级，分区期间的写入不会丢失",
+      "新主会主动回滚已提交的数据，必须人工恢复",
+      "所有从节点会拒绝同步，集群退化为只读",
+      "旧主在分区期间仍接受写入，切主后这部分写入丢失，可用 min-replicas-to-write 限制"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "脑裂期间旧主仍可写，这些数据没同步到新主就随主从切换丢失。设置 min-replicas-to-write 与 min-replicas-max-lag，让主节点在健康从节点不足或延迟过大时拒绝写入，可缩小丢失窗口。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "choice",
+    "stem": "关于 Redlock 分布式锁，下面说法正确的是？",
+    "options": [
+      "需在 N/2+1 个节点加锁成功且耗时小于有效期，但时钟漂移仍可能破坏互斥",
+      "在多数独立 Redis 节点上加锁成功就绝对安全，不必考虑时钟",
+      "Redlock 只适用于单机 Redis，集群部署下不可用",
+      "Redlock 依靠 fencing token 保证被锁资源不被旧持有者修改"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "Redlock 用多数派提高容错，但仍依赖各节点时钟和客户端停顿假设，业界对其安全性有争议；真正防止旧持有者写入要靠单调递增的 fencing token 或存储层校验。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "choice",
+    "stem": "要删除一个含数百万 field 的 Hash 大 key，最稳妥的做法是？",
+    "options": [
+      "直接 DEL，让主线程一次性释放全部内存",
+      "用 HSCAN 分批 HDEL，或先 RENAME 再 UNLINK 异步删除",
+      "先 EXPIRE 设为 1 秒，等它自然过期删除",
+      "用 FLUSHDB 清空后重新导入数据"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "DEL 大 key 会在主线程长时间释放内存，过期删除同样在主线程执行；分批 HDEL 或 RENAME 到冷 key 后用 UNLINK 异步释放，能把阻塞摊薄到多次。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "choice",
+    "stem": "多级缓存（本地 Caffeine 加 Redis）下，如何让各节点本地缓存尽快感知数据变更？",
+    "options": [
+      "只依赖本地缓存 TTL 自然过期，不做其他处理",
+      "每次读都回源数据库校验版本号后再返回",
+      "写完数据库删除 Redis 后，通过 Pub/Sub 或消息广播通知各节点失效本地缓存",
+      "把本地缓存 TTL 设为 0，等于不使用本地缓存"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "本地缓存各节点独立，删 Redis 通知不到进程内；用 Pub/Sub 或消息广播做失效，并配较短 TTL 兜底。广播可能丢失，所以 TTL 不能设太长。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "text",
+    "stem": "布隆过滤器为什么能防缓存穿透？它有什么局限？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 原理：用多个哈希函数把 key 映射到位数组的多个 bit，查询时只要有一位为 0，该 key 一定不存在，可在入口挡掉绝大多数无效请求。② 局限：存在误判率，不存在也可能被判为存在；标准布隆过滤器不支持删除，删元素会影响其他 key 的判断。③ 实践：按容量和误判率选参数、预热合法数据、定期重建；对误判的少量请求仍要空值缓存或限流兜底。",
+    "explanation": "要讲清单向判断：一定不存在与可能存在；不能删除是高频追问，可补充计数布隆或布谷鸟过滤器作为替代方案。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "text",
+    "stem": "Redisson 的看门狗机制解决什么问题？为什么 SETNX 加 EX 还不够？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① SETNX 加 EX 的过期时间是预估的：业务执行超过 TTL，锁会自动释放，其他线程进入导致并发；不设过期又可能因宕机死锁。② 看门狗在加锁成功后启动定时任务，每隔约三分之一有效期检查锁是否仍被当前线程持有，是则续期，业务结束后停止并释放。③ 它解决锁提前过期，但不解决主从切换丢锁，强一致场景仍需 fencing token。",
+    "explanation": "关键是续期由持有者线程完成、带可重入计数、释放时校验 value；面试常追问看门狗失效场景，如进程假死、主从异步复制丢锁。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "text",
+    "stem": "线上如何发现大 key 和热 key？分别有哪些手段？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 大 key：redis-cli --bigkeys 抽样、MEMORY USAGE 估算单 key、SCAN 分批统计元素数量与序列化长度、离线解析 RDB、代理层统计请求与响应字节数。② 热 key：--hotkeys（需 LFU）、MONITOR 短时采样、代理或客户端埋点统计 QPS、按前缀分桶计数、专用热点探测组件。③ 都要设阈值告警并定期巡检，不能等故障后再查。",
+    "explanation": "大 key 看体积和元素数，热 key 看访问频次；采样类工具对线上有开销，MONITOR 与 --bigkeys 要短时、低峰使用。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "text",
+    "stem": "一个实例既做缓存又承担部分存储职责，持久化方案怎么选？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 纯缓存可以关闭 RDB 和 AOF，靠主从与缓存重建恢复，开销最小。② 有可靠性要求时开 AOF everysec，并开启混合持久化，重写时前半段是 RDB，恢复速度接近 RDB，丢失窗口约 1 秒。③ 定期 RDB 做冷备，配合主从、哨兵或集群保证可用性。④ 还要评估 fork 内存峰值和磁盘 IO，避免高峰期重写。",
+    "explanation": "选型看三点：能否接受丢数据、恢复要多久、机器能否扛住 fork；混合持久化是当前主流，但重写与快照仍会带来抖动。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "text",
+    "stem": "Redis 内存占用偏高，你会有哪些优化方向？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 结构层面：选合适类型，小对象用 Hash 聚合而不是大量独立 String key，利用 listpack、intset 编码，控制编码转换阈值。② key 设计：缩短 key 名、控制 value 大小、避免无界集合。③ 过期与淘汰：缓存都设 TTL，选对 maxmemory-policy，避免无效数据常驻。④ 运维：清理碎片、监控碎片率、必要时水平扩容。",
+    "explanation": "优化顺序是先减少无效数据和结构浪费，再谈参数与扩容；能说出编码阈值和内存碎片率这两个抓手，比罗列命令更有说服力。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "text",
+    "stem": "List、Pub/Sub、Stream 都能做消息，实际怎么选？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① List 用 LPUSH 加 BRPOP 做简单队列，但消息取出即删，没有消费确认和消费组，适合允许丢失的轻量场景。② Pub/Sub 是即时广播，不持久化，订阅者离线期间的消息直接丢失，适合配置推送、事件通知。③ Stream 有消费组、ACK 和 PEL 重投，支持回溯，适合可靠消费，但要关注 PEL 堆积和 XTRIM 裁剪。",
+    "explanation": "判断标准是能否丢消息、是否需要 ACK 与回溯、是否需要多消费组；Stream 不是 Kafka，容量和堆积能力有限，别当成消息中间件用。"
+  },
+  {
+    "category": "redis",
+    "level": "architect",
+    "type": "choice",
+    "stem": "与 Codis 这类代理分片方案相比，Redis Cluster 的固有约束是什么？",
+    "options": [
+      "需要额外部署代理层，客户端完全无感知",
+      "不支持主从复制，节点故障必然丢数据",
+      "只能单机部署，无法水平扩容",
+      "多 key 操作要求 key 在同一槽，跨槽需要在业务层聚合"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "Cluster 去中心化、客户端直连并处理 MOVED 与 ASK，代价是跨槽多 key 命令受限；代理方案对客户端透明，但多一跳且代理可能成为瓶颈。"
+  },
+  {
+    "category": "redis",
+    "level": "architect",
+    "type": "text",
+    "stem": "大促前要做缓存预热，你会怎么设计？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 选数据：按历史访问日志挑 TopN 热点和核心商品，不做全量预热，避免压垮数据库。② 方式：离线任务批量读库，用 Pipeline 分批写 Redis，设置打散的 TTL，并限制速率避免打满带宽。③ 校验：抽样比对缓存与库的一致性，监控命中率、内存水位和数据库负载。④ 灰度放量，保留回源、限流和降级开关。",
+    "explanation": "要回答预什么、怎么预、怎么验证；TTL 打散可防止同一时刻集中失效变成雪崩，预热过程本身也要限速，否则会制造故障。"
+  },
+  {
+    "category": "redis",
+    "level": "architect",
+    "type": "text",
+    "stem": "设计一个支撑百万级 QPS 读的商品详情缓存架构，说明分层与热点应对。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 分层：CDN 与网关缓存、应用本地缓存 Caffeine、Redis 集群（分片加副本）、数据库，逐层回源。② 热点：客户端和代理埋点统计 QPS，识别热点后推送到本地缓存并延长 TTL，必要时做 key 打散或多副本读。③ 一致性：写后删缓存并广播失效本地缓存，TTL 兜底，接受最终一致。④ 兜底：限流、熔断、静态降级页与压测预案。",
+    "explanation": "架构题要讲清每层解决什么问题、容量怎么估、热点怎么发现、失效怎么收敛；只回答加 Redis 和本地缓存拿不到分。"
+  }
+]

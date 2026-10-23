@@ -1,0 +1,552 @@
+[
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "choice",
+    "stem": "InnoDB 的 Buffer Pool 主要用来做什么？",
+    "options": [
+      "缓存数据页和索引页，减少磁盘随机 IO",
+      "缓存 SQL 文本与执行计划，避免重复解析",
+      "缓存 binlog 事件，供从库拉取同步",
+      "缓存 undo 记录，用于事务回滚"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "Buffer Pool 以 16KB 页为单位缓存数据页与索引页，是 InnoDB 最核心的性能组件；执行计划缓存在 server 层，binlog 与 undo 各有独立文件。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "choice",
+    "stem": "与 B 树相比，B+ 树更适合作为 MySQL 索引结构的关键原因是？",
+    "options": [
+      "每个节点最多两个子节点，实现更简单",
+      "非叶子节点只存键和指针，扇出更大、树更矮",
+      "数据全部放在非叶子节点，一次 IO 即可命中",
+      "插入时不需要维护顺序，写入速度更快"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "非叶子节点不存数据行，一页能放更多索引项，三层即可支撑千万级数据；数据都在叶子且叶子有链表，范围查询更友好。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "text",
+    "stem": "什么是聚簇索引？为什么 InnoDB 通常建议使用自增主键？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 聚簇索引指索引与数据存放在一起，InnoDB 主键索引的叶子节点就是整行数据，一张表只有一个聚簇索引，二级索引叶子存主键值。② 自增主键保证新行在索引末尾顺序追加，页分裂少、碎片少、缓存局部性好；随机主键（如 UUID）会造成随机插入与频繁页分裂。③ 主键还要尽量短，因为每个二级索引都要冗余存储一份主键值。",
+    "explanation": "考点是索引组织表与插入顺序，常追问没有主键时怎么办：InnoDB 会选唯一非空索引，否则生成 6 字节隐藏 row_id。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "choice",
+    "stem": "表上建有联合索引 idx_abc(a, b, c)，下列哪个查询完全用不到该索引？",
+    "options": [
+      "WHERE a = 1",
+      "WHERE a = 1 AND b = 2",
+      "WHERE b = 1 AND c = 2",
+      "WHERE a = 1 AND b = 2 AND c = 3"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "联合索引按 a、b、c 顺序排列，缺少最左列 a 就无法定位索引区间；WHERE a=1 AND b=2 只用到前两列，仍属于有效使用。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "text",
+    "stem": "事务的 ACID 分别指什么？InnoDB 靠什么机制实现？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 原子性 A：事务内操作要么全部成功要么全部回滚，靠 undo log 记录旧值实现回滚。② 一致性 C：数据从一种合法状态转到另一种合法状态，由约束、业务校验与 A/I/D 共同保证。③ 隔离性 I：并发事务互不干扰，靠锁与 MVCC 实现。④ 持久性 D：提交后不丢失，靠 redo log 的 WAL 先写日志再刷脏页。",
+    "explanation": "易错点是把一致性说成由某个日志保证，它其实是目标，A/I/D 是手段；redo 与 undo 的分工也常被混淆。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "choice",
+    "stem": "MySQL InnoDB 存储引擎默认的事务隔离级别是？",
+    "options": [
+      "READ UNCOMMITTED",
+      "READ COMMITTED",
+      "SERIALIZABLE",
+      "REPEATABLE READ"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "InnoDB 默认 REPEATABLE READ，用 MVCC 加间隙锁在多数场景避免幻读；很多互联网业务会主动改成 READ COMMITTED 降低锁冲突。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "text",
+    "stem": "什么是回表？什么是覆盖索引？两者是什么关系？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 二级索引叶子只存索引列和主键，当查询需要的列不在索引中时，要拿主键再查一次聚簇索引，这次额外查找就是回表。② 如果查询涉及的列全部被索引覆盖，引擎只扫描索引就能返回结果，称为覆盖索引，EXPLAIN 的 Extra 显示 Using index。③ 覆盖索引能消除回表带来的随机 IO，是优化高频查询最直接的手段。",
+    "explanation": "覆盖索引不是新的索引类型，而是索引恰好覆盖查询列的使用方式；索引列过多会增加写放大与空间占用。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于 MySQL 中的 utf8 与 utf8mb4，说法正确的是？",
+    "options": [
+      "utf8 最多存 3 字节，存不了 emoji，应统一用 utf8mb4",
+      "utf8 是标准 4 字节实现，与 utf8mb4 完全等价",
+      "utf8mb4 只影响存储空间，不影响索引长度上限",
+      "排序规则只决定存储大小，与比较结果无关"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "MySQL 的 utf8 是 utf8mb3 的别名，最多 3 字节；utf8mb4 才完整支持 4 字节字符，每字符按 4 字节计，会影响 varchar 索引长度上限。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "text",
+    "stem": "索引是不是建得越多越好？哪些列不适合建索引？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 不是。每个索引都占磁盘空间，写入时还要维护 B+ 树，索引越多，插入、更新、删除的代价越大。② 不适合建索引的情况：区分度很低的列（如性别、状态）、几乎不作为查询条件的列、很小的表、写多读少的表。③ 联合索引的最左列已能独立支撑查询时，不必再建重复的单列索引，应以慢查询与 EXPLAIN 为依据。",
+    "explanation": "常被追问性别字段要不要建索引，答案通常是不建：区分度低时优化器往往仍选全表扫描，维护成本却实打实。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "text",
+    "stem": "事务并发会带来脏读、不可重复读、幻读，它们分别是什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 脏读：读到别的事务尚未提交、之后可能被回滚的数据。② 不可重复读：同一事务内两次读同一行结果不同，因为别的事务提交了 UPDATE。③ 幻读：同一事务内两次按相同条件查询，第二次多出或少了行，因为别的事务提交了 INSERT 或 DELETE。④ 隔离级别越高问题越少、并发度越低；InnoDB 在 RR 下用 MVCC 防不可重复读，用间隙锁防幻读。",
+    "explanation": "区分不可重复读与幻读看同一行被改还是行数变化；RR 下快照读仍可能看到幻读，加锁读才会被间隙锁拦住。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "choice",
+    "stem": "InnoDB 的 Change Buffer 的作用是什么？",
+    "options": [
+      "缓存查询结果集，避免相同的 SQL 重复执行",
+      "缓存对非唯一二级索引页的修改，等页被读入时再合并",
+      "缓存 undo 记录，加速事务回滚过程",
+      "缓存表结构信息，减少数据字典查询"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "修改非唯一二级索引且目标页不在 Buffer Pool 时先记入 Change Buffer，之后 merge；唯一索引插入要立即判重必须读页，因此用不上。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "说说 InnoDB 的整体架构，内存、线程、磁盘分别包含什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 内存：Buffer Pool 缓存数据页与索引页，Change Buffer 缓存二级索引写，Log Buffer 暂存 redo。② 线程：master thread 调度，IO thread 读写，page cleaner 刷脏页，purge thread 清理 undo。③ 磁盘：表空间、redo log、undo 表空间与双写缓冲，以页为单位交互并用 WAL 保证提交不丢。",
+    "explanation": "按内存、线程、磁盘三段回答最清晰；常追问脏页何时刷、checkpoint 的作用以及双写缓冲解决什么问题。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "choice",
+    "stem": "假设页大小 16KB，主键为 bigint 加 6 字节页指针，单行数据约 1KB，三层 B+ 树大约能存多少行？",
+    "options": [
+      "约 2 万行",
+      "约 200 万行",
+      "约 2000 万行",
+      "约 20 亿行"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "非叶子页约存 16KB/14B≈1170 个索引项，两层非叶子扇出约 1170²≈137 万，叶子每页约 16 行，总量约两千万，这是三层 B+ 树够用的来源。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "choice",
+    "stem": "表中 code 为 varchar(20) 且有索引，下列哪种写法会导致该索引失效？",
+    "options": [
+      "WHERE code = '12345'",
+      "WHERE code LIKE '123%'",
+      "WHERE code IN ('12345', '23456')",
+      "WHERE code = 12345"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "字符串列与数字比较会触发隐式类型转换，相当于对列做 CAST，索引无法用于定位；前缀 LIKE 与 IN 都能正常使用索引。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "InnoDB 为什么选择 B+ 树，而不是 B 树、哈希表或跳表作为索引结构？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① B+ 树非叶子节点只存键和指针，扇出大、树高低，千万级数据三层即可，磁盘 IO 次数少且稳定。② 数据全部在叶子节点并用链表相连，范围查询、排序、分页只需顺序扫描叶子；B 树数据分散在非叶子节点，范围扫描要中序遍历。③ 哈希只支持等值查询，不支持范围与排序，冲突时还会退化；跳表是内存结构，无法按磁盘页组织。",
+    "explanation": "要落到减少磁盘 IO 和支持范围查询两点；只说 B+ 树更矮不完整，面试官会继续追问叶子链表的意义。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "联合索引 (a, b, c) 中，如果 a 使用了范围查询，b 和 c 还能用上索引吗？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 不能用于索引定位：a 是范围时 b、c 在索引中不再整体有序，key_len 也只算到 a。② 但 b、c 仍可在已定位区间内过滤，5.6 后由索引下推在引擎层完成，Extra 显示 Using index condition，可减少回表。③ 因此联合索引要把等值列放前、范围列放后，ORDER BY 也需同序才能避免 filesort。",
+    "explanation": "常见错误是认为 b、c 完全用不上，实际是不能定位但能过滤；是否走索引下推要看执行计划。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "什么是索引下推（ICP）？它优化了什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 索引下推指把 WHERE 中能用索引列判断的条件下推到存储引擎层，在遍历索引时就过滤掉不满足的行。② 没有 ICP 时，引擎按最左前缀取出主键后逐行回表，再由 server 层过滤，回表次数远多于最终结果。③ EXPLAIN 中表现为 Extra 的 Using index condition，它减少的是回表次数，并不改变索引扫描范围。",
+    "explanation": "ICP 默认开启，主要对二级索引有效；覆盖索引本来就不需要回表，因此它不是优化覆盖索引的手段。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "MVCC 是怎么实现的？RC 和 RR 下 ReadView 的生成时机有什么不同？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 每行有 DB_TRX_ID、DB_ROLL_PTR 等隐藏字段，undo log 把旧版本串成版本链。② ReadView 记录活跃事务 id 列表、最小与最大事务 id，读时按可见性规则判断版本是否可见，不可见就沿版本链回溯。③ RC 每次快照读都重新生成 ReadView，所以能看到别人已提交的修改；RR 只在第一次快照读时生成并复用，从而保证可重复读。",
+    "explanation": "核心是隐藏字段、undo 版本链、ReadView 可见性判断三件套；快照读不加锁，当前读才读最新版本并加锁。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "choice",
+    "stem": "下列哪条语句属于当前读？",
+    "options": [
+      "SELECT * FROM t WHERE id = 1 FOR UPDATE",
+      "事务中的普通 SELECT 查询",
+      "START TRANSACTION WITH CONSISTENT SNAPSHOT",
+      "SHOW ENGINE INNODB STATUS"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "加锁读、UPDATE、DELETE、INSERT 都是当前读，读取最新已提交版本并加锁；普通 SELECT 在 RC/RR 下是快照读。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "行锁、间隙锁、临键锁分别锁住什么？什么情况下行锁会退化成表级效果？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 记录锁锁住某条索引记录；间隙锁锁住两条索引记录之间的开区间，阻止其他事务插入；临键锁是记录锁加上前面的间隙，RR 下默认加临键锁。② 间隙锁只在 RR 及以上存在，作用是防幻读，且间隙锁之间互不冲突。③ 如果 WHERE 条件没有走索引，InnoDB 会扫描并锁住所有扫描到的记录和间隙，效果接近锁表，并发写入几乎全部阻塞。",
+    "explanation": "高频误区是没索引只锁一行；实际锁范围由扫描范围决定，这也是更新条件必须走索引的底层原因。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "choice",
+    "stem": "线上出现死锁，想查看最近一次死锁涉及的事务和 SQL，应执行哪条命令？",
+    "options": [
+      "SHOW PROCESSLIST",
+      "SHOW ENGINE INNODB STATUS",
+      "SHOW INDEX FROM t",
+      "SHOW VARIABLES LIKE 'innodb_lock_wait_timeout'"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "输出中的 LATEST DETECTED DEADLOCK 段给出两个事务的 SQL、持有锁与等待锁；processlist 只能看到语句在等待，看不出锁的依赖关系。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "遇到数据库死锁，你会怎么排查和规避？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 用 SHOW ENGINE INNODB STATUS 看 LATEST DETECTED DEADLOCK 段，拿到两个事务的 SQL、索引与锁类型，并开启 innodb_print_all_deadlocks 留存。② 常见原因：加锁顺序不一致、没走索引导致锁范围过大、大事务持锁过久。③ 规避：按固定顺序访问、缩短事务、走索引缩小锁范围，应用层对死锁重试。",
+    "explanation": "InnoDB 会自动回滚代价较小的事务，死锁无法彻底消灭；排查重点是锁范围与加锁顺序是否可控。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "choice",
+    "stem": "EXPLAIN 的 type 列反映访问类型，下列效率由高到低排序正确的是？",
+    "options": [
+      "ALL > index > range > eq_ref > const",
+      "range > eq_ref > const > index > ALL",
+      "const > eq_ref > range > index > ALL",
+      "index > range > const > eq_ref > ALL"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "常见顺序为 system/const > eq_ref > ref > range > index > ALL；出现 index 或 ALL 说明扫描量大，index 是扫整棵索引树，并不比 ALL 快多少。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "一条 SQL 突然变慢了，你的排查和优化步骤是什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 开慢查询日志，用 pt-query-digest 找 TOP SQL，对比扫描行数与返回行数。② EXPLAIN 看 type、key、rows、Extra，判断是否走索引、回表是否过多、有无 filesort 或临时表。③ 优化顺序：加或改联合索引、改成覆盖索引、改写 SQL 去掉函数与隐式转换、减少数据量。",
+    "explanation": "先看执行计划和实际扫描行数，再决定加索引；盲目加索引会带来写放大和优化器选错索引的风险。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于 JOIN 的执行与优化，下列说法正确的是？",
+    "options": [
+      "驱动表越大越好，可以减少外层循环的次数",
+      "JOIN 一定会物化临时表，无法通过索引优化",
+      "LEFT JOIN 的右表不参与过滤，因此不需要索引",
+      "被驱动表的连接列要有索引，否则驱动表每行都要全表扫描"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "嵌套循环连接下驱动表每行都要到被驱动表查找一次，连接列没索引就退化为全表扫描；LEFT JOIN 的右表同样需要索引。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "子查询和 JOIN 怎么选？IN 和 EXISTS 有什么区别？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 5.6 后优化器会把 IN 子查询改写成半连接，多数场景与 JOIN 接近，不必迷信 JOIN 更快。② 传统经验：外查询结果集小用 EXISTS，内查询结果集小用 IN。③ NOT IN 的子查询返回 NULL 时会查不出数据，应改用 NOT EXISTS。④ 相关子查询可能被反复执行，能改写就改写。",
+    "explanation": "关键在 NULL 语义与优化器的半连接改写；很多老口诀在新版本已不再成立，要以 EXPLAIN 为准。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "choice",
+    "stem": "InnoDB 中 count(*) 通常比 MyISAM 慢，根本原因是？",
+    "options": [
+      "MVCC 让不同事务看到不同行数，无法缓存统一行数",
+      "InnoDB 不支持 count(*) 语法，必须改写",
+      "InnoDB 没有二级索引，只能扫聚簇索引",
+      "InnoDB 统计前必须先加表级锁，阻塞写入"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "MyISAM 在元数据里保存行数；InnoDB 因多版本并发，各事务可见行数不同，必须实时扫描，优化方向是走最小的二级索引或维护汇总表。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "千万级大表要加一个索引，线上怎么操作才安全？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 先评估表大小、写入量与长事务，选低峰期执行，避免元数据锁堵住业务。② 优先 Online DDL：ALGORITHM=INPLACE、LOCK=NONE；INSTANT 只支持少数操作，加索引通常不适用。③ 超大表用 gh-ost 或 pt-osc：影子表、拷数据、追 binlog、原子 rename，并限流控制主从延迟。",
+    "explanation": "核心风险是 MDL 等待、拷贝期间的 IO 压力与主从延迟；工具方案还要注意外键与触发器限制。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "choice",
+    "stem": "一条 SQL 明明走了索引，但执行依然很慢，最可能的原因是什么？",
+    "options": [
+      "优化器没有使用索引，实际走的是全表扫描",
+      "索引区分度低或回表量大，实际扫描行数远多于返回行数",
+      "索引页一定在磁盘上，每次查询都要读盘",
+      "只要 type 是 ref，就说明扫描行数很少"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "key 非空不代表高效，要看 rows 与实际扫描行数：区分度低、范围过大、回表随机 IO 都会拖慢，可用 EXPLAIN ANALYZE 或慢日志的 Rows_examined 对照。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "choice",
+    "stem": "关于 MySQL 主从复制，下列说法正确的是？",
+    "options": [
+      "从库 IO 线程负责回放 relay log，SQL 线程负责拉取 binlog",
+      "主库的 dump 线程负责回放从库的中继日志",
+      "从库 IO 线程拉取主库 binlog 写 relay log，SQL 线程回放 relay log",
+      "开启半同步复制后，从库回放完成主库才返回提交成功"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "主库 dump 线程发送 binlog，从库 IO 线程落到 relay log，SQL（coordinator 与 worker）线程回放；半同步只保证从库收到并写入 relay log，不等待回放。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "choice",
+    "stem": "分库分表后需要全局唯一主键，下列方案中最适合高并发写入的是？",
+    "options": [
+      "每个分片自增，靠不同的起始值与步长错开",
+      "用 UUID 作为主键并建立聚簇索引",
+      "先查询当前 max(id)，加一后写入",
+      "雪花算法生成 64 位 ID，包含时间戳、机器位与序列号"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "雪花 ID 本地生成、趋势递增、不依赖数据库，适合分片表；步长方案扩容困难，UUID 随机插入导致页分裂，max(id)+1 有并发安全问题。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "choice",
+    "stem": "业务出现周期性抖动，怀疑是 InnoDB 刷脏页导致，应优先关注哪些指标？",
+    "options": [
+      "脏页比例、redo 生成速率与 checkpoint 年龄、刷盘 IO 能力",
+      "表数量、索引数量、字符集与排序规则设置",
+      "连接数、慢查询数量、binlog 格式选择",
+      "缓冲池大小、临时表大小、排序缓冲区大小"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "脏页比例逼近 innodb_max_dirty_pages_pct、redo 生成过快导致 checkpoint 追不上、磁盘 IOPS 不足，都会让用户线程被迫同步刷脏，表现为周期性卡顿。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "choice",
+    "stem": "深分页 LIMIT 1000000, 20 很慢，延迟关联的优化思路是？",
+    "options": [
+      "把 offset 改小，从上一页开始逐页扫描",
+      "先用覆盖索引子查询取出这 20 个主键，再按主键关联取整行",
+      "在 ORDER BY 列上加索引即可完全消除扫描",
+      "先用 COUNT(*) 统计总行数，再按页读取"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "延迟关联让子查询只扫索引不回表，把回表次数从 offset+size 降到 size 次；本质仍是先定位主键，offset 很大时索引仍需扫描。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "text",
+    "stem": "redo log、undo log、binlog 各自的作用是什么？为什么需要三种日志？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① redo log 是物理日志，记录页修改、循环写，用于崩溃恢复保证持久性（WAL）。② undo log 是逻辑日志，记录旧值，用于回滚与 MVCC 版本链。③ binlog 是 server 层逻辑日志，记录行变更、追加写，用于复制与按时间点恢复；三者分别保障持久性、原子性与复制归档。",
+    "explanation": "常追问为什么不能只留 binlog：它是逻辑日志，无法直接恢复崩溃时的脏页，两者需要两阶段提交保持一致。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "text",
+    "stem": "解释 redo log 与 binlog 的两阶段提交过程，崩溃后如何判断该提交还是回滚？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 先写 redo 并置为 prepare，再写 binlog 并刷盘，最后把 redo 置为 commit。② 崩溃恢复时 redo 已是 commit 则提交；若为 prepare，则看 binlog 是否完整，完整就提交、不完整就回滚。③ 由此保证两份日志的提交结果一致，避免主从不一致。",
+    "explanation": "判断依据是 binlog 完整性而不是 redo 状态；组提交把多个事务的刷盘合并，减少两次 fsync 的开销。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "text",
+    "stem": "主从延迟很大，你会从哪些方面定位和解决？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 看 Seconds_Behind_Master、GTID 位点差距与 relay log 堆积，区分是拉取慢还是回放慢。② 常见原因：大事务、无主键表回放全表扫描、从库配置差、单线程回放。③ 解决：拆大事务、保证主键、开并行复制、提升从库配置、强一致读走主库。",
+    "explanation": "Seconds_Behind_Master 为 0 不代表无延迟，可能是 IO 线程卡住；先分清瓶颈在读 binlog 还是在回放。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "text",
+    "stem": "字符集和排序规则不一致，线上会遇到哪些问题？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 乱码与截断：MySQL 的 utf8 是 utf8mb3，存不了 emoji；连接字符集与列字符集不一致会在转换中丢字符。② 比较与唯一性异常：_ci 不区分大小写、_bin 按字节比较，排序规则选错会导致唯一键判重与排序结果和预期不符。③ 索引失效：JOIN 两侧排序规则不同会触发隐式转换，无法使用索引；utf8mb4 每字符 4 字节，还会影响 varchar 索引长度上限。",
+    "explanation": "建库建表时统一 utf8mb4 与排序规则；跨库 JOIN 前先用 SHOW CREATE TABLE 核对两侧定义，避免线上才发现索引失效。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "text",
+    "stem": "RR 隔离级别下执行 UPDATE t SET status = 1 WHERE age = 18，age 有普通索引，请分析加锁范围。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 因为 age 是普通索引、不唯一，InnoDB 会在 age 索引上加临键锁（记录锁加前面的间隙），并对命中的索引记录加锁。② 同时在主键聚簇索引上对相应行加记录锁；如果命中记录跨多个区间，会锁住多个临键区间，间隙锁连成片。③ 若 age 没有索引，则退化为扫描全表并锁住所有记录，其他写入基本被阻塞。④ 想缩小锁范围，可让条件命中唯一索引，或把隔离级别降到 RC。",
+    "explanation": "加锁看的是索引与扫描范围，不是 WHERE 命中的行数；这正是更新条件必须走索引的底层原因。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "text",
+    "stem": "什么是大事务？它有哪些危害，如何避免？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 大事务指单事务更新大量行、执行时间长，或事务里包含 RPC、文件操作与批量循环。② 危害：长时间持有行锁与间隙锁造成阻塞和死锁、undo 膨胀、回滚极慢、binlog 事件巨大导致主从延迟、连接与内存被长期占用。③ 避免：分批提交（每批几百到几千行）、事务内不调用外部服务、把事务边界收敛到 Service 方法、设置锁等待超时与最大执行时间兜底。",
+    "explanation": "典型场景是批量更新和先查后改再调接口；拆批时要保证幂等与失败补偿，否则会留下中间状态。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "text",
+    "stem": "设计联合索引时列的顺序怎么确定？如何发现和清理冗余索引？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 遵循最左前缀与等值在前、范围在后，把区分度高、常用于等值过滤的列放前面；ORDER BY 列尽量与索引同序以消除排序。② 用 EXPLAIN 的 key_len 验证实际用到几列。③ 冗余：已有 (a,b,c) 时 (a)、(a,b) 冗余，可用 sys.schema_redundant_indexes 检查。",
+    "explanation": "索引设计要服务于查询模式，不是列越多越好；每多一个索引都会增加写放大与空间占用。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "text",
+    "stem": "线上误执行了一条不带 WHERE 的 DELETE，如何恢复数据？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 立即停写或锁表，避免数据被覆盖，确认 binlog 未被清理并评估影响范围。② 用最近全量备份恢复到临时实例，再重放 binlog 到误操作前的位置，导出数据回补。③ 若为 ROW 格式，可直接解析前镜像反向生成 INSERT，如 binlog2sql。④ 事后补 SQL 审核与延迟从库。",
+    "explanation": "恢复前提是 ROW 格式且 binlog 未过期；最稳的兜底是延迟从库，可在误操作后快速找回数据。"
+  },
+  {
+    "category": "mysql",
+    "level": "architect",
+    "type": "choice",
+    "stem": "订单表按 user_id 取模分成 64 个库，数据增长后要扩到 128 个库，哪种方案迁移成本最低？",
+    "options": [
+      "直接改成对 128 取模，让中间件自动重新分布数据",
+      "改为按订单号取模，彻底避免分片之间的数据倾斜",
+      "成倍扩容并做双写，先迁移一半分片再灰度切换路由",
+      "放弃分库分表，改回单库靠索引支撑"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "取模数翻倍时原有分片只需迁一半数据到新分片，配合双写与灰度切读可控；直接改模数会导致几乎所有数据重新分布。"
+  },
+  {
+    "category": "mysql",
+    "level": "architect",
+    "type": "choice",
+    "stem": "单库接近容量与写入瓶颈时，关于继续分库分表与迁移到分布式数据库的取舍，判断最合理的是？",
+    "options": [
+      "分布式数据库没有单点瓶颈，任何业务场景都应优先选择",
+      "分库分表完成后不再需要索引优化与慢查询治理",
+      "两者都只是扩容手段，对业务改造成本没有实质影响",
+      "分库分表自主可控但需自建路由与扩容，分布式数据库省事但有兼容性与成本风险"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "这是架构权衡题：分片方案复杂度由团队承担，但可控；NewSQL 把复杂度交给产品，需评估兼容性、成本与厂商锁定。"
+  },
+  {
+    "category": "mysql",
+    "level": "architect",
+    "type": "text",
+    "stem": "设计一个订单库的分库分表方案，你会如何选择分片键并保证平滑扩容？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 分片键按核心查询模式选：C 端按 user_id 分片保证我的订单单分片命中，商家侧用异构索引表或 ES 支撑。② 路由层用 ShardingSphere 或统一中间件，避免业务直接拼库名；全局 ID 用雪花或号段，保证趋势递增。③ 扩容用成倍扩容加双写与灰度切读，或用一致性哈希、基因法减少迁移量；跨分片查询走异步汇总或宽表。④ 配套对账、监控与回滚预案。",
+    "explanation": "分片键决定系统能力上限，先定查询模式再分片；扩容方案要在设计初期预留，而不是等数据涨上来再改。"
+  },
+  {
+    "category": "mysql",
+    "level": "architect",
+    "type": "text",
+    "stem": "请设计一套数据库高可用与容灾方案，说明 RPO 与 RTO 如何保障。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "① 同城：一主两从加半同步，主库故障由 Orchestrator 或 MHA 自动选主切换，RTO 控制在分钟级，RPO 接近 0。② 异地：异步复制或 binlog 同步到异地机房，接受秒级到分钟级延迟，用于灾难恢复。③ 备份：全量加 binlog 增量，定期做恢复演练验证可恢复性，而不是只看备份成功。④ 应用侧配连接池重连、读写分离与降级开关，并做故障演练与切换预案。",
+    "explanation": "RPO 靠日志同步方式保障，RTO 靠自动切换与演练保障；没有演练过的容灾方案等于没有方案。"
+  }
+]

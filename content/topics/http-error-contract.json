@@ -8,7 +8,10 @@
   "tags": [
     "api",
     "http",
-    "error-handling"
+    "error-handling",
+    "problem-details",
+    "observability",
+    "rest"
   ],
   "status": "published",
   "integrationStatus": "runtime",
@@ -16,98 +19,202 @@
   "prerequisites": [
     "spring-web-rest"
   ],
-  "nextTopics": [],
-  "relatedTopics": [
-    "jwt-auth-practice",
+  "nextTopics": [
     "integration-testing"
   ],
-  "overviewMd": "失败也是接口契约的一部分。前端需要知道“是参数错了、没登录、没权限，还是服务挂了”，运维需要从一次报错追到日志。\n\n最低要求是：**HTTP 状态码表达类别，响应体表达细节，traceId 连接日志**。不要所有错误都返回 200 再在 body 里写 code，那会让网关、监控和重试策略全部失效。\n\n本项目的错误体固定为 `{code, message, traceId}`，并用全局异常处理器把业务异常、参数错误、方法不支持等情况映射到正确的状态码。",
+  "relatedTopics": [
+    "jwt-auth-practice",
+    "integration-testing",
+    "cors-practice",
+    "observability-prometheus"
+  ],
+  "overviewMd": "失败也是接口契约的一部分。前端需要知道“是参数错了、没登录、没权限、资源不存在，还是服务挂了”，运维需要从用户报的一个时间点追到那一条日志，网关和重试策略需要状态码来决定要不要重试——这三类消费者都靠同一个错误契约吃饭。\n\n最低要求是三层：HTTP 状态码表达类别，响应体表达细节（稳定的机器码 + 人类可读的文案），traceId 连接日志。不要所有错误都返回 200 再在 body 里写 code，那会让网关、监控、SDK 和重试全部失效，因为你亲手把“失败”伪装成了“成功”。\n\n标准做法是 RFC 9457（原 7807）Problem Details：媒体类型 `application/problem+json`，成员 `type`、`title`、`status`、`detail`、`instance`，允许扩展成员。Spring 6 内置 `ProblemDetail` 与 `ResponseEntity.of(problemDetail)`，校验失败还能自动带 `errors`。本项目目前用自定义的 `{code, message, traceId}`，也完全可行——关键不是选哪套，而是字段稳定、有文档、所有错误走同一个出口。\n\n错误码设计要像 API 一样对待：稳定枚举（如 `TOPIC_NOT_FOUND`）、按域分层、永不复用已废弃的码、区分可重试与不可重试。字段级校验失败要给 `errors` 数组而不是一句“参数错误”；国际化让 `code` 保持稳定、`message` 随 `Accept-Language` 变化，前端永远不该用文案做判断。\n\n还有两个容易漏的边界：Filter 层的 401 不经过 `@RestControllerAdvice`，要靠 `AuthenticationEntryPoint` 或过滤器自己写响应；静态资源与未知路径要映射成 404 而不是掉进 500 兜底。再往前一步是重试语义——幂等键、`Retry-After`、429/503 的组合，让客户端知道“能不能重试、等多久”，而不是盲目重试把故障放大。",
   "concepts": [
     {
+      "term": "RFC 9457 Problem Details",
+      "explanation": "application/problem+json，含 type/title/status/detail/instance 与扩展成员；Spring 6 的 ProblemDetail 直接支持。"
+    },
+    {
       "term": "状态码语义",
-      "explanation": "400 参数、401 未认证、403 无权限、404 不存在、409 冲突、415 媒体类型、500 未预期。"
+      "explanation": "400 参数错、401 未认证、403 无权限、404 不存在、409 冲突、415 媒体类型、429 限流、500 未预期、503 不可用。"
     },
     {
-      "term": "统一错误体",
-      "explanation": "code 给程序判断，message 给人看，traceId 给日志检索；字段稳定，前端才能统一处理。"
+      "term": "错误码设计",
+      "explanation": "code 是稳定枚举（域前缀 + 原因），不复用、不随文案改动；HTTP 码表达大类，业务码表达细分原因。"
     },
     {
-      "term": "业务码与 HTTP 码",
-      "explanation": "HTTP 码表达大类，业务码表达细分原因（如 TOPIC_NOT_FOUND），两者都要有。"
+      "term": "统一异常处理",
+      "explanation": "@RestControllerAdvice 按异常类型就近匹配，兜底捕获 Exception；兜底必须记日志，否则 500 无从排查。"
     },
     {
-      "term": "traceId",
-      "explanation": "每次请求生成或透传一个 ID，错误日志和响应使用同一个值，排查时能直接串起来。"
+      "term": "traceId 与 MDC",
+      "explanation": "过滤器生成或透传 X-Request-Id，写入 MDC 并回写响应头，日志格式带 %X{traceId}，三处能串成一条链。"
     },
     {
-      "term": "异常兜底",
-      "explanation": "全局兜底必须记日志；否则 500 只剩一句“服务不可用”，线上无从下手。"
+      "term": "字段级校验错误",
+      "explanation": "MethodArgumentNotValidException 转 400，errors 里给 field 与 message；前端才能把错误标到具体输入框。"
+    },
+    {
+      "term": "错误文案国际化",
+      "explanation": "MessageSource 按 Accept-Language 取文案，code 保持语言无关；前端用 code 分支，绝不匹配 message 文本。"
+    },
+    {
+      "term": "前端错误分支",
+      "explanation": "请求层按 status 分类：401 清 token 跳登录、403 提示权限、409 提示刷新、5xx 兜底重试或上报 traceId。"
+    },
+    {
+      "term": "幂等与重试语义",
+      "explanation": "只对 GET/PUT/DELETE 与带 Idempotency-Key 的 POST 重试；429/503 配 Retry-After，避免重试风暴放大故障。"
+    },
+    {
+      "term": "错误契约的测试与文档",
+      "explanation": "集成测试断言 status + code，OpenAPI 声明错误模型；新增错误码视为向后兼容，删除或改语义必须升版本。"
     }
   ],
   "pathSteps": [
     {
-      "title": "定义错误体",
-      "goal": "确定 code/message/traceId 三个字段，并约定命名风格。",
-      "hours": 0.5,
+      "title": "确定错误体",
+      "goal": "在 ProblemDetail 与自定义 {code,message,traceId} 之间做选择，定下字段、命名风格和媒体类型。",
+      "hours": 0.4,
       "resources": [
-        "本项目 ApiExceptionHandler"
+        "http-error-contract",
+        "spring-web-rest"
       ]
     },
     {
       "title": "全局异常映射",
-      "goal": "把 NotFound、参数错误、冲突、405/415 分别映射到正确状态码。",
-      "hours": 1.5,
+      "goal": "把 NotFound、参数错误、冲突、405/415、未知路径分别映射到正确状态码，兜底记日志返回 500。",
+      "hours": 0.5,
       "resources": [
-        "Spring @RestControllerAdvice"
+        "spring-web-rest"
       ]
     },
     {
-      "title": "补边界与测试",
-      "goal": "为 401/404/405/415 写集成测试，防止改代码时退化。",
-      "hours": 1,
+      "title": "字段校验与 i18n",
+      "goal": "校验失败返回 400 + errors 数组，文案走 MessageSource，code 保持稳定不受语言影响。",
+      "hours": 0.4,
       "resources": [
-        "本项目 AdminAndQuizTest"
+        "http-error-contract"
+      ]
+    },
+    {
+      "title": "让 traceId 贯穿",
+      "goal": "加一个过滤器生成/透传请求 ID，写入 MDC、响应头和日志格式，错误体里返回同一个值。",
+      "hours": 0.4,
+      "resources": [
+        "observability-prometheus",
+        "actuator"
+      ]
+    },
+    {
+      "title": "前端统一分支",
+      "goal": "在请求封装里按 status 分类处理，401 清 token 跳登录，其他错误带上 traceId 方便用户报障。",
+      "hours": 0.4,
+      "resources": [
+        "vue3-spa",
+        "jwt-auth-practice"
+      ]
+    },
+    {
+      "title": "补齐重试语义",
+      "goal": "区分可重试与不可重试错误，给 429/503 加 Retry-After，写接口支持 Idempotency-Key。",
+      "hours": 0.4,
+      "resources": [
+        "http-error-contract",
+        "spring-cloud-gateway"
+      ]
+    },
+    {
+      "title": "测试与文档",
+      "goal": "为 401/404/405/415/400 写集成测试，把错误模型写进 OpenAPI，评审时检查是否破坏兼容。",
+      "hours": 0.5,
+      "resources": [
+        "integration-testing",
+        "http-error-contract"
       ]
     }
   ],
   "samples": [
     {
-      "title": "统一错误体与兜底",
+      "title": "ProblemDetail 版统一错误处理",
       "language": "java",
-      "description": "业务异常给 404；未预期异常记日志后返回 500。",
-      "code": "public record ApiError(String code, String message, String traceId) {}\n\n@ExceptionHandler(NotFoundException.class)\nResponseEntity<ApiError> notFound(NotFoundException ex) {\n    return ResponseEntity.status(404)\n            .body(new ApiError(ex.getCode(), ex.getMessage(), traceId()));\n}\n\n@ExceptionHandler(Exception.class)\nResponseEntity<ApiError> fallback(Exception ex, HttpServletRequest req) {\n    log.error(\"未处理异常: {} {}\", req.getMethod(), req.getRequestURI(), ex);\n    return ResponseEntity.status(500)\n            .body(new ApiError(\"INTERNAL_ERROR\", \"服务暂时不可用\", traceId()));\n}"
+      "description": "标准成员给通用客户端，code/traceId/errors 作为扩展成员；兜底记完整堆栈但只回通用文案。",
+      "code": "@RestControllerAdvice\npublic class ApiExceptionHandler {\n\n    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);\n\n    @ExceptionHandler(NotFoundException.class)\n    ProblemDetail notFound(NotFoundException ex) {\n        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());\n        pd.setType(URI.create(\"https://learnhub.dev/errors/topic-not-found\"));\n        pd.setTitle(\"学习项不存在\");\n        pd.setProperty(\"code\", ex.getCode());\n        pd.setProperty(\"traceId\", traceId());\n        return pd;\n    }\n\n    @ExceptionHandler(MethodArgumentNotValidException.class)\n    ProblemDetail invalidBody(MethodArgumentNotValidException ex) {\n        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, \"参数校验失败\");\n        pd.setType(URI.create(\"https://learnhub.dev/errors/validation-failed\"));\n        pd.setProperty(\"code\", \"VALIDATION_FAILED\");\n        pd.setProperty(\"errors\", ex.getBindingResult().getFieldErrors().stream()\n                .map(e -> Map.of(\"field\", e.getField(), \"message\", e.getDefaultMessage()))\n                .toList());\n        pd.setProperty(\"traceId\", traceId());\n        return pd;\n    }\n\n    @ExceptionHandler(Exception.class)\n    ProblemDetail fallback(Exception ex, HttpServletRequest req) {\n        log.error(\"未处理异常: {} {}\", req.getMethod(), req.getRequestURI(), ex);\n        ProblemDetail pd = ProblemDetail.forStatusAndDetail(\n                HttpStatus.INTERNAL_SERVER_ERROR, \"服务暂时不可用\");\n        pd.setProperty(\"code\", \"INTERNAL_ERROR\");\n        pd.setProperty(\"traceId\", traceId());\n        return pd;\n    }\n\n    private String traceId() {\n        return Optional.ofNullable(MDC.get(\"traceId\")).orElse(\"unknown\");\n    }\n}"
+    },
+    {
+      "title": "traceId 过滤器",
+      "language": "java",
+      "description": "生成或透传请求 ID，写入 MDC 与响应头；finally 里清理，避免线程池复用时串号。",
+      "code": "@Component\n@Order(Ordered.HIGHEST_PRECEDENCE)\npublic class TraceIdFilter extends OncePerRequestFilter {\n\n    public static final String HEADER = \"X-Request-Id\";\n    private static final int MAX_LEN = 64;\n\n    @Override\n    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res,\n                                    FilterChain chain) throws ServletException, IOException {\n        String traceId = req.getHeader(HEADER);\n        if (traceId == null || traceId.isBlank() || traceId.length() > MAX_LEN) {\n            traceId = UUID.randomUUID().toString().replace(\"-\", \"\");\n        }\n\n        MDC.put(\"traceId\", traceId);\n        res.setHeader(HEADER, traceId);\n        try {\n            chain.doFilter(req, res);\n        } finally {\n            MDC.remove(\"traceId\");\n        }\n    }\n}"
+    },
+    {
+      "title": "前端按状态码分流",
+      "language": "ts",
+      "description": "错误体解析成带 status/code/traceId 的对象；401 统一跳登录，其余交给页面决定提示方式。",
+      "code": "export interface ApiErrorBody {\n  code?: string\n  message?: string\n  traceId?: string\n}\n\nexport class ApiError extends Error {\n  constructor(\n    readonly status: number,\n    readonly code: string,\n    message: string,\n    readonly traceId?: string,\n  ) {\n    super(message)\n  }\n}\n\nexport async function request<T>(url: string, init: RequestInit = {}): Promise<T> {\n  const res = await fetch(url, init)\n  if (res.ok) {\n    return (res.status === 204 ? undefined : await res.json()) as T\n  }\n\n  let body: ApiErrorBody = {}\n  try {\n    body = (await res.json()) as ApiErrorBody\n  } catch {\n    // 错误体不是 JSON（网关 502、超时页）时保留状态码\n  }\n\n  if (res.status === 401) {\n    setUserToken('')\n    router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })\n  }\n\n  const traceId = res.headers.get('X-Request-Id') ?? body.traceId\n  throw new ApiError(\n    res.status,\n    body.code ?? `HTTP_${res.status}`,\n    body.message ?? '请求失败，请稍后重试',\n    traceId ?? undefined,\n  )\n}"
     }
   ],
   "pitfalls": [
     {
       "title": "所有错误都返回 200",
-      "detail": "前端无法区分成功与失败，监控也统计不到错误率；重试和熔断策略会全部失效。"
+      "detail": "现象：前端靠 body.code 判断失败，监控面板错误率永远是 0。原因：把 HTTP 当成传输管道而不是语义协议。规避：状态码表达类别，body 表达细节；网关、监控、重试策略才有的可依据。"
     },
     {
       "title": "把堆栈返回给前端",
-      "detail": "泄露类名、SQL 和内部路径。堆栈进日志，响应只给稳定文案和 traceId。"
+      "detail": "现象：响应里出现类名、SQL、内部路径甚至密钥片段。原因：兜底直接把 ex.getMessage() 拼进响应。规避：堆栈只进日志，响应给稳定文案 + code + traceId，需要细节时按 traceId 查。"
     },
     {
       "title": "兜底不记日志",
-      "detail": "只剩 500 和一句“服务暂不可用”，线上无法定位；本项目曾因此排查变慢。"
+      "detail": "现象：线上 500，日志里什么都没有，只能靠用户截图。原因：@ExceptionHandler(Exception) 里只 return，没有 log.error。规避：兜底必须带方法与 URI 记完整堆栈，并确保日志里有 traceId。"
+    },
+    {
+      "title": "traceId 只出现在响应体",
+      "detail": "现象：用户给了 traceId，日志里搜不到。原因：过滤器缺失或日志格式没带 %X{traceId}，MDC 里根本没有值。规避：过滤器统一写入 + 响应头回传 + 日志格式化，三处用同一个值。"
+    },
+    {
+      "title": "401 与 403 混用",
+      "detail": "现象：未登录被提示“没有权限”，或登录后越权请求让前端跳登录。原因：过滤器把所有鉴权失败都写成 401。规避：未认证 401（可重登），已认证但无权 403（重登无用），前端分支也不同。"
+    },
+    {
+      "title": "把错误文案当契约",
+      "detail": "现象：后端改一句提示语，前端判断全失效。原因：前端用 message 文本做分支或国际化。规避：只匹配 code 与 status，message 仅展示；文案变更视为兼容变更。"
     }
   ],
   "repoPointers": [
     {
       "label": "全局异常处理",
       "path": "backend/src/main/java/com/learn/hub/api/ApiExceptionHandler.java"
+    },
+    {
+      "label": "前端请求封装",
+      "path": "frontend/src/api/client.ts"
     }
   ],
   "scenarios": [
     {
       "title": "前端要统一处理失败",
-      "signal": "每个页面各写一套 if (res.code !== 0)",
-      "approach": "固定错误体和状态码，前端在请求层统一提示与跳转登录"
+      "signal": "每个页面各写一套 if (res.code !== 0)，登录过期提示五花八门",
+      "approach": "固定错误体与状态码，在请求层统一分流：401 跳登录、403 提示权限、5xx 兜底提示并展示 traceId"
     },
     {
-      "title": "线上报错但不知道哪条日志",
-      "signal": "用户只记得一个时间点，日志量很大",
-      "approach": "响应返回 traceId，日志按 traceId 检索，串起整条请求链路"
+      "title": "线上报错但不知道是哪条日志",
+      "signal": "用户只记得大概时间点，日志量很大，关键字也说不清",
+      "approach": "响应返回 traceId，日志格式带 %X{traceId}，按 ID 检索即可串起网关、应用与下游调用"
+    },
+    {
+      "title": "表单错误只能提示“参数错误”",
+      "signal": "用户不知道哪个字段填错了，客服反复沟通",
+      "approach": "校验失败返回 400 + errors 数组（field/message），前端把错误直接标注到对应输入框"
+    },
+    {
+      "title": "下游超时引发重试风暴",
+      "signal": "一次抖动后 QPS 翻倍，服务彻底被打挂",
+      "approach": "区分可重试错误，429/503 带 Retry-After，写接口要求 Idempotency-Key，客户端做指数退避加抖动"
+    },
+    {
+      "title": "多语言客户端共用一套 API",
+      "signal": "错误提示只有中文，海外用户看不懂，前端又各自翻译",
+      "approach": "code 保持语言无关，message 由后端按 Accept-Language 渲染，前端只负责展示与按 code 分支"
     }
   ]
 }

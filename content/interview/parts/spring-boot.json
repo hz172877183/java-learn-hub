@@ -1,0 +1,312 @@
+[
+  {
+    "category": "spring-boot",
+    "level": "junior",
+    "type": "choice",
+    "stem": "面试官让你拆解启动类上的 @SpringBootApplication，它实际由哪三个注解组合而成？",
+    "options": [
+      "@SpringBootConfiguration、@EnableAutoConfiguration、@ComponentScan",
+      "@SpringBootConfiguration、@EnableDiscoveryClient、@ComponentScan",
+      "@Configuration、@EnableWebMvc、@ComponentScan",
+      "@Configuration、@EnableTransactionManagement、@ComponentScan"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "@SpringBootConfiguration 本质是 @Configuration；@EnableAutoConfiguration 负责自动配置，@ComponentScan 扫描启动类所在包及子包。关闭特定自动配置可用 exclude 或 spring.autoconfigure.exclude。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "junior",
+    "type": "choice",
+    "stem": "同事把启动类放在 com.example.demo.config 包，结果 com.example.demo.service 下的 Bean 注入失败，最可能的原因是？",
+    "options": [
+      "@SpringBootApplication 默认不扫描 @Service",
+      "启动类所在包是默认扫描根，service 不在其子包内",
+      "Spring Boot 只扫描与启动类同名的包",
+      "service 包缺少 @EnableAutoConfiguration"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "@ComponentScan 默认以启动类所在包为根向下扫描，启动类应放在业务根包，或用 scanBasePackages 显式指定。放在 config 子包时，同级 service 包不会被扫到。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "junior",
+    "type": "choice",
+    "stem": "项目要区分 dev 和 prod 两套配置，下面哪种做法最符合 Spring Boot 的 profile 约定？",
+    "options": [
+      "复制两份代码，部署时手工修改文件名",
+      "在启动类上写死 @Profile(\"dev\")",
+      "提供 application-dev.yml 和 application-prod.yml，通过 spring.profiles.active 选择",
+      "只修改 server.port，用端口区分环境"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "profile 配置文件名为 application-{profile}.yml，可通过配置文件、命令行或环境变量 SPRING_PROFILES_ACTIVE 指定。可同时激活多个 profile，profile 配置会覆盖基础配置。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "junior",
+    "type": "choice",
+    "stem": "关于 spring-boot-devtools，下面说法正确的是？",
+    "options": [
+      "它能提升生产热部署性能，默认应打包进产物",
+      "它可替代 JRebel，修改方法体后无需重启即可生效",
+      "它只在 mvn spring-boot:run 时生效，java -jar 也会开启",
+      "监听 classpath 变化触发自动重启，并支持 LiveReload 刷新浏览器"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "devtools 默认不进入可执行 jar，生产不会生效；重启基于双类加载器，比冷启动快但仍是重启，不是方法体热替换；它还会关闭模板缓存并支持 LiveReload。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "junior",
+    "type": "text",
+    "stem": "配置项越来越多时，为什么更推荐 @ConfigurationProperties 而不是满屏 @Value？使用时要注意什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）@ConfigurationProperties 按前缀批量绑定，支持嵌套对象、List/Map、校验和松散绑定，类型安全、可读性好；@Value 只适合少量简单值或 SpEL。2）类上加 @ConfigurationProperties(prefix=\"demo\")，用 @EnableConfigurationProperties 或 @ConfigurationPropertiesScan 注册。3）构造器绑定需单一构造器，敏感字段别进 toString。",
+    "explanation": "核心差异是“批量、类型安全、可校验”与“单值、灵活表达式”；松散绑定让 user-name 能绑定到 userName，这是 @Value 不具备的。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "junior",
+    "type": "text",
+    "stem": "内嵌 Tomcat 的默认端口怎么改？如果要把 Tomcat 换成 Jetty，需要做哪些调整？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）端口：配 server.port，或启动参数 --server.port=8081；设为 0 表示随机端口，启动后从 WebServerApplicationContext 获取实际端口。2）换 Jetty：排除 spring-boot-starter-tomcat，引入 spring-boot-starter-jetty，业务代码通常不用改。3）自定义 Connector 或线程池用 WebServerFactoryCustomizer，不要改 server.xml。",
+    "explanation": "Spring Boot 把 Servlet 容器当作可替换的运行时，换容器本质是换依赖；常见配置优先用 server.* 属性，属性覆盖不到时才写定制器。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "junior",
+    "type": "text",
+    "stem": "Spring Boot 中如何按环境配置日志级别和输出文件？为什么更推荐 logback-spring.xml 而不是 logback.xml？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）简单场景用 logging.level.root=INFO、logging.level.com.example=DEBUG、logging.file.name 指定文件，Boot 会映射到 Logback。2）按 profile 或读取 Spring 配置时用 logback-spring.xml，它支持 springProfile、springProperty。3）logback.xml 会被 Logback 直接加载，此时环境未就绪，扩展标签失效。",
+    "explanation": "日志框架在容器启动早期初始化，logback-spring.xml 由 Spring Boot 接管加载；需要 profile 隔离或引用配置属性时必须用它。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "junior",
+    "type": "text",
+    "stem": "jar 包内外都有 application.yml，命令行又传了 --server.port，最终哪个生效？请按优先级从高到低说明常见配置源。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）从高到低：命令行参数 > Java 系统属性 > 操作系统环境变量 > jar 外 profile 配置 > jar 外 application.yml > jar 内 profile 配置 > jar 内 application.yml。2）profile 配置覆盖同名基础配置。3）spring.config.location 替换默认位置，additional-location 是追加。4）可看启动日志或 /actuator/env 确认。",
+    "explanation": "记忆主线是“越靠近部署环境、越动态的配置优先级越高”；外部配置优先于包内配置，profile 配置优先于同名基础配置。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "choice",
+    "stem": "自动配置类并没有被 @ComponentScan 扫到，它们是如何被加载进容器的？",
+    "options": [
+      "@EnableAutoConfiguration 通过 @Import(AutoConfigurationImportSelector.class) 读取 AutoConfiguration.imports 并筛选注册",
+      "启动类上的 @ComponentScan 会扫描所有 jar 的 META-INF/spring.factories",
+      "Spring 使用 ServiceLoader 加载 AutoConfiguration 接口的实现",
+      "ClassPathBeanDefinitionScanner 会扫描所有带 @Configuration 的类"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "Boot 3 通过 AutoConfigurationImportSelector 读取 META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports，再结合条件与排序注册；Boot 2 的 spring.factories 写法已不再支持自动配置。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "choice",
+    "stem": "@ConditionalOnProperty(prefix=\"demo.feature\", name=\"enabled\", havingValue=\"true\") 在配置项完全缺失时会怎样？",
+    "options": [
+      "条件匹配，按 havingValue 的默认值注册",
+      "条件不匹配，Bean 不注册，因为 matchIfMissing 默认为 false",
+      "启动直接报错，要求必须配置该属性",
+      "条件匹配，但注入的 Bean 属性为 null"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "matchIfMissing 默认 false，配置缺失即视为不满足；设为 true 可在缺省时生效。havingValue 不匹配同样不注册，该注解常用于功能开关。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "choice",
+    "stem": "要在 Spring Boot 3 中调大内嵌 Tomcat 最大线程数并额外增加一个 Connector，最推荐的做法是？",
+    "options": [
+      "继承 TomcatEmbeddedServletContainerFactory 并覆盖 createContainer",
+      "把 server.xml 放到 classpath 根目录，让 Tomcat 自动读取",
+      "声明 WebServerFactoryCustomizer<TomcatServletWebServerFactory> Bean，在 customize 中设置",
+      "实现 ServletContextInitializer，在其中 new 一个 Connector"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "Boot 2 起旧的 EmbeddedServletContainer 定制类已移除，统一用 WebServerFactoryCustomizer；常见参数优先写 server.tomcat.*，编程式扩展才用定制器。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "choice",
+    "stem": "只想验证 Controller 的路由、参数校验和 JSON 序列化，不希望启动数据库和完整容器，应优先选择？",
+    "options": [
+      "@SpringBootTest(webEnvironment = RANDOM_PORT) 启动真实 Tomcat",
+      "@DataJpaTest 配合 TestEntityManager",
+      "@JsonTest 单独测试 Controller 上的注解",
+      "@WebMvcTest 配合 MockMvc，并用 @MockitoBean 替换 Service 依赖"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "@WebMvcTest 是 MVC 测试切片，只装配 Controller、Filter、Advice 等 Web 组件，不会扫描 @Service、@Repository；Boot 3.4 起用 @MockitoBean 替代已废弃的 @MockBean。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "choice",
+    "stem": "要为 Spring Boot 应用开启优雅停机，下面哪组配置是正确的？",
+    "options": [
+      "server.shutdown=graceful 加 spring.lifecycle.timeout-per-shutdown-phase=30s",
+      "server.shutdown=immediate 加 server.tomcat.abandon-when-percentage-full=100",
+      "只配 spring.lifecycle.timeout-per-shutdown-phase=30s，无需其他开关",
+      "开启 management.endpoint.shutdown.enabled=true 即可优雅停机"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "server.shutdown 默认 immediate，改为 graceful 后容器停止接收新请求，并在超时内等待在途请求结束；timeout-per-shutdown-phase 控制每阶段等待上限。Actuator 的 shutdown 端点与之无关。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "text",
+    "stem": "团队要把统一的鉴权逻辑封装成 starter，请说明模块划分、自动配置注册方式和可覆盖设计。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）拆两个模块：xxx-spring-boot-autoconfigure 放自动配置与属性类，xxx-spring-boot-starter 只聚合依赖。2）自动配置类加 @AutoConfiguration，登记到 AutoConfiguration.imports。3）用 @ConditionalOnClass、@ConditionalOnMissingBean、@ConditionalOnProperty 按需装配。4）配置用 @ConfigurationProperties 收敛，暴露 Customizer，不要扫描业务包。",
+    "explanation": "starter 的职责是“聚合依赖并提供默认自动配置”，不是把实现代码塞给使用方；条件装配和配置属性是可插拔、可覆盖的关键。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "text",
+    "stem": "Spring Boot 启动过程中会发布哪些关键事件？监听 ApplicationStartedEvent 和 ApplicationReadyEvent 有什么区别？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）典型顺序：ApplicationStartingEvent、EnvironmentPreparedEvent、ApplicationStartedEvent、ApplicationReadyEvent，失败发 ApplicationFailedEvent。2）StartedEvent 在容器刷新后、Runner 执行前；ReadyEvent 在 Runner 执行完、可接流量后。3）前者做 Runner 前准备，后者做缓存预热和注册中心上线。",
+    "explanation": "事件顺序对应启动阶段；把“可接流量”误当成 StartedEvent 是常见错误，预热和注册中心上线应放在 ReadyEvent。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "text",
+    "stem": "生产环境要开放 Actuator，你会如何控制暴露面和访问权限？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）只开放必要端点，如 exposure.include=health,info,prometheus，默认不暴露 env、heapdump、shutdown。2）用 management.server.port 分离管理端口，仅内网开放。3）集成 Spring Security，对 /actuator/** 做角色鉴权，敏感端点加 IP 白名单。4）health 只返回状态，details 按权限展示。",
+    "explanation": "Actuator 的“启用”和“暴露”是两件事；默认只暴露 health，env、heapdump 等一旦公开可能泄露配置、凭证甚至堆内存。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "text",
+    "stem": "应用启动时报 BeanCreationException，日志很长，你会按什么顺序定位根因？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先看异常链最底部的 Caused by，而非最外层包装。2）看 FailureAnalyzer 的 description、action 和 Bean 创建链路。3）用 --debug 输出条件评估报告，确认自动配置因缺类、缺 Bean 或属性不匹配被跳过。4）用 exclude 二分排除自动配置，结合 dependency:tree 查冲突。",
+    "explanation": "Spring 的异常层层包装，根因通常在最后一个 Caused by；条件报告能快速回答“为什么这个自动配置没生效”。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "text",
+    "stem": "Spring Boot 3 相比 2.x 有哪些值得关注的变化？升级时最容易踩什么坑？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）基线 JDK 17、Jakarta EE 9+，javax.servlet 全迁到 jakarta，第三方依赖必须同步升级。2）支持 GraalVM native image 与 AOT，但反射、动态代理需提示。3）可观测性统一到 Micrometer Observation，新增 Problem Details、HTTP Interface。4）自动配置注册从 spring.factories 改为 AutoConfiguration.imports，旧写法失效。",
+    "explanation": "升级的第一道坎往往不是 Boot 本身，而是还在用 javax 的第三方库；native 与可观测性是 3.x 的增量能力，不是必选项。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "mid",
+    "type": "choice",
+    "stem": "线上临时需要查看 /actuator/metrics 和 /actuator/loggers，正确做法是？",
+    "options": [
+      "配置 server.servlet.context-path=/actuator 即可自动开放所有端点",
+      "配置 management.endpoints.web.exposure.include=health,metrics,loggers 并做好鉴权",
+      "在 Controller 中新增 /actuator/** 映射做转发",
+      "设置 management.endpoint.metrics.enabled=true，Web 端点会自动全部暴露"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "端点先要启用，再要通过 exposure.include 暴露；默认只暴露 health，metrics、loggers 需要显式加入。loggers 端点还能在运行时修改日志级别，必须鉴权。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "senior",
+    "type": "choice",
+    "stem": "两个自动配置类 A、B 存在先后依赖，要保证 A 先于 B 处理，哪种做法最可靠？",
+    "options": [
+      "在 A 上标注 @Order(Ordered.HIGHEST_PRECEDENCE)",
+      "在 application.properties 中设置 spring.autoconfigure.order=A,B",
+      "在 A 上使用 @AutoConfiguration(before = B.class)",
+      "在 B 上标注 @DependsOn(\"a\")"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "自动配置排序由 @AutoConfiguration 的 before/after 或 @AutoConfigureBefore/After 决定；@Order 不保证自动配置类顺序，@DependsOn 控制的是 Bean 创建顺序，不是配置解析顺序。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "senior",
+    "type": "choice",
+    "stem": "用 Spring Boot 分层 jar 构建 Docker 镜像，主要收益和正确做法是？",
+    "options": [
+      "把 fat jar 整体 COPY，镜像层越少启动越快",
+      "分层后必须打成 WAR 才能被 Tomcat 加载",
+      "分层只对 native image 有效，普通 JVM 镜像无效",
+      "把依赖、快照依赖、loader、应用代码分层 COPY，依赖层不常变可复用缓存"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "分层后依赖层稳定、应用层变化频繁，重建镜像只需推送应用层；用 layertools 或 tools 模式解压，按 dependencies、snapshot-dependencies、loader、application 的顺序 COPY。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "senior",
+    "type": "text",
+    "stem": "写自动配置时，为什么 @ConditionalOnMissingBean 有时不可靠？条件注解还有哪些坑？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）条件在解析配置类时求值，只能看到已注册的 BeanDefinition；自动配置默认排在用户配置后，用户 Bean 才能先生效，顺序错乱会误判。2）@ConditionalOnBean 只应放在自动配置类，放用户 @Configuration 上结果依赖解析顺序，官方不保证。3）多个条件默认 AND，OR 用 AnyNestedCondition。",
+    "explanation": "条件注解不是运行时判断，而是配置类解析期的“开关”；把它当成可靠的 Bean 存在性检查，是自动配置失效的常见根因。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "senior",
+    "type": "text",
+    "stem": "在 Kubernetes 中启用 Spring Boot 优雅停机，只配 server.shutdown=graceful 够吗？还缺什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）不够。Pod 收到 SIGTERM 后若立刻摘流量，仍可能有请求打到已停实例，需要 readiness 先失败并等待 Endpoint 摘除。2）配 preStop 休眠或调用 readiness 下线，给 kube-proxy、Ingress 留同步时间。3）terminationGracePeriodSeconds 要大于 preStop 加停机超时。4）异步线程池与 MQ 消费者要自行停止并等在途任务。",
+    "explanation": "优雅停机是“应用内等待”，K8s 摘流量是“集群侧收敛”，两者时间窗必须配合；只配 graceful 常出现请求被重置。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "senior",
+    "type": "text",
+    "stem": "团队反馈 Spring Boot 集成测试越来越慢，你会如何设计测试分层并优化？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）按测试金字塔分层：单元测试不启容器；Web 层用 @WebMvcTest，持久层用 @DataJpaTest，跨层用少量 @SpringBootTest。2）利用 TestContext 缓存，保持配置组合稳定，避免随意 @DirtiesContext 导致新上下文。3）外部依赖用 Testcontainers 或 WireMock。4）CI 拆分单测与集成测试，按变更范围执行。",
+    "explanation": "测试慢多半是每个用例都启动完整上下文，或频繁修改上下文配置导致缓存失效；切片测试与稳定上下文是主要优化手段。"
+  },
+  {
+    "category": "spring-boot",
+    "level": "architect",
+    "type": "text",
+    "stem": "公司考虑把核心 Spring Boot 3 服务编译为 GraalVM native image，你会如何评估收益、风险与落地路径？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）收益：启动从秒级降到百毫秒级，内存更低、镜像更小，适合弹性伸缩。2）风险：AOT 要求构建期确定反射、代理、资源与序列化，动态 Bean、SpEL、JNI 可能受限，构建慢且排障难。3）评估：选动态特性少的边缘服务试点，补 RuntimeHints，压测对比 P99 与内存。4）落地：JVM 与 native 双轨构建、灰度发布、保留回退。",
+    "explanation": "native image 是用构建复杂度换运行效率，不是默认更优；先证明启动、内存收益能覆盖构建与排障成本，再逐步扩大范围。"
+  }
+]

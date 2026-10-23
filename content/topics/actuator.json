@@ -2,12 +2,16 @@
   "slug": "actuator",
   "title": "Actuator 入门",
   "category": "observability",
-  "summary": "健康检查与内部信息端点，是后续 Prometheus 的台阶。",
+  "summary": "健康检查、指标与内部端点：从 /actuator/health 一路走到 Prometheus 抓取与 K8s 探针。",
   "difficulty": "beginner",
   "estimatedHours": 3,
   "tags": [
     "actuator",
-    "ops"
+    "observability",
+    "health-check",
+    "metrics",
+    "prometheus",
+    "kubernetes"
   ],
   "status": "published",
   "integrationStatus": "runtime",
@@ -16,90 +20,191 @@
     "spring-boot-fundamentals"
   ],
   "nextTopics": [
+    "observability-prometheus",
     "docker-basics"
   ],
   "relatedTopics": [
-    "spring-security-jwt"
+    "spring-security-jwt",
+    "kubernetes-basics",
+    "config-and-secrets"
   ],
-  "overviewMd": "Actuator 暴露 /actuator/health 等运维端点。一期本项目会打开 health，方便确认进程活着。详细 env、beans 不要对公网裸奔。",
+  "overviewMd": "Actuator 是 Spring Boot 把「应用内部状态」变成可查询接口的模块。它不产生业务功能，只回答运维最常问的几个问题：进程还在吗、依赖通不通、配置是什么、哪个接口在变慢。端点默认走 HTTP，也可以走 JMX；除 health 之外多数端点默认关闭，需要显式打开。\n\n四个端点要先分清职责。health 是聚合结论，由一组 HealthIndicator 汇总成 UP/DOWN；info 是静态元信息，适合放版本号、Git 提交、构建时间；metrics 是 Micrometer 的数值出口，JVM、HTTP、连接池指标都在这里；prometheus 把 metrics 转成 Prometheus 文本格式，供抓取器拉取。前两个面向人和编排系统，后两个面向监控系统。\n\n端点只是壳，数据来自指示器。自定义 HealthIndicator 适合表达「这个依赖对业务是否关键」，返回 UP/DOWN/OUT_OF_SERVICE 并附带细节；自定义 @Endpoint 适合把内部只读状态（队列长度、缓存命中率、开关快照）暴露成受控接口。两者都要考虑失败时的行为：指示器抛异常会直接变 DOWN，端点里的重查询会拖慢探针。\n\n暴露与安全必须一起设计。先把 management.endpoints.web.exposure.include 收成一个短白名单，再决定管理端口是否独立（management.server.port），让管理流量只走内网或单独的网络策略；接入 Spring Security 后，actuator 前缀要有独立规则，不能和业务 API 共用一套匿名放行。env、heapdump、threaddump、shutdown 属于高危端点，生产默认不开。\n\n放到本仓库：一期只开 health 与 info，show-details 设成 never，先让健康检查可用而不泄漏内部结构；等接入 Prometheus 与 K8s 之后，再把 health 拆成 liveness/readiness 两个组，metrics 收到内网端口。学习顺序建议是先看端点输出，再写一个自定义指示器，最后才谈指标体系和告警规则。",
   "concepts": [
     {
-      "term": "health",
-      "explanation": "聚合磁盘、DB、Redis 等指示器。没接中间件时主要是应用本身 UP。"
+      "term": "health 端点",
+      "explanation": "聚合多个 HealthIndicator 的结果，返回总体状态与各组件明细，默认对未授权调用者隐藏细节。"
     },
     {
-      "term": "endpoint 暴露",
-      "explanation": "management.endpoints.web.exposure.include 控制哪些可 HTTP 访问。"
+      "term": "liveness 与 readiness",
+      "explanation": "liveness 判断进程是否该重启，readiness 判断能否接流量；两者混用会让依赖抖动引发无谓重启。"
     },
     {
-      "term": "独立端口",
-      "explanation": "生产可把管理端口和管理网段隔离。"
+      "term": "info 端点",
+      "explanation": "静态元信息出口，常放应用版本、构建时间与 Git 提交号；内容来自 InfoContributor 与构建插件。"
+    },
+    {
+      "term": "metrics 端点",
+      "explanation": "Micrometer 的数值出口，JVM 内存、GC、HTTP 耗时与连接池指标都在这里，可按名称过滤查看。"
+    },
+    {
+      "term": "prometheus 端点",
+      "explanation": "把 metrics 转成 Prometheus 文本格式供抓取器拉取，是接入监控体系最短的一条路径。"
+    },
+    {
+      "term": "自定义 HealthIndicator",
+      "explanation": "实现 HealthIndicator 接口并声明为 Bean，返回状态与 detail；适合把 Redis、MQ 等关键依赖纳入判断。"
+    },
+    {
+      "term": "自定义 Endpoint",
+      "explanation": "用 @Endpoint 与 @ReadOperation 暴露只读业务状态，配合 @Selector 做参数化查询，粒度比 health 更细。"
+    },
+    {
+      "term": "暴露白名单",
+      "explanation": "exposure.include 决定哪些端点上 HTTP，exclude 优先于 include；默认只放 health，全量 * 等于对外开后台。"
+    },
+    {
+      "term": "管理端口独立",
+      "explanation": "用 management.server.port 把管理流量挪到另一个端口，便于只对运维网段放行而不影响业务入口。"
+    },
+    {
+      "term": "指标命名",
+      "explanation": "遵循 Micrometer 的点分命名与 tag 维度，避免把变量拼进指标名，否则基数爆炸拖垮监控库。"
     }
   ],
   "pathSteps": [
     {
-      "title": "访问 health",
-      "goal": "启动后 GET /actuator/health 看到 UP。",
+      "title": "跑起来看 health",
+      "goal": "启动 backend 后访问 /actuator/health，确认 status 与 components，理解 UP 是聚合结果而不是单个检查。",
       "hours": 0.5,
       "resources": [
-        "本仓库"
+        "README.md",
+        "backend/src/main/resources/application.yml"
       ]
     },
     {
-      "title": "收紧暴露",
-      "goal": "理解为什么不要 include=* 对公网。",
-      "hours": 1,
+      "title": "读懂四类端点",
+      "goal": "依次访问 health、info、metrics，在 metrics 里找到 http.server.requests 的计数与分位耗时。",
+      "hours": 0.5,
       "resources": [
-        "官方文档"
+        "Spring Boot Actuator 文档"
       ]
     },
     {
-      "title": "自定义指示器",
-      "goal": "以后 Redis 接入时增加一个 Down 逻辑。",
-      "hours": 1.5,
+      "title": "收白名单并改端口",
+      "goal": "把 exposure.include 收成 health,info,metrics，开独立管理端口后确认业务端口上访问不到管理路径。",
+      "hours": 0.5,
       "resources": [
-        "HealthIndicator"
+        "backend/src/main/resources/application.yml",
+        "Actuator 端点暴露文档"
+      ]
+    },
+    {
+      "title": "写一个 HealthIndicator",
+      "goal": "为内容目录写自定义指示器，DOWN 时带 detail，人为删目录后观察 health 聚合结果变化。",
+      "hours": 0.5,
+      "resources": [
+        "HealthIndicator API"
+      ]
+    },
+    {
+      "title": "写一个只读 Endpoint",
+      "goal": "用 @Endpoint 暴露已加载学习项数量，配合 @Selector 支持按分类查询，并限制成只读操作。",
+      "hours": 0.5,
+      "resources": [
+        "Actuator 自定义端点文档"
+      ]
+    },
+    {
+      "title": "接 Prometheus 与探针",
+      "goal": "加 micrometer-registry-prometheus，抓一次 /actuator/prometheus，再规划 liveness/readiness 分组。",
+      "hours": 0.5,
+      "resources": [
+        "Micrometer 文档",
+        "kubernetes-basics"
       ]
     }
   ],
   "samples": [
     {
-      "title": "只暴露 health",
+      "title": "内容目录指示器",
+      "language": "java",
+      "description": "把「内容目录可读且非空」纳入健康判断；失败时返回 Health.down 并带路径，便于一眼定位。",
+      "code": "package com.learn.hub.actuator;\n\nimport java.io.IOException;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\n\nimport com.learn.hub.config.LearnHubProperties;\nimport org.springframework.boot.actuate.health.Health;\nimport org.springframework.boot.actuate.health.HealthIndicator;\nimport org.springframework.stereotype.Component;\n\n/** 内容目录不可读时让 health 变 DOWN，避免进程活着但功能已废。 */\n@Component(\"contentDir\")\npublic class ContentDirHealthIndicator implements HealthIndicator {\n\n    private final Path contentDir;\n\n    public ContentDirHealthIndicator(LearnHubProperties props) {\n        this.contentDir = Path.of(props.contentDir());\n    }\n\n    @Override\n    public Health health() {\n        if (!Files.isDirectory(contentDir)) {\n            return Health.down().withDetail(\"path\", contentDir).build();\n        }\n        try (var files = Files.list(contentDir)) {\n            long count = files.filter(p -> p.toString().endsWith(\".json\")).count();\n            return Health.up().withDetail(\"topics\", count).build();\n        } catch (IOException e) {\n            return Health.down(e).withDetail(\"path\", contentDir).build();\n        }\n    }\n}"
+    },
+    {
+      "title": "暴露策略、探针分组与独立端口",
       "language": "yaml",
-      "description": "本项目 application.yml 的策略。",
-      "code": "management:\n  endpoints:\n    web:\n      exposure:\n        include: health\n  endpoint:\n    health:\n      show-details: never"
+      "description": "生产取向的配置：白名单 + 独立管理端口 + liveness/readiness 分组；探针只依赖本进程状态。",
+      "code": "management:\n  server:\n    port: ${MANAGEMENT_PORT:9090}\n    address: 127.0.0.1\n  endpoints:\n    web:\n      base-path: /actuator\n      exposure:\n        include: health,info,metrics,prometheus\n        exclude: env,beans,heapdump,threaddump,shutdown\n  endpoint:\n    health:\n      show-details: when-authorized\n      probes:\n        enabled: true\n      group:\n        liveness:\n          include: livenessState,ping\n        readiness:\n          include: readinessState,db,contentDir\n    metrics:\n      tags:\n        application: java-learn-hub\n        env: ${SPRING_PROFILES_ACTIVE:local}\n  info:\n    env:\n      enabled: true"
+    },
+    {
+      "title": "上线前自检脚本",
+      "language": "bash",
+      "description": "四条检查：总体状态、探针分组、关键指标存在性、高危端点确实不可访问；可直接放进发布流水线。",
+      "code": "#!/usr/bin/env bash\nset -euo pipefail\n\nBASE=\"http://127.0.0.1:9090/actuator\"\n\n# 1. 总体状态：编排系统只看这一行\ncurl -fsS \"${BASE}/health\" | grep -q '\"status\":\"UP\"'\n\n# 2. 探针分组：liveness 不该包含数据库\ncurl -fsS \"${BASE}/health/liveness\" | jq -r '.status'\ncurl -fsS \"${BASE}/health/readiness\" | jq -r '.status'\n\n# 3. Prometheus 文本，确认关键指标真的在\ncurl -fsS \"${BASE}/prometheus\" \\\n  | grep -E '^(jvm_memory_used_bytes|http_server_requests_seconds_count)'\n\n# 4. 高危端点必须 404/401，而不是 200\nfor ep in env beans heapdump shutdown; do\n  code=$(curl -s -o /dev/null -w '%{http_code}' \"${BASE}/${ep}\")\n  echo \"${ep} -> ${code}\"\n  [ \"${code}\" = \"404\" ] || [ \"${code}\" = \"401\" ] || exit 1\ndone"
     }
   ],
   "pitfalls": [
     {
-      "title": "暴露 env 和 heapdump",
-      "detail": "可能泄漏密钥与内存。默认白名单要短。"
+      "title": "include 写成 * 后 env 裸奔",
+      "detail": "现象：/actuator/env 返回数据源密码与全部配置项，扫描器一扫就中。原因：exposure.include 用了 *，且管理端口跟随业务端口对公网开放。规避：白名单只留 health/info/metrics，敏感端点显式 exclude，管理端口绑 127.0.0.1 或内网网卡。"
     },
     {
-      "title": "health 绑死依赖",
-      "detail": "Redis 抖动导致整个探针失败，K8s 盲目重启。可把非关键指示器设为 liveness 不包含。"
+      "title": "Redis 抖动让整个 Pod 重启",
+      "detail": "现象：health 变 DOWN，K8s 反复重启实例，本来只是缓存不可用却变成服务不可用。原因：liveness 组里包含了非关键依赖的指示器。规避：liveness 只放 livenessState/ping，依赖检查放进 readiness 或独立 group。"
     },
     {
-      "title": "和业务 API 混在同一鉴权模型里不做区分",
-      "detail": "二期 Security 要单独考虑 actuator。"
+      "title": "指示器里抛异常",
+      "detail": "现象：health 直接 DOWN，details 里只有异常信息。原因：health() 内部未捕获异常，Actuator 把运行时异常一律视为 DOWN。规避：捕获后返回 Health.down(e)，远程检查加超时，别让一次网络抖动变成整体不可用。"
+    },
+    {
+      "title": "指标名里塞变量",
+      "detail": "现象：/actuator/prometheus 体积暴涨，Prometheus 内存和基数告警。原因：把 userId、原始 path 拼进指标名或 tag。规避：用 URI 模板做 tag，动态值裁剪或改走日志与追踪，新增 tag 前先估算基数。"
+    },
+    {
+      "title": "health 检查拖慢请求",
+      "detail": "现象：探针高峰期连接池被打满，业务接口变慢。原因：指示器每次调用都新建连接或做重查询，探针间隔又很短。规避：指示器保持轻量，必要时加缓存与短路，探针间隔不低于 5 秒。"
+    },
+    {
+      "title": "管理端口与业务共用鉴权规则",
+      "detail": "现象：要么开了 actuator 就得给业务接口加白名单，要么管理端点全被 401 打回。原因：Security 链把 /actuator/** 与 /api/** 混在同一套规则里。规避：管理端口独立时按端口或路径各建一条 SecurityFilterChain，管理侧走独立认证。"
     }
   ],
   "repoPointers": [
     {
       "label": "配置",
       "path": "backend/src/main/resources/application.yml"
+    },
+    {
+      "label": "启动类",
+      "path": "backend/src/main/java/com/learn/hub/JavaLearnHubApplication.java"
     }
   ],
   "scenarios": [
     {
-      "title": "线上服务“到底活着没”",
+      "title": "线上服务到底活着没",
       "signal": "刚发布完、监控告警、或者用户反馈 502，需要先确认进程和依赖状态",
-      "approach": "先看 /actuator/health 的 status；需要细节时临时打开 show-details，按 component 定位是数据库、磁盘还是外部依赖"
+      "approach": "先看 /actuator/health 的总体 status；需要细节时临时打开 show-details，按 component 定位是数据库、磁盘还是外部依赖，再决定回滚还是重启。"
     },
     {
       "title": "接口偶发变慢，想知道慢在哪",
-      "signal": "P99 抖动、超时重试、但没有明显异常日志",
-      "approach": "打开 metrics，看 http.server.requests 的分位耗时和错误率，再对照 jvm.memory、线程池指标，把“代码慢”和“资源瓶颈”分开"
+      "signal": "P99 抖动、超时重试，但没有明显异常日志",
+      "approach": "打开 metrics，看 http.server.requests 的分位耗时与错误率，再对照 jvm.memory、线程池指标，把「代码慢」和「资源瓶颈」分开。"
+    },
+    {
+      "title": "上线后 Pod 反复重启",
+      "signal": "K8s 事件里出现 CrashLoopBackOff 或重启计数持续上升，而日志看起来正常",
+      "approach": "核对 liveness/readiness 分组与 probe 参数，确认是不是依赖抖动触发了 liveness；把非关键依赖移出 liveness，并检查 initialDelaySeconds 是否短于真实启动时间。"
+    },
+    {
+      "title": "运维要接公司监控大盘",
+      "signal": "对方只给一个 Prometheus 抓取地址，要求提供标准指标",
+      "approach": "加 micrometer-registry-prometheus，固定 application/env 等 tag，把管理端口放内网；先看延迟、流量、错误、饱和度四个黄金信号，再定告警阈值。"
+    },
+    {
+      "title": "怀疑配置没生效",
+      "signal": "改了 yml 行为不变，多人开始怀疑环境不一致",
+      "approach": "内网临时打开 env 或 configprops，核对最终生效值与来源；排查完立刻关掉，长期方案是把关键配置纳入启动日志与配置中心审计。"
     }
   ]
 }

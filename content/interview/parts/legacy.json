@@ -1,0 +1,248 @@
+[
+  {
+    "category": "java-basics",
+    "level": "junior",
+    "type": "choice",
+    "stem": "Java 中 == 与 equals 的区别，下面说法正确的是？",
+    "options": [
+      "== 比较内容，equals 比较地址",
+      "== 比较引用（基本类型比较值），equals 默认比较引用，可被重写为比较内容",
+      "两者完全等价",
+      "equals 只能用于字符串"
+    ],
+    "correctIndex": 1,
+    "explanation": "== 对基本类型比较值，对引用类型比较地址；Object.equals 默认也是地址比较，String、Integer 等重写后才是内容比较。"
+  },
+  {
+    "category": "collections",
+    "level": "junior",
+    "type": "choice",
+    "stem": "需要频繁按下标随机访问，应该优先选择？",
+    "options": [
+      "LinkedList",
+      "ArrayList",
+      "HashSet",
+      "TreeMap"
+    ],
+    "correctIndex": 1,
+    "explanation": "ArrayList 基于数组，随机访问是 O(1)；LinkedList 需要从头遍历，随机访问是 O(n)。"
+  },
+  {
+    "category": "spring",
+    "level": "junior",
+    "type": "text",
+    "stem": "什么是 IoC 和 DI？在 Spring 里它们分别体现在哪？",
+    "referenceAnswer": "IoC（控制反转）是把对象的创建与依赖管理交给容器，而不是在代码里 new；DI（依赖注入）是 IoC 的实现方式，容器通过构造器、setter 或字段把依赖传进来。Spring 中 @Component/@Bean 交给容器管理，@Autowired 完成注入。",
+    "explanation": "一句话：对象的生命周期和依赖关系由容器负责，业务代码只声明需要什么。"
+  },
+  {
+    "category": "mysql",
+    "level": "junior",
+    "type": "choice",
+    "stem": "InnoDB 中，关于主键索引说法正确的是？",
+    "options": [
+      "主键索引和二级索引结构完全一样",
+      "主键索引叶子节点存整行数据，二级索引叶子节点存主键值",
+      "一张表可以有多个聚簇索引",
+      "主键索引不需要唯一"
+    ],
+    "correctIndex": 1,
+    "explanation": "InnoDB 是索引组织表，主键即聚簇索引，叶子节点存整行；二级索引叶子存主键，需要回表。"
+  },
+  {
+    "category": "redis",
+    "level": "junior",
+    "type": "text",
+    "stem": "缓存穿透、缓存击穿、缓存雪崩分别是什么？",
+    "referenceAnswer": "穿透是查询不存在的数据，缓存永远不命中，请求打库；击穿是单个热点 key 失效瞬间大量请求打库；雪崩是大量 key 同时过期或 Redis 故障。防护分别是空值缓存/布隆过滤器、互斥重建/热点不过期、TTL 随机化/高可用/限流降级。",
+    "explanation": "穿透看“不存在”，击穿看“单点失效”，雪崩看“大面积同时失效”。"
+  },
+  {
+    "category": "mq",
+    "level": "junior",
+    "type": "choice",
+    "stem": "引入消息队列最核心的三类价值是？",
+    "options": [
+      "提高数据库事务隔离级别、减少索引、压缩数据",
+      "异步解耦、削峰填谷、广播/多下游订阅",
+      "替代缓存、替代数据库、替代定时任务",
+      "提升单机 CPU、减少网络包、降低内存"
+    ],
+    "correctIndex": 1,
+    "explanation": "MQ 解决的是系统间的耦合、峰值压力与一对多分发；代价是一致性延迟和运维复杂度。"
+  },
+  {
+    "category": "concurrency",
+    "level": "mid",
+    "type": "choice",
+    "stem": "volatile 关键字能保证什么？",
+    "options": [
+      "原子性、可见性、有序性全都保证",
+      "可见性与禁止指令重排，不保证复合操作的原子性",
+      "只保证原子性",
+      "只保证线程安全"
+    ],
+    "correctIndex": 1,
+    "explanation": "volatile 保证可见性和有序性；i++ 这类读改写复合操作仍需锁或原子类。"
+  },
+  {
+    "category": "jvm",
+    "level": "mid",
+    "type": "text",
+    "stem": "解释一下类加载的双亲委派模型，以及它解决的问题。",
+    "referenceAnswer": "类加载请求先交给父加载器，父加载器无法完成才由子加载器尝试。它保证核心类库由启动类加载器统一加载，避免用户自定义的 java.lang.String 等类覆盖核心类，同时避免重复加载。",
+    "explanation": "双亲委派是“向上委托、向下加载”；打破它的典型场景是 Tomcat 的 WebApp 隔离和 SPI。"
+  },
+  {
+    "category": "mysql",
+    "level": "mid",
+    "type": "text",
+    "stem": "列举几种常见的索引失效场景。",
+    "referenceAnswer": "对索引列使用函数或运算、隐式类型转换、前导模糊匹配 LIKE '%x'、联合索引不满足最左前缀、OR 连接非索引列、以及优化器判断全表扫描更便宜。",
+    "explanation": "判断是否失效要看 EXPLAIN 的 key 与 type，而不是凭经验猜。"
+  },
+  {
+    "category": "redis",
+    "level": "mid",
+    "type": "choice",
+    "stem": "用 Redis 实现分布式锁，下面哪种写法更安全？",
+    "options": [
+      "SETNX 后不设置过期时间",
+      "SET key value NX EX 30，并校验 value 后再删除",
+      "先 GET 判断不存在再 SET",
+      "用 DEL 加锁"
+    ],
+    "correctIndex": 1,
+    "explanation": "加锁必须原子设置 NX 与过期时间；value 用唯一标识，释放时校验并最好用 Lua 保证原子。"
+  },
+  {
+    "category": "spring",
+    "level": "mid",
+    "type": "text",
+    "stem": "描述 Spring Bean 的生命周期关键阶段。",
+    "referenceAnswer": "实例化 → 属性填充 → Aware 回调 → BeanPostProcessor 前置 → @PostConstruct/InitializingBean → 自定义 init-method → BeanPostProcessor 后置（AOP 代理在此生成）→ 使用 → @PreDestroy/DisposableBean → destroy-method。",
+    "explanation": "面试常追问 AOP 代理在哪个阶段生成：通常在 BeanPostProcessor 的后置处理。"
+  },
+  {
+    "category": "distributed",
+    "level": "mid",
+    "type": "choice",
+    "stem": "CAP 理论中，网络分区发生时必须在哪两者之间取舍？",
+    "options": [
+      "一致性与可用性",
+      "可用性与分区容错",
+      "一致性与分区容错",
+      "延迟与吞吐"
+    ],
+    "correctIndex": 0,
+    "explanation": "P（分区容错）在分布式系统中通常必须接受，因此实际取舍发生在 C 与 A 之间。"
+  },
+  {
+    "category": "jvm",
+    "level": "senior",
+    "type": "text",
+    "stem": "线上 Full GC 频繁，你会怎么排查？",
+    "referenceAnswer": "先看 GC 日志与监控确认频率和回收效果；用 jstat 看各代使用与 GC 原因；jmap 导出堆、MAT 分析大对象与引用链；排查内存泄漏（缓存无界、监听器未注销）与参数不合理（堆过小、元空间不足）；必要时做堆外与线程排查。",
+    "explanation": "排查顺序：现象确认 → 指标 → 堆快照 → 代码/参数修复，避免直接重启掩盖问题。"
+  },
+  {
+    "category": "concurrency",
+    "level": "senior",
+    "type": "text",
+    "stem": "线程池的核心参数有哪些？拒绝策略如何选择？",
+    "referenceAnswer": "corePoolSize、maximumPoolSize、keepAliveTime、workQueue、threadFactory、handler。拒绝策略有 AbortPolicy、CallerRunsPolicy、DiscardPolicy、DiscardOldestPolicy 或自定义。选择取决于能否阻塞调用方、能否丢任务、是否需要降级记录。",
+    "explanation": "关键不只是参数，而是队列是否有界、任务是否幂等、监控是否能看到排队与拒绝。"
+  },
+  {
+    "category": "distributed",
+    "level": "senior",
+    "type": "text",
+    "stem": "分布式事务有哪些常见方案？各自适合什么场景？",
+    "referenceAnswer": "2PC/XA 强一致但性能差；TCC 适合资金类、需业务补偿；Saga 适合长流程、允许中间态；本地消息表/事务消息实现最终一致；Seata 等框架按模式选择。核心是评估一致性要求、补偿成本与幂等。",
+    "explanation": "大多数互联网业务选最终一致 + 幂等 + 对账，而不是强一致的分布式事务。"
+  },
+  {
+    "category": "architecture",
+    "level": "senior",
+    "type": "choice",
+    "stem": "缓存与数据库的一致性，下面哪种做法更常见且可接受？",
+    "options": [
+      "先删缓存再写库，且不加任何兜底",
+      "先更新数据库，再删除缓存，配合重试/延迟双删与 TTL 兜底",
+      "永远只写缓存不写库",
+      "强一致只能靠缓存"
+    ],
+    "correctIndex": 1,
+    "explanation": "Cache Aside 的常见顺序是先写库再删缓存；极端并发下仍有短暂不一致，用 TTL、延迟双删或 binlog 订阅收敛。"
+  },
+  {
+    "category": "mysql",
+    "level": "senior",
+    "type": "text",
+    "stem": "分库分表后，跨库查询和深分页怎么处理？",
+    "referenceAnswer": "跨库查询可用冗余表、宽表、搜索引擎或数据同步到分析库；深分页避免大 offset，改用基于游标/上次最大 id 的 keyset 分页；跨库聚合在应用层归并或异步汇总，必要时接受最终一致。",
+    "explanation": "分片键决定查询能力；先想清楚查询模式再分片，避免“分了之后什么都要跨库”。"
+  },
+  {
+    "category": "redis",
+    "level": "senior",
+    "type": "text",
+    "stem": "Redis 的大 key 和热 key 分别有什么风险？如何治理？",
+    "referenceAnswer": "大 key 会造成网络阻塞、删除/迁移卡顿与内存不均，治理是拆分、压缩、异步删除；热 key 会造成单分片 QPS 过高，治理是本地缓存、读写分离、key 打散与限流。两者都要靠监控提前发现。",
+    "explanation": "大 key 看体积与元素数量，热 key 看单 key 的 QPS；治理手段不同。"
+  },
+  {
+    "category": "architecture",
+    "level": "architect",
+    "type": "text",
+    "stem": "设计一个秒杀系统，你会重点解决哪些问题？",
+    "referenceAnswer": "流量层层过滤（CDN/网关限流/答题/黑白名单）；库存预热到 Redis 并用 Lua 原子扣减；异步下单削峰，消息队列保证最终落库；接口幂等与防刷；超卖兜底与对账；降级预案与压测。",
+    "explanation": "秒杀的本质是“把有限库存分配给海量请求”，核心是限流、原子扣减、异步与幂等。"
+  },
+  {
+    "category": "distributed",
+    "level": "architect",
+    "type": "text",
+    "stem": "如何系统性治理服务雪崩？",
+    "referenceAnswer": "调用链上设置超时与重试上限、舱壁隔离（线程池/信号量）、熔断与降级、限流；缓存与异步兜底；监控告警与故障演练；明确核心/非核心链路，非核心可整体降级。",
+    "explanation": "雪崩治理是组合拳：不让慢调用占满资源，不让故障沿链路扩散。"
+  },
+  {
+    "category": "architecture",
+    "level": "architect",
+    "type": "text",
+    "stem": "从单体拆分到微服务，你的原则和步骤是什么？",
+    "referenceAnswer": "先按业务边界（DDD 限界上下文）识别服务，而不是按技术分层拆；优先拆变化频率高、团队边界清晰的模块；先模块化单体再物理拆分；处理数据归属与跨服务查询；配套网关、配置、注册发现、链路追踪与发布回滚。",
+    "explanation": "拆分应由组织和业务边界驱动；没有清晰边界时，微服务只会把复杂度搬到网络上。"
+  },
+  {
+    "category": "architecture",
+    "level": "architect",
+    "type": "choice",
+    "stem": "跨服务扣减库存与记账，业务上最合理的一致性选择通常是？",
+    "options": [
+      "全部强一致，使用分布式事务锁住所有资源",
+      "核心扣减强一致，周边记账/通知走最终一致 + 幂等 + 对账",
+      "完全不考虑一致性",
+      "只靠缓存保证"
+    ],
+    "correctIndex": 1,
+    "explanation": "真实系统通常按业务分级：核心资源强一致或准实时，周边链路最终一致，并通过对账兜底。"
+  },
+  {
+    "category": "mysql",
+    "level": "architect",
+    "type": "text",
+    "stem": "数据库迁移（换库/分库）时，双写与灰度怎么做才安全？",
+    "referenceAnswer": "先做全量 + 增量同步，开启双写并保证写入顺序与幂等；用影子读/对比校验数据一致性；灰度切读、按比例放量，保留回滚开关；对账与补偿处理差异；最后停止旧库写入并观察。",
+    "explanation": "迁移的关键是可回滚、可对账、可灰度，而不是一次性切流。"
+  },
+  {
+    "category": "engineering",
+    "level": "architect",
+    "type": "text",
+    "stem": "做技术选型时，你会从哪些维度评估？",
+    "referenceAnswer": "业务匹配度与生命周期、团队熟悉度与招聘成本、社区活跃度与长期维护、性能与扩展性、运维复杂度、生态与集成成本、许可与合规、迁移与退出成本。最终用 PoC 和小范围试点验证。",
+    "explanation": "选型不是选“最强”，而是选“当前团队和业务能长期维护的成本最低解”。"
+  }
+]

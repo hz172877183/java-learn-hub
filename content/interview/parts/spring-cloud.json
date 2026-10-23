@@ -1,0 +1,312 @@
+[
+  {
+    "category": "spring-cloud",
+    "level": "junior",
+    "type": "choice",
+    "stem": "使用 @LoadBalanced 注解的 RestTemplate 调用 http://order-service/api/orders 时，负载均衡发生在哪一侧？",
+    "options": [
+      "调用方进程内，先从注册中心拿到实例列表再自行选择一台",
+      "服务端反向代理上，由代理按权重把请求转发到实例",
+      "注册中心内部，由注册中心代为选定实例并转发请求",
+      "服务提供方进程内，由提供方决定接收哪个调用请求"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "@LoadBalanced 会给 RestTemplate 装上拦截器，把服务名解析成实例列表并在本地选一台，属于客户端负载均衡；反向代理那种是服务端负载均衡。注册中心只提供列表，不转发流量。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "junior",
+    "type": "choice",
+    "stem": "配置中心修改了某个配置项后，需要让 Bean 里 @Value 注入的值跟着更新，最直接的做法是？",
+    "options": [
+      "去掉 Bean 上的 @Service，让容器每次都重新创建实例",
+      "给该 Bean 加 @RefreshScope，刷新后重建 Bean 并重新注入",
+      "把 @Value 换成 @Autowired，容器就会自动更新字段值",
+      "在配置里开启 lazy-init，让 Bean 延迟加载即可生效"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "没有 @RefreshScope 的 Bean 只在启动时注入一次，配置变了也不会更新。@RefreshScope 把 Bean 放进刷新作用域，收到刷新事件后销毁，下次使用时重建，从而拿到新值。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "junior",
+    "type": "text",
+    "stem": "什么是注册中心？以 Nacos 为例，说明服务提供者上线、消费者完成一次调用大致经过哪些步骤。",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）注册：提供者启动后把 IP、端口、元数据写入注册中心，并通过心跳或长连接维持存活；2）订阅：消费者按服务名订阅，拿到实例列表并缓存在本地；3）调用：发请求时由客户端负载均衡按策略挑一台实例；4）变更：实例下线或被摘除后，注册中心推送变更，消费者更新本地列表。",
+    "explanation": "注册中心解决的是“服务地址会变”的问题，本质是实例列表的注册与订阅；真要发请求仍由消费者直连实例，注册中心不代理流量。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "junior",
+    "type": "choice",
+    "stem": "熔断器处于 OPEN 状态时，对下游的调用会发生什么？",
+    "options": [
+      "照常调用下游，只是把本次请求的超时时间调短一半",
+      "把请求先排队缓存，等下游恢复后再按顺序重新发送",
+      "直接短路走降级逻辑，等待窗口后进入半开放行探测请求",
+      "只放行一半请求给下游，另一半直接返回失败响应"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "OPEN 表示熔断已触发，请求在本地被短路走 fallback，不再占用连接和线程；等待窗口结束进入 HALF_OPEN，放少量探测请求，成功回 CLOSED，失败则重新 OPEN。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "choice",
+    "stem": "Nacos 中临时实例与持久实例在一致性实现上的差别，下列说法正确的是？",
+    "options": [
+      "两类实例都走 Raft，所以读取注册信息任何时候都强一致",
+      "两类实例都走 Distro，所以都可能读到已经过期的实例",
+      "临时实例走 Raft、持久实例走 Distro，与是否心跳无关",
+      "临时实例走 Distro 协议最终一致，持久实例走 Raft 强一致"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "临时实例靠客户端心跳保活，用自研 Distro 做 AP 最终一致；持久实例由服务端主动探测，用 Raft 保证 CP。选型时要清楚 AP 换来可用性，但故障期可能读到旧列表。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "choice",
+    "stem": "Nacos 配置中心之所以能做到秒级推送，客户端与服务端之间的核心机制是？",
+    "options": [
+      "客户端发起长轮询，服务端变更时立即返回并由客户端比对 MD5",
+      "客户端定时全量拉取，轮询间隔被固定在数秒以内",
+      "服务端与每个客户端建立 WebSocket，逐条推送变更内容",
+      "复用注册中心心跳连接，把配置内容捎带在心跳包中"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "客户端对监听的 dataId 发起长轮询，服务端 hold 请求约数十秒；期间有变更立即响应，无变更则超时返回，客户端比对 MD5 决定是否重新拉取，比短轮询省请求。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "choice",
+    "stem": "注册中心里某台实例已被摘除，但调用方仍持续把请求打到这台机器，最可能的原因是？",
+    "options": [
+      "服务提供者的心跳仍在发送，注册中心其实没有摘除它",
+      "负载均衡器本地缓存了实例列表，尚未到刷新时间",
+      "网关把同一来源的请求固定转发到同一台后端机器",
+      "Feign 复用了长连接，无法切换到其他可用实例上"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "Spring Cloud LoadBalancer 默认使用带缓存的 ServiceInstanceListSupplier，实例列表有数十秒 TTL，Nacos 客户端还有本地缓存和推送延迟，因此摘除后会短暂打到旧实例。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "choice",
+    "stem": "关于 OpenFeign 一次调用的内部过程，下面描述正确的是？",
+    "options": [
+      "运行时用 CGLIB 代理业务实现类，直接在本地调用真实方法",
+      "由注册中心生成桩代码，在编译期写入调用方工程的源码",
+      "启动时给 @FeignClient 接口生成 JDK 动态代理，调用时解析注解拼出请求",
+      "Feign 只负责挑选实例，HTTP 请求最终仍由 RestTemplate 发出"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "Feign 用 JDK 动态代理把接口方法转成 MethodMetadata，由 Contract 解析注解得到请求模板，再经编码、负载均衡选实例、HTTP 客户端发送，最后解码响应。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "text",
+    "stem": "线上把 Feign 的 readTimeout 调大后依然超时，你会去检查哪些配置？Feign 的超时究竟由谁决定？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）确认改的是 feign.client.config.default 还是对应服务名的配置，后者优先级更高；2）若底层换成 OkHttp 或 Apache HttpClient，Feign 的超时不再生效，要配连接池的 connectTimeout、readTimeout；3）旧版本里 Ribbon 的 ReadTimeout 会覆盖 Feign 配置；4）网关、调用方、下游各自的超时要对齐，避免上游先断开。",
+    "explanation": "Feign 超时取决于最终使用的 HTTP 客户端与负载均衡组件的实现，多层配置存在覆盖关系，改错层级是“配了没用”的典型原因。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "choice",
+    "stem": "Spring Cloud Gateway 中 GlobalFilter 与 GatewayFilter 的主要区别是？",
+    "options": [
+      "GlobalFilter 只能做鉴权，GatewayFilter 只能做请求头改写",
+      "GlobalFilter 在 Netty 线程执行，GatewayFilter 在业务线程池执行",
+      "GatewayFilter 的优先级永远高于 GlobalFilter，与 order 无关",
+      "GlobalFilter 对所有路由生效，GatewayFilter 绑定具体路由，二者同链按 order 排序"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "两者最终都被适配进同一条过滤器链并按 Ordered 排序执行；GlobalFilter 由容器自动装配、全局生效，GatewayFilter 写在路由配置里只对该路由生效。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "text",
+    "stem": "用 Spring Cloud Gateway 做接口限流，你会怎么落地？如果要按用户维度而不是 IP 维度限流呢？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）使用 RequestRateLimiter 网关过滤器，底层是 Redis 加 Lua 的令牌桶，配置 replenishRate、burstCapacity 和 requestedTokens；2）限流维度由 KeyResolver 决定，默认按 IP，按用户就从 JWT 或请求头解析用户标识作为 key；3）被限流返回 429 并带统一错误码；4）阈值按压测结果定，同时加监控告警。",
+    "explanation": "网关限流的关键是维度与算法：令牌桶允许一定突发，KeyResolver 决定限谁；按 IP 在 NAT 场景会误伤，按用户需先完成鉴权解析。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "text",
+    "stem": "跨服务调用时 traceId 是怎么传递的？如果在异步线程池里发现 traceId 丢了，你会怎么排查？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）传递靠协议头：调用方拦截器把 traceId、spanId、采样标记写进 HTTP header，被调方过滤器取出放入 MDC，日志模板统一输出；2）走消息队列时把链路信息放进消息属性；3）异步丢 traceId 多因 MDC 基于 ThreadLocal、线程切换未传播，需要装饰线程池或显式拷贝上下文；4）线程池复用时要先清理，避免串号。",
+    "explanation": "链路追踪的连续性依赖上下文透传，HTTP 头解决跨进程，ThreadLocal 跨线程失效则是异步场景最常见的断链原因。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "text",
+    "stem": "多个环境、多个团队共用一个 Nacos 集群，配置怎么隔离？同名的公共配置又该如何复用？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）namespace 做环境或租户级隔离，group 做团队或业务线隔离，dataId 对应具体应用配置；2）公共配置抽成独立 dataId，用 shared-configs 或 extension-configs 引入，约定优先级：应用自身配置高于扩展配置，扩展配置高于共享配置；3）跨环境不要只靠 group 硬隔离；4）敏感项加密并收敛读写权限。",
+    "explanation": "隔离层级用错是配置事故的高发点：namespace 之间默认不可见，适合环境隔离；group 更适合同环境内的团队划分，权限也应按层级收敛。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "mid",
+    "type": "text",
+    "stem": "跨服务调用如果拿不到可靠的消息事务保证，如何确保接口被重复调用时不产生重复数据？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）由调用方生成唯一业务号或请求 token，放在请求头中透传；2）被调方用该唯一键建唯一索引或写去重表，冲突时直接返回上次结果；3）或用 Redis setnx 加过期时间做快速挡板，再由数据库唯一约束兜底；4）业务用状态机校验，只允许合法状态迁移；5）重试要返回同一结果，保证语义幂等。",
+    "explanation": "幂等的落点是“唯一键加状态机”，靠业务判断“是否处理过”比靠调用次数可靠；前置挡板只能降低压力，最终仍需数据库约束保证正确性。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "senior",
+    "type": "text",
+    "stem": "上游统一给所有调用加了三次重试，大促时下游被打挂。这类重试风暴你会怎么治理？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）重试只保留在最外层一处，禁止每层都重试，否则次数按层相乘；2）只重试幂等且可重试的错误，如超时、连接失败，业务异常不重试；3）用指数退避加随机抖动，避免失败请求同时重放；4）设重试预算或与熔断联动，下游失败率高时直接放弃重试；5）超时预算逐层递减，保证上游不会先于下游超时。",
+    "explanation": "重试是把故障放大还是吸收，取决于层级、次数、退避和幂等前提；链路每层各加重试会把下游流量放大成倍数级。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "senior",
+    "type": "choice",
+    "stem": "Sentinel 与 Resilience4j 都能做熔断降级，选型时下面判断正确的是？",
+    "options": [
+      "Sentinel 有控制台和多维规则，支持 QPS、并发数、热点参数与系统自适应保护",
+      "Resilience4j 自带可视化控制台，适合多团队大规模统一治理与规则下发",
+      "两者都基于 Hystrix 的线程池隔离模型，能力范围基本完全对等",
+      "Sentinel 只做流量控制，熔断降级必须再引入 Resilience4j 配合"
+    ],
+    "correctIndex": 0,
+    "referenceAnswer": null,
+    "explanation": "Resilience4j 是轻量函数式装饰器库，提供熔断、限流、舱壁、重试，规则偏应用内配置且无控制台；Sentinel 有控制台、动态规则推送，还支持热点参数与系统保护，适合平台化治理。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "senior",
+    "type": "choice",
+    "stem": "服务网格里 sidecar 能接管业务进程的出入流量，主要依靠什么？",
+    "options": [
+      "业务代码显式调用 sidecar 提供的 SDK，逐个请求手动转发",
+      "用 iptables 等规则把流量透明劫持到 sidecar，再由其按 xDS 配置转发",
+      "在注册中心为每个 Pod 额外注册一个代理地址，客户端改指向它",
+      "由 JVM Agent 在字节码层改写所有 HTTP 客户端的发送逻辑"
+    ],
+    "correctIndex": 1,
+    "referenceAnswer": null,
+    "explanation": "数据面 sidecar（如 Envoy）靠流量劫持拿到请求，控制面通过 xDS 下发路由、熔断、mTLS 等配置，业务零侵入。SDK 改写属于 Spring Cloud 这类应用内治理，不是网格做法。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "senior",
+    "type": "text",
+    "stem": "网关已经做了统一鉴权，内部服务之间的调用还需要鉴权吗？如果有人绕过网关直连服务怎么办？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）需要，内网并不天然可信，绕过网关直连、配置泄露、容器被入侵都可能发生；2）服务间使用服务身份凭证，如 mTLS 双向证书或内部签名 token，校验调用方是谁；3）网关签发的用户上下文用签名头透传，内部服务校验签名并拒绝外部直接伪造；4）服务端口只对网关和必要调用方开放，配合网络策略；5）敏感接口再做一次权限校验与审计。",
+    "explanation": "只做入口鉴权等于把内网当成信任边界；正确做法是入口校验用户身份、内部校验服务身份，两层用不同凭证，避免用户 token 在内网无限传递。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "senior",
+    "type": "text",
+    "stem": "某个非核心依赖的 RT 从几十毫秒涨到几秒，导致核心服务线程池被打满、整个应用不可用。现场的排查与止损路径是什么？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先止损：对该依赖的调用熔断降级或直接摘除，把线程池和连接池抢回来；2）看指标：线程池活跃数、队列长度、连接池等待、下游 RT 曲线，确认是阻塞而非计算慢；3）抓栈：用 arthas thread 或 jstack 看线程卡在哪个远程调用；4）定根因：下游容量不足、网络重传或连接泄漏；5）长期做舱壁隔离，把非核心依赖放独立线程池，并补超时与告警。",
+    "explanation": "这类雪崩的机理是共享线程池被慢调用占满，非核心依赖拖垮核心链路；止损优先于根因，隔离（舱壁）才是长期解法，扩容往往无效。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "senior",
+    "type": "choice",
+    "stem": "运行中的服务在 Nacos 配置中心整体不可用后，表现通常是？",
+    "options": [
+      "所有实例立刻启动失败并进程退出，因为连不上配置中心",
+      "配置会自动回退到代码里的默认值，业务流程完全不受影响",
+      "已启动实例靠本地快照继续运行，但新配置无法下发，新实例可能读到旧值",
+      "注册中心会接管配置读取，服务的配置能力完全不受影响"
+    ],
+    "correctIndex": 2,
+    "referenceAnswer": null,
+    "explanation": "Nacos 客户端会把拉到的配置写成本地快照，启动时优先读快照兜底，所以宕机不会立刻打挂存量实例；但变更推不下去，扩容实例可能拿到旧配置，需要监控推送失败与快照版本。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "senior",
+    "type": "text",
+    "stem": "做灰度发布时同一服务的新旧版本会同时在线，涉及数据库表结构变更该怎么处理才安全？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先扩后缩：先加字段（可空且有默认值）、加新表，让代码同时兼容新旧两种结构；2）过渡期双写新旧字段，读侧用开关切换，全量后再删旧字段；3）禁止在同一次发布里做重命名或删列，否则回滚时旧代码直接报错；4）用双写校验或影子表核对数据一致性；5）DDL 与代码发布解耦，大表变更走在线变更工具。",
+    "explanation": "灰度期新旧代码共存，数据库变更必须是向后兼容的多次小步操作；把结构变更和代码发布绑在一起，会让回滚路径直接断掉。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "senior",
+    "type": "choice",
+    "stem": "在 Eureka、Nacos、Consul 之间做注册中心选型，下面判断正确的是？",
+    "options": [
+      "三者底层都基于 Raft 协议，因此都能保证注册信息的强一致",
+      "Eureka 自带配置中心，Nacos 只能存配置不能承担服务注册",
+      "Consul 不支持主动健康检查，必须完全依赖客户端心跳维持实例",
+      "Eureka 偏 AP 且只做服务发现，Nacos 兼做注册与配置，Consul 基于 Raft 并带健康检查与多数据中心"
+    ],
+    "correctIndex": 3,
+    "referenceAnswer": null,
+    "explanation": "Eureka 是 AP 模型、功能单一且主线已停止演进；Nacos 一个组件同时提供注册与配置，临时实例 AP、持久实例 CP；Consul 用 Raft 保一致，健康检查与多数据中心能力更强但运维成本更高。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "architect",
+    "type": "text",
+    "stem": "业务要扩展到同城双活加异地容灾，注册中心的选型和部署你会怎么设计？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）先定目标：故障期能否容忍读到旧实例列表、是否要求跨机房强一致；2）按机房部署集群，同机房优先调用，跨机房只做兜底，避免跨城调用拖高 RT；3）多集群之间做同步，明确冲突与收敛策略，宁可短暂不一致也不要脑裂；4）客户端要配多集群地址、本地缓存和故障切流；5）若已上 K8s，评估复用 Service 与 DNS，省掉一套注册中心的运维成本。",
+    "explanation": "多活下注册中心的难点不是协议而是收敛与容错：跨机房强一致会牺牲可用性，AP 加就近路由是更常见的取舍，同时要接受故障期读到旧列表。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "architect",
+    "type": "text",
+    "stem": "存量 Spring Cloud 体系要不要引入服务网格？你会用什么标准判断，迁移路径又该怎么走？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）判断标准：多语言服务占比高、治理逻辑重复侵入业务、需要统一 mTLS 与流量管控时收益大；团队小、技术栈单一时成本高于收益；2）代价：sidecar 多一跳延迟与资源开销，运维与排障复杂度上升；3）路径：先让网格只接管南北向入口与观测，注册中心、配置中心保持不变；4）再把熔断、重试、灰度逐步下沉到网格；5）保留应用内治理兜底，按业务线灰度切换。",
+    "explanation": "网格解决的是治理逻辑与业务代码解耦、多语言统一问题，代价是延迟和复杂度；迁移的关键是控制面先观测后接管，避免一次性替换注册与配置体系。"
+  },
+  {
+    "category": "spring-cloud",
+    "level": "architect",
+    "type": "text",
+    "stem": "要做全链路灰度，让一次请求在网关、多个服务和中间件上都落到同一版本，你会怎么设计？",
+    "options": [],
+    "correctIndex": null,
+    "referenceAnswer": "1）入口染色：网关按用户、租户或比例打上版本标签，写入 header 并全程透传；2）路由：每个服务按标签过滤实例，没有同版本实例时要有明确回退策略；3）中间件：MQ 消息携带标签，消费端按标签路由，缓存与库按需做影子隔离；4）数据：新旧版本兼容同一套结构；5）卡点：按错误率、RT 和业务指标自动判定放量与回滚；6）标签需签名，防止外部伪造。",
+    "explanation": "全链路灰度的本质是流量染色加逐跳路由，难点在标签透传完整性、无同版本实例时的回退语义，以及灰度期的数据兼容，而非单个负载均衡器改造。"
+  }
+]

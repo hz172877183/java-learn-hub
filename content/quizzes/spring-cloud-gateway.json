@@ -1,0 +1,33 @@
+[
+  {
+    "type": "choice",
+    "stem": "要让所有路由统一校验 JWT 并注入用户身份，最合适的扩展点是？",
+    "options": [
+      "在每条路由上分别配置 StripPrefix",
+      "实现 GlobalFilter，在所有路由前执行",
+      "在 Path 断言里写一段正则",
+      "让下游每个服务重复校验一次"
+    ],
+    "correctIndex": 1,
+    "explanation": "GlobalFilter 对所有路由生效，适合统一鉴权、身份透传和日志；逐路由配置容易漏，也把横切逻辑散落到业务服务里。"
+  },
+  {
+    "type": "choice",
+    "stem": "网关和下游服务都返回 Access-Control-Allow-Origin 时，浏览器最可能出现什么结果？",
+    "options": [
+      "自动合并成一条头，请求正常",
+      "CORS 响应头重复，跨域请求被浏览器拒绝",
+      "网关自动返回 429 限流",
+      "JWT 签名自动失效"
+    ],
+    "correctIndex": 1,
+    "explanation": "浏览器只接受一个 Access-Control-Allow-Origin，重复头会导致跨域校验失败；CORS 应只在网关或下游其中一层配置。"
+  },
+  {
+    "type": "text",
+    "stem": "网关校验 JWT 后，为什么必须先删除客户端传来的 X-User-Id，再写入可信用户标识？",
+    "options": [],
+    "referenceAnswer": "客户端可以伪造任意请求头。如果网关只追加不删除，下游可能读到攻击者传入的 X-User-Id，误认为是网关注入的身份，从而越权。正确做法是把网关作为唯一可信边界：先移除同名头，再从已验签的 JWT 中取值重写，并让下游只接受来自网关的流量。",
+    "explanation": "身份头只有在“由可信边界覆盖写”时才可信；删除旧值是防止头注入和权限提升的关键一步。"
+  }
+]

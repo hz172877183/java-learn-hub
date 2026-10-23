@@ -1,0 +1,220 @@
+{
+  "slug": "mysql-tuning",
+  "title": "MySQL 性能调优实战",
+  "category": "data",
+  "summary": "用慢查询日志与 EXPLAIN ANALYZE 定位、索引与 SQL 改写收敛、锁与参数兜底，把 MySQL 8.0 调优做成可复用的排查闭环。",
+  "difficulty": "practical",
+  "estimatedHours": 9,
+  "tags": [
+    "mysql",
+    "index",
+    "explain",
+    "innodb",
+    "performance",
+    "slow-query"
+  ],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://dev.mysql.com/doc/refman/8.0/en/optimization.html",
+  "prerequisites": [
+    "mysql-basics",
+    "flyway"
+  ],
+  "nextTopics": [
+    "redis-advanced"
+  ],
+  "relatedTopics": [
+    "spring-data-jpa",
+    "mybatis-plus"
+  ],
+  "overviewMd": "调优的起点不是参数，而是「先证明慢在哪」。一条 SQL 变慢可能来自没有合适索引、扫描行数过多、Join 顺序不对、排序落盘、锁等待，或者实例资源不足。跳过定位直接改 innodb_buffer_pool_size，大多数时候只是换了个地方等。\n\n核心模型仍然是索引与优化器。InnoDB 用聚簇索引存行，二级索引叶子存主键，所以二级索引查询常要回表；优化器按统计信息和成本模型选择访问路径，EXPLAIN 给的是估算，EXPLAIN ANALYZE 才会真正执行并给出实际行数与各算子耗时。两者差距大，往往说明统计信息失真或数据分布倾斜。Join 侧要关心驱动表与被驱动表的索引，排序侧要关心能否复用索引顺序，否则就是 filesort 与内部临时表。\n\n推荐的排查顺序是：慢查询日志与 performance_schema 找出 TOP SQL → EXPLAIN ANALYZE 看实际执行 → 索引设计（等值列在前、范围与排序列在后、覆盖索引少回表）→ SQL 改写（游标分页、去掉列上函数、拆大查询）→ 锁与事务（锁等待、死锁、隔离级别）→ 资源与参数（Buffer Pool、连接池）→ 最后才是架构（读写分离、分库分表）。越往后改动越大、回滚越难。\n\n架构层的取舍要提前想清楚。大表 DDL 优先用 INSTANT 或 gh-ost 这类在线方案，避免长时间锁表；读多写少可以上读写分离，但要处理主从延迟导致的读旧数据；单表容量与写入真的到瓶颈再分库分表，分片键决定能否避免跨片查询与分布式事务。分表之前，先把索引、归档与冷热分离做一遍，收益通常更高。\n\n适用与边界：面向 MySQL 8.0 InnoDB 的 OLTP 场景，包括列表分页、订单与库存写入、报表前置聚合。不适合拿它解决分析型大聚合与全文检索，那该交给 ClickHouse 或 Elasticsearch。版本注意：EXPLAIN ANALYZE 从 8.0.18 起可用，Hash Join 也从 8.0.18 起支持等值 Join，INSTANT ADD COLUMN 从 8.0.12 起、任意位置加删列从 8.0.29 起；8.0 已移除查询缓存，别再照搬 5.7 的调优清单。放回本仓库：mysql-basics 负责建表与索引基础，Flyway 管 DDL 演进，本页在其上补调优闭环与线上应急手册。",
+  "concepts": [
+    {
+      "term": "执行计划与 EXPLAIN ANALYZE",
+      "explanation": "EXPLAIN 输出优化器估算的成本与行数，EXPLAIN ANALYZE 额外给出实际耗时与实际行数；两者差距大说明统计信息失真或数据倾斜。"
+    },
+    {
+      "term": "覆盖索引与回表",
+      "explanation": "查询所需列都在二级索引里时无需回表，Extra 显示 Using index。把列表页少量列放进联合索引，可显著减少随机 IO。"
+    },
+    {
+      "term": "联合索引与最左前缀",
+      "explanation": "联合索引按定义顺序排序，等值列在前、范围与排序列在后；跳过最左列、列上套函数或隐式转换都会让后续列失效。"
+    },
+    {
+      "term": "慢查询日志与 performance_schema",
+      "explanation": "slow_query_log 记录超过 long_query_time 的语句，可用 pt-query-digest 聚合；performance_schema 提供按语句、按等待事件的实时统计。"
+    },
+    {
+      "term": "Join 算法与驱动表",
+      "explanation": "小表驱动大表，被驱动表的连接列必须有索引；8.0.18 起等值 Join 可用 Hash Join，Extra 出现 Using join buffer 要警惕。"
+    },
+    {
+      "term": "排序、临时表与 filesort",
+      "explanation": "ORDER BY 能复用索引顺序才免排序，否则走 filesort；出现 Using temporary 说明有内部临时表，落盘后 IO 与内存压力都会放大。"
+    },
+    {
+      "term": "锁等待与死锁",
+      "explanation": "锁等待看 sys.innodb_lock_waits 找阻塞者，死锁看 SHOW ENGINE INNODB STATUS 的最后一次死锁；统一加锁顺序、缩短事务、补齐索引是根治手段。"
+    },
+    {
+      "term": "事务与隔离级别",
+      "explanation": "RR 下快照读复用 Read View、当前读加间隙锁；RC 每条语句取新快照、锁更少但需要 ROW 格式 binlog。取舍取决于幻读与并发需求。"
+    },
+    {
+      "term": "Buffer Pool 与参数调优",
+      "explanation": "Buffer Pool 通常占物理内存的 60%-75%，命中率低说明热数据放不下；redo 容量、刷脏策略与连接数要一起看，改参数前先有基线。"
+    },
+    {
+      "term": "分库分表与读写分离",
+      "explanation": "读写分离解决读扩展但要处理主从延迟；分库分表解决单表容量与写入瓶颈，分片键决定能否避免跨片查询与分布式事务。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "准备基线与数据",
+      "goal": "造出百万行 topic 数据，开启慢查询日志并把 long_query_time 设为 1 秒，记录接口 P99 与 QPS 作为基线。",
+      "hours": 1,
+      "resources": [
+        "docker-compose",
+        "mysql-basics"
+      ]
+    },
+    {
+      "title": "读懂执行计划",
+      "goal": "对三条慢 SQL 分别跑 EXPLAIN 与 EXPLAIN ANALYZE，比对估算行数与实际行数，标注 type、key、rows、Extra 的含义。",
+      "hours": 1.5,
+      "resources": [
+        "MySQL 8.0 优化文档",
+        "mysql-basics"
+      ]
+    },
+    {
+      "title": "索引与覆盖索引",
+      "goal": "按真实查询重设联合索引，让列表页 Extra 出现 Using index，并演示隐式转换、前导通配导致的索引失效。",
+      "hours": 1.5,
+      "resources": [
+        "mysql-basics",
+        "flyway"
+      ]
+    },
+    {
+      "title": "Join、排序与临时表",
+      "goal": "把大表驱动改成小表驱动，消除 Using filesort 与 Using temporary，对比改写前后的实际耗时。",
+      "hours": 1.5,
+      "resources": [
+        "MySQL 8.0 优化文档"
+      ]
+    },
+    {
+      "title": "锁等待与事务",
+      "goal": "用两个会话复现锁等待与死锁，读 innodb_lock_waits 与死锁日志，再调整隔离级别或加锁顺序验证改善。",
+      "hours": 1.5,
+      "resources": [
+        "mysql-basics",
+        "spring-data-jpa"
+      ]
+    },
+    {
+      "title": "资源与参数",
+      "goal": "观察 Buffer Pool 命中率与连接池等待时间，按基线调整 innodb_buffer_pool_size 与 Hikari maximumPoolSize。",
+      "hours": 1,
+      "resources": [
+        "mybatis-plus",
+        "HikariCP 文档"
+      ]
+    },
+    {
+      "title": "DDL 与扩展方案",
+      "goal": "用 INSTANT 或 gh-ost 演练大表加列，评估读写分离与分库分表的触发条件、分片键选择与回滚成本。",
+      "hours": 1,
+      "resources": [
+        "flyway",
+        "redis-advanced"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "从 EXPLAIN ANALYZE 到覆盖索引",
+      "language": "sql",
+      "description": "先看实际行数与 filesort，再补一条服务列表的联合索引，最后验证覆盖索引与反例。",
+      "code": "-- 慢查询：状态 + 时间范围 + 排序，旧索引只吃到 category\nEXPLAIN ANALYZE\nSELECT id, slug, title, updated_at\nFROM topic\nWHERE category = 'data'\n  AND status = 'published'\n  AND updated_at >= '2026-09-01'\nORDER BY updated_at DESC\nLIMIT 20;\n-- 重点看 actual rows 与 estimate 的差距、是否 Using filesort、是否回表\n\n-- 联合索引：等值列在前，范围与排序列在后，列表所需列一并带上\nALTER TABLE topic\n  ADD KEY idx_topic_list (category, status, updated_at, id, title, slug),\n  ALGORITHM = INPLACE, LOCK = NONE;\n\n-- 覆盖索引：Extra 出现 Using index 表示不需要回表\nEXPLAIN ANALYZE\nSELECT category, status, COUNT(*)\nFROM topic\nWHERE category = 'data' AND status = 'published'\nGROUP BY category, status;\n\n-- 反例：列上套函数，索引直接失效\nEXPLAIN\nSELECT id FROM topic WHERE DATE(updated_at) = '2026-10-01';\n-- 改写为范围：updated_at >= '2026-10-01' AND updated_at < '2026-10-02'"
+    },
+    {
+      "title": "连接池与批处理配置",
+      "language": "yaml",
+      "description": "连接数按并发与数据库承载能力定，不按线程数照搬；配合批处理参数减少往返，并让 maxLifetime 小于服务端 wait_timeout。",
+      "code": "spring:\n  datasource:\n    url: jdbc:mysql://mysql:3306/learnhub?useSSL=false&characterEncoding=utf8mb4&rewriteBatchedStatements=true\n    hikari:\n      pool-name: learnhub-pool\n      maximum-pool-size: 20      # 约等于 CPU 核数 * 2 + 有效磁盘数，不是越大越好\n      minimum-idle: 5\n      connection-timeout: 3000   # 拿不到连接就快速失败，避免请求排队放大超时\n      idle-timeout: 600000\n      max-lifetime: 1800000      # 小于 MySQL 的 wait_timeout，避免用到已被服务端关闭的连接\n      leak-detection-threshold: 20000\n  jpa:\n    properties:\n      hibernate:\n        jdbc:\n          batch_size: 50\n        order_inserts: true\n        order_updates: true\n  # my.cnf 侧的关键项（按基线调整，不要一次全改）\n  # innodb_buffer_pool_size = 8G   -> 物理内存的 60%-75%\n  # innodb_redo_log_capacity = 2G  -> 8.0.30 起替代 innodb_log_file_size\n  # long_query_time = 1            -> 与慢查询日志一起打开\n  # log_queries_not_using_indexes = OFF -> 打开容易刷爆日志\nlogging:\n  level:\n    org.hibernate.SQL: debug   # 仅本地排查，生产用慢查询日志"
+    },
+    {
+      "title": "死锁的有限重试",
+      "language": "java",
+      "description": "死锁是并发下的正常结果，不该直接抛成业务错误；条件更新加固定顺序加锁，配合有限次退避重试。",
+      "code": "package com.learn.hub.data;\n\nimport java.util.List;\n\nimport org.springframework.dao.DeadlockLoserDataAccessException;\nimport org.springframework.jdbc.core.JdbcTemplate;\nimport org.springframework.retry.annotation.Backoff;\nimport org.springframework.retry.annotation.Retryable;\nimport org.springframework.stereotype.Repository;\n\n/** 死锁由数据库自动回滚一方，应用只需有限重试，不能无限循环。 */\n@Repository\npublic class SeatRepository {\n\n    private final JdbcTemplate jdbc;\n\n    public SeatRepository(JdbcTemplate jdbc) {\n        this.jdbc = jdbc;\n    }\n\n    @Retryable(retryFor = DeadlockLoserDataAccessException.class,\n               maxAttempts = 3,\n               backoff = @Backoff(delay = 50, multiplier = 2))\n    public boolean reserve(long courseId) {\n        int updated = jdbc.update(\"\"\"\n                UPDATE course_seat\n                   SET stock = stock - 1, version = version + 1\n                 WHERE course_id = ? AND stock > 0\n                \"\"\", courseId);\n        return updated == 1;\n    }\n\n    /** 多行一起锁定时按主键升序，统一顺序才能消除循环等待。 */\n    public List<Long> lockOrder(List<Long> ids) {\n        return ids.stream().sorted().toList();\n    }\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "索引被隐式转换废掉",
+      "detail": "现象：明明建了索引，EXPLAIN 仍是 type=ALL，rows 等于全表行数。原因：字符串列与数字比较、字符集不一致、列上套函数或前导通配 LIKE '%x'。规避：类型与字符集对齐、把函数移到常量侧、改为范围条件，改完用 EXPLAIN 复核 key。"
+    },
+    {
+      "title": "只看 type 不看 rows 与 filtered",
+      "detail": "现象：type 显示 ref 就以为万事大吉，实际仍慢。原因：索引区分度低，回表行数巨大，或优化器估算偏差导致选错索引。规避：结合 rows、filtered 与 EXPLAIN ANALYZE 的 actual rows 判断，必要时更新统计信息或改写查询。"
+    },
+    {
+      "title": "深分页与大 OFFSET",
+      "detail": "现象：LIMIT 100000,20 越翻越慢，CPU 与 IO 同时升高。原因：MySQL 要扫描并丢弃前面十万行，还要逐行回表。规避：用 (updated_at,id) 游标分页；必须跳页时先只查主键再关联，别直接大偏移。"
+    },
+    {
+      "title": "长事务拖住锁与 undo",
+      "detail": "现象：锁等待告警、undo 表空间持续增长、历史版本读变慢。原因：事务里做远程调用、等待用户输入或批量处理，Read View 迟迟不释放。规避：缩短事务、把 IO 移出事务、监控 sys.innodb_trx 的 trx_age。"
+    },
+    {
+      "title": "连接池与 Buffer Pool 拍脑袋调参",
+      "detail": "现象：连接数调大后数据库线程切换变多、QPS 反而下降；Buffer Pool 调大后机器开始 swap。原因：连接数不等于并发能力，Buffer Pool 超过物理内存会引发换页。规避：先有基线与压测，连接池按数据库承载定，Buffer Pool 留出系统与连接开销，一次只改一个参数。"
+    },
+    {
+      "title": "大表直接 ALTER 锁表",
+      "detail": "现象：加个字段或索引，业务写入被阻塞数分钟。原因：DDL 走了 COPY 算法，或 LOCK 未指定为 NONE，元数据锁排队堵住后续请求。规避：优先 INSTANT（8.0.12+ 加列、8.0.29+ 任意位置），其次 INPLACE + LOCK=NONE，大表用 gh-ost 并在低峰执行、设超时。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "迁移脚本",
+      "path": "backend/src/main/resources/db/migration"
+    },
+    {
+      "label": "数据源配置",
+      "path": "backend/src/main/resources/application.yml"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "发布后列表接口 P99 翻倍",
+      "signal": "监控显示该接口耗时从 120ms 涨到 900ms，慢查询日志里出现同一条带 ORDER BY 的 SQL",
+      "approach": "先用 EXPLAIN ANALYZE 看是否命中 (category,status,updated_at,id)，再确认有没有 SELECT * 与深分页；按结论补覆盖索引或改游标分页，改完对比实际行数与耗时，不盲目堆索引。"
+    },
+    {
+      "title": "偶发死锁导致 500",
+      "signal": "日志出现 Deadlock found when trying to get lock，接口错误率呈尖刺状",
+      "approach": "取 SHOW ENGINE INNODB STATUS 的 LATEST DETECTED DEADLOCK，确认两条事务的索引与加锁顺序；统一多表访问顺序、补齐索引减少锁范围、缩短事务，并在应用层做有限次退避重试。"
+    },
+    {
+      "title": "读写分离后读到旧数据",
+      "signal": "下单成功后立刻查询订单详情返回 404，几秒后恢复正常",
+      "approach": "确认主从延迟（Seconds_Behind_Source）与该读请求的路由；写后立即读走主库或用会话粘滞，业务上允许最终一致的地方才走从库，并给从库延迟加监控与告警。"
+    },
+    {
+      "title": "单表接近一亿行",
+      "signal": "表数据与索引体积持续增长，DDL 窗口越来越难找，归档后写入仍然吃紧",
+      "approach": "先做冷热分离与归档、按时间分区或拆历史表；确认写入瓶颈来自单表还是实例后，再评估分库分表，选高基数的分片键，提前设计跨片查询与分布式事务的替代方案。"
+    },
+    {
+      "title": "内存告警与命中率下降",
+      "signal": "Buffer Pool 命中率从 99% 掉到 95%，磁盘读 IO 上升，P99 抖动",
+      "approach": "核对热数据量与 Buffer Pool 配置、是否有大查询冲刷缓存、是否存在全表扫描；先优化 SQL 与索引减少扫描，再按物理内存调整 pool 大小与实例数，避免直接扩内存掩盖问题。"
+    }
+  ]
+}

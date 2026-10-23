@@ -8,7 +8,10 @@
   "tags": [
     "testing",
     "mockmvc",
-    "mysql"
+    "testcontainers",
+    "contract-testing",
+    "flyway",
+    "ci"
   ],
   "status": "published",
   "integrationStatus": "runtime",
@@ -17,86 +20,177 @@
     "junit-mockito",
     "spring-web-rest"
   ],
-  "nextTopics": [],
+  "nextTopics": [
+    "config-and-secrets"
+  ],
   "relatedTopics": [
     "http-error-contract",
-    "spring-security-jwt"
+    "spring-security-jwt",
+    "flyway",
+    "docker-compose"
   ],
-  "overviewMd": "单元测试保证逻辑正确，集成测试保证“接线正确”。鉴权过滤器、参数绑定、序列化、事务这些环节，只有走完整请求链才测得到。\n\n`MockMvc` 不启动真实端口，但会经过完整的 Spring MVC 和 Filter，速度比 `@SpringBootTest(webEnvironment = RANDOM_PORT)` 快，足够覆盖大部分接口。\n\n关键工程问题是**数据隔离**：用独立的 `learnhub_test` 库，测试类加 `@Transactional` 自动回滚，避免污染开发数据，也避免用例之间互相影响。",
+  "overviewMd": "单元测试保证逻辑正确，集成测试保证“接线正确”。鉴权过滤器、参数绑定、序列化、事务、SQL 方言这些环节，只有走完整请求链才测得到；把它们全部交给手工点页面，等于把回归成本压到发布前那一晚。\n\n形态要按成本选：`@SpringBootTest` + `MockMvc` 在进程内构造请求，经过完整的 Filter 链与 MVC 管线，不占端口，是接口级回归的默认选项；`webEnvironment = RANDOM_PORT` 配 `TestRestTemplate`/`RestClient` 会打真实端口，能测到网络栈、超时、文件上传，代价是慢；`webEnvironment = NONE` 只装容器，适合验证多个 Bean 的协作，不测 HTTP。\n\n数据库是这类测试的主要矛盾。做法是独立 `learnhub_test` 库 + Flyway 从空库建表 + 测试类加 `@Transactional` 自动回滚。但必须清楚回滚的边界：异步线程、`REQUIRES_NEW`、消息发送、真实 HTTP 回调都不受回滚保护，唯一约束也往往在 flush/commit 时才报错。所以“回滚通过”不等于“生产能提交”。\n\n“本机装个 MySQL”在个人机器上还行，在 CI 里就是负担。Testcontainers 起一次性容器，镜像版本与生产对齐，`@ServiceConnection` 自动注入连接串，跑完即销毁，新同事 clone 下来不用看安装文档。容器启动有几秒成本，可以用静态共享容器或镜像预热摊平。\n\n最后是契约与流水线：集成测试验证“实现符合自己的契约”，契约测试验证“前后端对同一份契约的理解一致”（Pact、Spring Cloud Contract，或 OpenAPI diff）。CI 里分层执行——单测做秒级门禁，集成测试独立 job、设超时、失败时保留应用日志与容器日志，flaky 用例必须修或隔离，不能靠“重跑一次”长期糊过去。",
   "concepts": [
     {
+      "term": "@SpringBootTest 与 webEnvironment",
+      "explanation": "MOCK 配 MockMvc 不启端口，RANDOM_PORT 启真实 Tomcat，NONE 只装容器；三种上下文缓存互不共享。"
+    },
+    {
       "term": "MockMvc",
-      "explanation": "在进程内模拟 HTTP 请求，经过 Filter、Controller、序列化，不需要真实端口。"
+      "explanation": "在进程内模拟请求，经过 Filter、参数绑定、Controller 与序列化，不占端口，是接口回归的默认选择。"
     },
     {
-      "term": "独立测试库",
-      "explanation": "用 application-test.yml 指向 learnhub_test，Flyway 自动建表，绝不复用开发库。"
+      "term": "TestRestTemplate / RestClient",
+      "explanation": "打真实端口，能测到超时、压缩、文件上传与 Cookie；慢且需要自己处理端口、清理与连接复用。"
     },
     {
-      "term": "事务回滚",
-      "explanation": "@Transactional 让每个用例结束后回滚，测试可以自由造数据。"
+      "term": "独立测试库与 Flyway",
+      "explanation": "application-test.yml 指向 learnhub_test，Flyway 从空库建表；测试库可随时丢弃，绝不复用开发库。"
     },
     {
-      "term": "真实依赖的取舍",
-      "explanation": "数据库用真实 MySQL 才能测到方言和约束；第三方服务用 mock，避免不稳定。"
+      "term": "事务回滚的边界",
+      "explanation": "@Transactional 结束即回滚，可自由造数据；但异步、REQUIRES_NEW、消息与外部调用不受保护。"
     },
     {
-      "term": "测异常路径",
-      "explanation": "401、404、409、400 比 200 更容易退化，必须显式断言。"
+      "term": "Testcontainers",
+      "explanation": "一次性 MySQL 容器替代本机库，镜像版本与生产一致，@ServiceConnection 自动注入，CI 无需预装。"
+    },
+    {
+      "term": "测试数据构造",
+      "explanation": "用 ObjectMother/Builder 集中造合法对象，唯一字段加随机后缀，避免用例之间撞唯一键或抢同一行。"
+    },
+    {
+      "term": "契约测试",
+      "explanation": "消费者驱动契约或 Spring Cloud Contract，把字段、状态码、错误体的约定固化成可执行断言，防止联调才发现。"
+    },
+    {
+      "term": "测试隔离与顺序无关",
+      "explanation": "用例可单独运行、可并行；不共享固定用户名，不假设自增 ID，不依赖前一条用例留下的数据。"
+    },
+    {
+      "term": "CI 中的分层策略",
+      "explanation": "单测做快速门禁，集成测试放独立 job 并设超时；失败要能复现，flaky 必须修或隔离而不是长期重跑。"
     }
   ],
   "pathSteps": [
     {
       "title": "搭测试配置",
-      "goal": "独立库 + 测试 profile，Flyway 自动迁移。",
-      "hours": 1.5,
+      "goal": "独立库 + 测试 profile，ddl-auto=none 交给 Flyway，从空库执行迁移后能起上下文。",
+      "hours": 0.5,
       "resources": [
-        "本项目 application-test.yml"
+        "integration-testing",
+        "flyway",
+        "config-and-secrets"
       ]
     },
     {
       "title": "覆盖认证链路",
-      "goal": "注册、登录、无令牌 401、用户隔离。",
-      "hours": 1.5,
+      "goal": "注册、登录、无令牌 401、用户隔离四条链路各写一个用例，断言状态码与错误码。",
+      "hours": 0.5,
       "resources": [
-        "本项目 AuthAndPrivacyTest"
+        "spring-security-jwt",
+        "http-error-contract"
       ]
     },
     {
-      "title": "补管理端与边界",
-      "goal": "CRUD、发布校验、405/415、坏 JSON。",
+      "title": "补异常与边界",
+      "goal": "CRUD、发布校验、405/415、坏 JSON 都断言到具体状态码，别让它们落进 500 兜底。",
+      "hours": 0.5,
+      "resources": [
+        "http-error-contract"
+      ]
+    },
+    {
+      "title": "验证事务与隔离",
+      "goal": "确认用例结束后数据回滚，唯一键冲突能稳定复现，两个用户互相看不到对方的笔记。",
+      "hours": 0.5,
+      "resources": [
+        "integration-testing",
+        "mysql-basics"
+      ]
+    },
+    {
+      "title": "换成 Testcontainers",
+      "goal": "用一次性 MySQL 容器替代本机库，锁死镜像版本，CI 上不预装数据库也能跑。",
       "hours": 1,
       "resources": [
-        "本项目 AdminAndQuizTest"
+        "docker-basics",
+        "docker-compose"
+      ]
+    },
+    {
+      "title": "加一层契约测试",
+      "goal": "把列表与错误体的 JSON 结构固化成契约，前端改动时能在流水线上提前发现不兼容。",
+      "hours": 0.5,
+      "resources": [
+        "http-error-contract",
+        "spring-web-rest"
+      ]
+    },
+    {
+      "title": "接进 CI",
+      "goal": "单测与集成测试分两个 job，设置超时与失败日志留存，标记并隔离 flaky 用例。",
+      "hours": 0.5,
+      "resources": [
+        "integration-testing",
+        "linux-basics"
       ]
     }
   ],
   "samples": [
     {
-      "title": "一个认证集成测试",
+      "title": "认证与隔离的集成测试",
       "language": "java",
-      "description": "不启动端口，直接断言未登录访问 /me 的行为。",
-      "code": "@SpringBootTest\n@AutoConfigureMockMvc\n@ActiveProfiles(\"test\")\n@Transactional\nclass AuthTest {\n    @Autowired MockMvc mvc;\n\n    @Test\n    void meRequiresToken() throws Exception {\n        mvc.perform(get(\"/api/v1/me\"))\n           .andExpect(status().isUnauthorized())\n           .andExpect(jsonPath(\"$.code\").value(\"UNAUTHORIZED\"));\n    }\n}"
+      "description": "不启动端口，走完整 Filter 链；唯一用户名避免撞唯一键，@Transactional 保证回滚。",
+      "code": "@SpringBootTest\n@AutoConfigureMockMvc\n@ActiveProfiles(\"test\")\n@Transactional\nclass AuthAndPrivacyTest {\n\n    @Autowired MockMvc mvc;\n    @Autowired ObjectMapper json;\n\n    private String register(String username) throws Exception {\n        String body = \"\"\"\n                {\"username\":\"%s\",\"password\":\"secret123\"}\n                \"\"\".formatted(username);\n        String res = mvc.perform(post(\"/api/v1/auth/register\")\n                        .contentType(MediaType.APPLICATION_JSON).content(body))\n                .andExpect(status().isCreated())\n                .andReturn().getResponse().getContentAsString();\n        return json.readTree(res).path(\"token\").asText();\n    }\n\n    @Test\n    void meRequiresToken() throws Exception {\n        mvc.perform(get(\"/api/v1/me\"))\n                .andExpect(status().isUnauthorized())\n                .andExpect(jsonPath(\"$.code\").value(\"UNAUTHORIZED\"));\n    }\n\n    @Test\n    void usersCannotSeeEachOther() throws Exception {\n        String alice = register(\"alice\" + System.nanoTime());\n        String bob = register(\"bob\" + System.nanoTime());\n\n        mvc.perform(put(\"/api/v1/me/notes/redis\")\n                        .header(\"Authorization\", \"Bearer \" + alice)\n                        .contentType(MediaType.APPLICATION_JSON)\n                        .content(\"{\\\"content\\\":\\\"alice 的笔记\\\"}\"))\n                .andExpect(status().isOk());\n\n        mvc.perform(get(\"/api/v1/me/notes/redis\")\n                        .header(\"Authorization\", \"Bearer \" + bob))\n                .andExpect(status().isNotFound());\n    }\n}"
+    },
+    {
+      "title": "Testcontainers 提供 MySQL",
+      "language": "java",
+      "description": "容器与生产同版本；@ServiceConnection 自动配置数据源，Flyway 在容器里建表。",
+      "code": "@SpringBootTest\n@AutoConfigureMockMvc\n@ActiveProfiles(\"test\")\n@Transactional\n@Testcontainers\nclass OrderFlowIT {\n\n    @Container\n    @ServiceConnection\n    static MySQLContainer<?> mysql = new MySQLContainer<>(\"mysql:8.4\")\n            .withDatabaseName(\"learnhub_test\")\n            .withUsername(\"learnhub\")\n            .withPassword(\"learnhub\")\n            .withCommand(\"--character-set-server=utf8mb4\");\n\n    @DynamicPropertySource\n    static void props(DynamicPropertyRegistry registry) {\n        // 需要覆盖镜像端口或额外参数时在这里补充\n        registry.add(\"spring.flyway.locations\", () -> \"classpath:db/migration\");\n    }\n\n    @Autowired MockMvc mvc;\n\n    @Test\n    void healthIsUp() throws Exception {\n        mvc.perform(get(\"/actuator/health\"))\n                .andExpect(status().isOk())\n                .andExpect(jsonPath(\"$.status\").value(\"UP\"));\n    }\n}"
+    },
+    {
+      "title": "CI 里分层跑测试",
+      "language": "yaml",
+      "description": "单测先做门禁，集成测试独立 job 并设超时；MySQL 用 service 容器，避免各机器环境不同。",
+      "code": "name: ci\non: [push, pull_request]\n\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-java@v4\n        with:\n          java-version: '21'\n          distribution: temurin\n          cache: maven\n      - name: 单元测试\n        run: mvn -B -q test\n\n  integration:\n    runs-on: ubuntu-latest\n    timeout-minutes: 20\n    services:\n      mysql:\n        image: mysql:8.4\n        env:\n          MYSQL_ROOT_PASSWORD: root123\n          MYSQL_DATABASE: learnhub_test\n        ports: ['3306:3306']\n        options: >-\n          --health-cmd=\"mysqladmin ping -proot123\"\n          --health-interval=5s\n          --health-timeout=3s\n          --health-retries=20\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-java@v4\n        with:\n          java-version: '21'\n          distribution: temurin\n          cache: maven\n      - name: 集成测试\n        run: mvn -B verify -DskipUnitTests=false\n        env:\n          TEST_DB_USER: root\n          TEST_DB_PASSWORD: root123\n      - name: 失败时保留日志\n        if: failure()\n        uses: actions/upload-artifact@v4\n        with:\n          name: surefire-reports\n          path: '**/target/surefire-reports/**'"
     }
   ],
   "pitfalls": [
     {
       "title": "拿开发库跑测试",
-      "detail": "测试数据残留、用例互相污染，严重时把真实内容删掉。必须独立库。"
+      "detail": "现象：测试数据残留、用例互相污染，严重时把真实内容删掉。原因：图省事复用了 application.yml 的连接串。规避：独立 learnhub_test + @ActiveProfiles(\"test\")，账号只给该库权限，最好再用 Testcontainers 彻底隔离。"
     },
     {
-      "title": "只测 happy path",
-      "detail": "真实故障多发生在 401、404、400 和并发边界，异常路径更值得写。"
+      "title": "以为 @Transactional 能回滚一切",
+      "detail": "现象：数据库干净了，消息队列和外部回调却真的发生了。原因：回滚只覆盖当前事务，异步线程、REQUIRES_NEW、HTTP 调用都在事务之外。规避：涉及外部副作用时显式清理或改用隔离库 + 手动清理，别把回滚当万能。"
+    },
+    {
+      "title": "用例之间有隐藏顺序依赖",
+      "detail": "现象：单独跑绿、全量跑红，并行执行时唯一键冲突。原因：写死用户名、假设自增 ID 从 1 开始、复用上一条用例的数据。规避：每个用例造自己的数据（唯一后缀），断言只看自己创建的资源。"
     },
     {
       "title": "用 H2 代替 MySQL",
-      "detail": "方言、JSON 字段、唯一约束行为不同，测过了线上仍可能挂；至少关键链路用真实 MySQL。"
+      "detail": "现象：测试全绿，上线后 JSON 字段、排序规则、唯一约束行为都不一样。原因：H2 兼容模式只模仿语法，不模仿行为。规避：关键链路用真实 MySQL（本机库或 Testcontainers），H2 最多用于纯 DAO 冒烟。"
+    },
+    {
+      "title": "滥用 @DirtiesContext 与测试替身",
+      "detail": "现象：测试类越加越多，套件越来越慢。原因：每个脏上下文或不同 mock 组合都会重建 ApplicationContext。规避：优先用 @Sql 或数据清理代替重建上下文，把不同替身组合聚合到同一测试类。"
+    },
+    {
+      "title": "集成测试在 CI 里没有止损",
+      "detail": "现象：job 挂住半小时，失败日志里只有一堆超时。原因：没有超时设置，数据库没就绪就开始跑，失败现场没上传。规避：设 job/用例超时，等健康检查通过，失败时上传 surefire 报告与应用日志。"
     }
   ],
   "repoPointers": [
     {
       "label": "认证与隔离测试",
       "path": "backend/src/test/java/com/learn/hub/AuthAndPrivacyTest.java"
+    },
+    {
+      "label": "管理端与题目测试",
+      "path": "backend/src/test/java/com/learn/hub/AdminAndQuizTest.java"
     },
     {
       "label": "测试配置",
@@ -106,13 +200,28 @@
   "scenarios": [
     {
       "title": "改完鉴权，担心把别的接口弄挂",
-      "signal": "过滤器、错误处理这类横切逻辑改动",
-      "approach": "用 MockMvc 覆盖公开接口、JWT 接口、管理接口三条链路，一次跑完"
+      "signal": "过滤器、错误处理这类横切逻辑改动，影响面说不清",
+      "approach": "用 MockMvc 覆盖公开接口、JWT 接口、管理接口三条链路，一次跑完并断言状态码而不是只看 200"
     },
     {
       "title": "需要验证越权",
-      "signal": "同一个接口不同用户能看到的资源不同",
-      "approach": "在一个用例里注册两个用户，分别请求并断言互相不可见"
+      "signal": "同一个接口不同用户能看到的资源不同，或者能改别人的数据",
+      "approach": "在一个用例里注册两个用户，分别写入并读取，断言互相不可见、越权请求返回 403 或 404"
+    },
+    {
+      "title": "新同事本地跑不起集成测试",
+      "signal": "README 里写着“先装 MySQL 8、建 learnhub_test 库、改密码”",
+      "approach": "换成 Testcontainers，镜像版本写进代码，@ServiceConnection 自动注入，clone 后一条命令就能跑"
+    },
+    {
+      "title": "前后端联调才发现字段对不上",
+      "signal": "后端改了字段名或错误体结构，前端上线后白屏",
+      "approach": "把关键响应结构固化成契约测试或 OpenAPI diff，在流水线上拦截不兼容变更"
+    },
+    {
+      "title": "发布前跑全量测试要等二十分钟",
+      "signal": "集成测试和单测混在一起跑，失败原因还要翻日志猜",
+      "approach": "拆成两个 job：单测秒级门禁，集成测试并行分片并设超时；报告按测试类归档，失败先看 surefire"
     }
   ]
 }

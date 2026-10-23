@@ -1,0 +1,202 @@
+{
+  "slug": "nginx-basics",
+  "title": "Nginx 入门与反向代理",
+  "category": "engineering",
+  "summary": "把 Nginx 当边缘入口：反代、负载均衡、HTTPS、缓存限流与 502/504 排查。",
+  "difficulty": "intermediate",
+  "estimatedHours": 6,
+  "tags": [
+    "nginx",
+    "reverse-proxy",
+    "https",
+    "load-balancing",
+    "ops"
+  ],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://nginx.org/en/docs/",
+  "prerequisites": [
+    "linux-basics",
+    "network-basics"
+  ],
+  "nextTopics": [
+    "spring-cloud-gateway"
+  ],
+  "relatedTopics": [
+    "docker-basics",
+    "vue3-spa"
+  ],
+  "overviewMd": "Nginx 是事件驱动的 HTTP 服务器与反向代理，常见角色是静态资源服务器、TLS 终止点和七层网关：把 /api 转发给 Spring Boot，把其余路径交给 Vue3 打包产物，同时承担压缩、缓存、限流和访问日志。master 进程读配置、worker 进程处理连接，nginx -s reload 平滑换配置，不中断在途请求。\n\n配置是一棵 http → server → location 的树。location 的匹配顺序决定请求落到哪个块：= 精确匹配最优先，其次是 ^~ 前缀（命中后不再试正则），再到 ~ 与 ~* 正则（按书写顺序），最后是最长普通前缀。很多「为什么代理到了错误后端」的问题，本质是优先级判断错了。\n\n反向代理的核心是 proxy_pass 的 URI 语义和 upstream 的策略。proxy_pass 带 URI 时会把匹配到的前缀替换掉，不带 URI 则原样透传，尾斜杠写错就会出现 /api/api 或 404。upstream 支持轮询、least_conn、ip_hash 和 hash，配合 max_fails、fail_timeout、keepalive 与 proxy_next_upstream 控制失败重试。\n\n生产向的能力集中在四件事：HTTPS（证书链、TLS 版本、HTTP/2、HSTS）、压缩与缓存（gzip_types、expires、proxy_cache）、限流（limit_req_zone 的 rate 与 burst、nodelay、limit_req_status）、以及真实 IP 与跨域（X-Forwarded-For、set_real_ip_from、add_header）。这些指令位置敏感，放错层级会静默不生效。\n\n排障要分清 502 和 504：502 是连不上上游（进程没起、端口错、upstream 全被标记 down），504 是连上了但等响应超时（proxy_read_timeout 太短或上游真的慢），两者都要先看 error.log 里的 upstream 行。边界上，Nginx 负责边缘接入与粗粒度限流，业务鉴权、按用户灰度更适合放在 Spring Cloud Gateway；本仓库的部署形态是 Nginx 托管 Vue3 静态资源并把 /api 反代到 Spring Boot，版本注意 1.25.1 起用 http2 on 替代 listen 上的 http2 参数。",
+  "concepts": [
+    {
+      "term": "master 与 worker",
+      "explanation": "master 读配置、管 worker，worker 用事件循环处理海量连接；nginx -s reload 启新 worker 并让旧 worker 优雅退出，restart 会直接断连接。"
+    },
+    {
+      "term": "配置层级与 include",
+      "explanation": "main 上下文放 worker_processes、events；http 放 upstream、limit_req_zone、gzip；server 定义虚拟主机，location 做路径匹配，include 用来拆分站点配置。"
+    },
+    {
+      "term": "location 匹配优先级",
+      "explanation": "顺序为 = 精确、^~ 前缀、~ 与 ~* 正则（按书写顺序）、最长普通前缀；命中 ^~ 后不再尝试正则，静态目录常靠它避免被正则规则抢走。"
+    },
+    {
+      "term": "proxy_pass 与 URI",
+      "explanation": "proxy_pass 带 URI 时替换匹配的前缀，不带 URI 时原样转发；location /api/ 配 proxy_pass http://up/; 会去掉 /api，写成 http://up 则保留。"
+    },
+    {
+      "term": "upstream 与负载均衡",
+      "explanation": "默认轮询，least_conn 按连接数、ip_hash 按客户端 IP 粘滞、hash 用自定义键；weight 调权重，backup 做备份，down 摘节点，keepalive 复用长连接。"
+    },
+    {
+      "term": "真实 IP 与请求头",
+      "explanation": "反代要透传 Host、X-Real-IP、X-Forwarded-For、X-Forwarded-Proto；前面还有代理时用 set_real_ip_from 加 real_ip_header 还原客户端 IP，不能无条件信任客户端头。"
+    },
+    {
+      "term": "静态资源与 SPA 回退",
+      "explanation": "root 拼接请求路径、alias 替换路径；try_files $uri $uri/ /index.html 让前端路由回到入口，静态目录长缓存，index.html 必须不缓存。"
+    },
+    {
+      "term": "HTTPS 与证书",
+      "explanation": "ssl_certificate 要用带中间证书的 fullchain，私钥权限收紧；ssl_protocols 只留 TLSv1.2/1.3，1.25.1 起用 http2 on，旧版本写在 listen 参数上。"
+    },
+    {
+      "term": "gzip 与缓存",
+      "explanation": "gzip 只压文本类，gzip_types 要显式列 MIME 且建议 gzip_vary on；expires 控制浏览器缓存，proxy_cache 缓存上游响应，注意区分动态接口。"
+    },
+    {
+      "term": "limit_req 限流",
+      "explanation": "limit_req_zone 按 IP 或键定义速率，limit_req 用 burst 排队、nodelay 立即拒绝，超限默认 503，可用 limit_req_status 改成 429 便于前端识别。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "装好并跑通",
+      "goal": "用包管理器或容器起 Nginx，认识 conf.d、sites-enabled 与日志目录，练熟 nginx -t、-T、-s reload。",
+      "hours": 1,
+      "resources": [
+        "Nginx 官方安装页",
+        "Beginner's Guide"
+      ]
+    },
+    {
+      "title": "静态站点与 location",
+      "goal": "部署 Vue3 的 dist 目录，用 root/alias、try_files 与 expires 配好静态资源，并验证 location 优先级。",
+      "hours": 1,
+      "resources": [
+        "ngx_http_core_module",
+        "本页 SPA 示例"
+      ]
+    },
+    {
+      "title": "反代 Spring Boot",
+      "goal": "把 /api/ 转发到 8080，透传 Host、X-Real-IP、X-Forwarded-For、X-Forwarded-Proto，在后端打印请求头确认。",
+      "hours": 1,
+      "resources": [
+        "ngx_http_proxy_module",
+        "本页反代示例"
+      ]
+    },
+    {
+      "title": "upstream 与多实例",
+      "goal": "起两个后端实例，练 least_conn 与 weight，摘掉一个节点观察 502 与 proxy_next_upstream 的重试行为。",
+      "hours": 1,
+      "resources": [
+        "ngx_http_upstream_module",
+        "Load Balancing 文档"
+      ]
+    },
+    {
+      "title": "HTTPS、gzip 与缓存",
+      "goal": "用自签或 Let's Encrypt 证书开 443 与 HTTP/2，验证 gzip 响应头和静态资源缓存策略。",
+      "hours": 1,
+      "resources": [
+        "ngx_http_ssl_module",
+        "ngx_http_gzip_module"
+      ]
+    },
+    {
+      "title": "限流与 502/504 排障",
+      "goal": "用 limit_req 压出 429/503，人为制造慢接口观察 504，从 error.log 的 upstream 行定位到具体层。",
+      "hours": 1,
+      "resources": [
+        "ngx_http_limit_req_module",
+        "本页排障命令"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "反向代理与 upstream 负载均衡",
+      "language": "nginx",
+      "description": "location /api/ 带尾斜杠的 proxy_pass 会剥掉前缀；least_conn 适合长请求，keepalive 复用上游连接，超时与重试参数决定故障时的表现。",
+      "code": "upstream learnhub_api {\n    least_conn;\n    server 10.0.0.11:8080 max_fails=3 fail_timeout=10s;\n    server 10.0.0.12:8080 max_fails=3 fail_timeout=10s;\n    keepalive 32;\n}\n\nserver {\n    listen 80;\n    server_name learn.example.com;\n\n    location /api/ {\n        proxy_pass http://learnhub_api/;\n        proxy_http_version 1.1;\n        proxy_set_header Connection \"\";\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_connect_timeout 3s;\n        proxy_send_timeout 30s;\n        proxy_read_timeout 30s;\n        proxy_next_upstream error timeout http_502 http_503;\n    }\n\n    location = /actuator/health {\n        proxy_pass http://learnhub_api/actuator/health;\n        access_log off;\n    }\n\n    location / {\n        root /usr/share/nginx/html;\n        try_files $uri $uri/ /index.html;\n    }\n}"
+    },
+    {
+      "title": "HTTPS + SPA 回退 + 限流",
+      "language": "nginx",
+      "description": "limit_req_zone 属于 http 上下文，必须写在 server 之外；证书用 fullchain，assets 长缓存、index.html 走回退不缓存。",
+      "code": "limit_req_zone $binary_remote_addr zone=api_limit:10m rate=20r/s;\n\nserver {\n    listen 443 ssl;\n    http2 on;\n    server_name learn.example.com;\n\n    ssl_certificate     /etc/nginx/certs/fullchain.pem;\n    ssl_certificate_key /etc/nginx/certs/privkey.pem;\n    ssl_protocols       TLSv1.2 TLSv1.3;\n    ssl_session_cache   shared:SSL:10m;\n\n    root  /usr/share/nginx/html;\n    index index.html;\n\n    gzip on;\n    gzip_vary on;\n    gzip_min_length 1k;\n    gzip_types text/css application/javascript application/json image/svg+xml;\n\n    location /api/ {\n        limit_req zone=api_limit burst=40 nodelay;\n        limit_req_status 429;\n        proxy_pass http://learnhub_api/;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }\n\n    location /assets/ {\n        expires 1y;\n        add_header Cache-Control \"public, immutable\";\n        try_files $uri =404;\n    }\n\n    location / {\n        try_files $uri $uri/ /index.html;\n    }\n}"
+    },
+    {
+      "title": "排障命令：配置、502/504、限流与缓存",
+      "language": "bash",
+      "description": "先 nginx -t 再 reload；502 查进程与端口，504 量上游耗时并看 error.log 的 upstream 行，最后验证限流与缓存是否生效。",
+      "code": "# 1. 改配置后先语法检查，再平滑生效\nnginx -t\nnginx -T | grep -n \"server_name\"\nnginx -s reload\n\n# 2. 502：多半连不上上游，先确认进程与端口\nss -lntp | grep 8080\ncurl -sv http://127.0.0.1:8080/actuator/health\n\n# 3. 504：连上了但响应慢，量化上游耗时\ntime curl -s -o /dev/null http://127.0.0.1/api/topics\ngrep -E 'upstream timed out|no live upstreams|connect failed' /var/log/nginx/error.log | tail -n 20\n\n# 4. 限流是否按预期触发\nfor i in $(seq 1 50); do curl -s -o /dev/null -w '%{http_code} ' http://127.0.0.1/api/topics; done; echo\n\n# 5. 压缩与缓存是否命中\ncurl -sI https://learn.example.com/assets/app.js | grep -Ei 'cache-control|content-encoding'"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "proxy_pass 尾斜杠写错",
+      "detail": "location /api/ 配 proxy_pass http://backend; 会转发原始 /api/topics，配 http://backend/; 才会去掉 /api 前缀。前后端都带 /api 时最容易出现 /api/api 或 404，改完用 curl -v 看实际请求 URI。"
+    },
+    {
+      "title": "location 优先级判断错",
+      "detail": "以为前缀最长就一定命中，实际上正则先于普通前缀；静态目录被 js 正则抢走、或漏写 ^~ 导致 /assets 走了代理。用 nginx -T 看最终配置，关键路径加 = 精确匹配。"
+    },
+    {
+      "title": "add_header 不继承导致跨域头丢失",
+      "detail": "子 location 一旦自己写了 add_header，父级 server/http 的 add_header 全部不继承，CORS 与安全头会静默消失。跨域头写在最终命中的 location，或用 include 复用片段，并处理 OPTIONS 预检。"
+    },
+    {
+      "title": "无条件信任 X-Forwarded-For",
+      "detail": "客户端可以自带 XFF，直接取第一个 IP 会被伪造，限流、审计、灰度全部失真。只有可信代理才配 set_real_ip_from，再 real_ip_header X-Forwarded-For，业务取 $remote_addr。"
+    },
+    {
+      "title": "SPA 回退把接口 404 吞成 200",
+      "detail": "location / 里 try_files 回退 index.html，会把 /api 下的 404 也返回首页，前端拿到 HTML 解析失败。把 /api/ 单独反代，或对静态目录用 try_files $uri =404，index.html 设 no-cache。"
+    },
+    {
+      "title": "502 与 504 混为一谈",
+      "detail": "502 是连不上上游：进程没起、端口写错、upstream 全被 max_fails 摘除；504 是连上了但 proxy_read_timeout 内没响应，多为上游慢或连接池耗尽。先看 error.log 的 upstream 行，再决定改端口还是调超时。"
+    }
+  ],
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "前后端分离同域上线",
+      "signal": "Vue3 打包产物与 Spring Boot 分别部署，前端希望 /api 同域以避开跨域",
+      "approach": "Nginx 托管 dist，location /api/ 反代后端并透传头，location / 用 try_files 回退 index.html；跨域头只在一层加，避免重复"
+    },
+    {
+      "title": "单机多实例与灰度",
+      "signal": "一台机器起两个后端实例，想按权重放量或临时摘掉一个",
+      "approach": "upstream 配 weight 与 max_fails/fail_timeout，发布前把节点标 down 再 reload；需要会话粘滞用 ip_hash，长连接加 keepalive"
+    },
+    {
+      "title": "全站 HTTPS 与证书续期",
+      "signal": "浏览器提示不安全，或 HTTP 与 HTTPS 混用出现混合内容",
+      "approach": "80 端口 301 到 443，证书用 fullchain，开 TLSv1.2/1.3 与 HSTS；续期后 reload，并监控证书到期时间与握手错误"
+    },
+    {
+      "title": "接口被刷要限流",
+      "signal": "某 IP 或某接口 QPS 异常，数据库连接被打满",
+      "approach": "limit_req_zone 按 IP 建区，burst 吸收突发、nodelay 立即拒绝，超限返回 429；按接口区分速率，配合日志与告警观察误伤"
+    },
+    {
+      "title": "上线后大量 502/504",
+      "signal": "网关层错误率飙升，后端日志却看不出明显异常",
+      "approach": "先看 error.log 的 upstream 行区分连不上还是超时，再查后端进程、端口、线程池与慢 SQL；必要时摘节点扩副本，而不是直接调大超时"
+    }
+  ]
+}

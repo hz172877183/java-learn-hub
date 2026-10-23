@@ -1,0 +1,220 @@
+{
+  "slug": "observability-prometheus",
+  "title": "Prometheus 可观测性实战",
+  "category": "observability",
+  "summary": "从 Prometheus 数据模型与 PromQL 到 Grafana 看板、告警抑制与 SLO 错误预算，把指标、日志、链路三支柱串成一条排查路径。",
+  "difficulty": "practical",
+  "estimatedHours": 8,
+  "tags": [
+    "prometheus",
+    "grafana",
+    "observability",
+    "metrics",
+    "opentelemetry",
+    "alerting"
+  ],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://prometheus.io/docs/introduction/overview/",
+  "prerequisites": [
+    "actuator",
+    "spring-boot-fundamentals"
+  ],
+  "nextTopics": [
+    "kubernetes-basics"
+  ],
+  "relatedTopics": [
+    "spring-cloud-gateway",
+    "linux-basics"
+  ],
+  "overviewMd": "可观测性解决的不是「多打点日志」，而是面对没预设过的问题时，还能用系统外部输出推断内部状态。它由三个信号组成：Metrics 记录聚合趋势，适合发现与告警；Logging 记录离散事件，适合还原细节；Tracing 记录跨服务因果，适合回答「慢在哪一跳」。三者靠 traceId 与统一的服务、环境标签对齐，缺一条就只能靠猜。\n\nPrometheus 是这套体系里指标侧的事实标准。它按固定间隔拉取目标暴露的文本端点，把数据存成「指标名 + 标签集」标识的时间序列，并自带 PromQL 查询语言与告警规则引擎。理解数据模型比背函数重要：标签既是查询维度也是存储成本，Counter 只增、Gauge 可升降、Histogram 分桶，所以延迟分位要用 histogram_quantile 而不是对平均值求分位。\n\n落地路径通常是：应用用 Micrometer 埋点，Actuator 暴露 /actuator/prometheus；中间件、主机、数据库由各自 Exporter 补齐；Prometheus 抓取并计算规则，Grafana 只负责查询与展示，Alertmanager 负责分组、路由、静默与抑制。看板设计用 RED（Rate、Errors、Duration）看服务，用 USE（Utilization、Saturation、Errors）看资源，第一屏只放这四个信号。\n\n告警是治理问题而非技术问题。每条规则都该有 for 持续时间、明确的严重级别和 runbook 链接；跨服务的同一根因要靠抑制收敛，计划内变更用静默而不是关规则。更成熟的做法是把告警挂在 SLO 上：用 SLI 定义「好请求比例」，用错误预算决定发布节奏，用多窗口燃烧率替代拍脑袋的阈值。\n\n适用与边界：长驻服务、K8s 工作负载、微服务调用链是主场景。Prometheus 本身不适合高基数明细、长期存储与精确计费，超过保留期或序列数上限时接 Thanos、Mimir、VictoriaMetrics；批处理任务更适合看结果表与日志。版本上注意 Prometheus 2.x 的拉取模型与 remote write 生态、Micrometer 与 OpenTelemetry 的桥接方式、以及 OTel SDK 已成为跨语言埋点的事实标准。放回本仓库：backend 已开 Actuator，观测层从管理端口起步，顺序是先指标与日志 traceId，再谈看板与告警。",
+  "concepts": [
+    {
+      "term": "Metrics、Logging 与 Tracing",
+      "explanation": "三支柱分工不同：指标看聚合趋势与告警，日志看单次事件细节，链路看跨服务因果。排障先由指标发现异常，再用 traceId 串起日志与链路。"
+    },
+    {
+      "term": "时间序列数据模型",
+      "explanation": "每条样本由指标名、标签集、时间戳与数值构成。标签决定查询维度也决定存储基数，变量不能拼进指标名或标签值，否则序列数爆炸。"
+    },
+    {
+      "term": "指标类型与 PromQL",
+      "explanation": "Counter 只增、Gauge 可升降、Histogram 分桶、Summary 客户端算分位。PromQL 用 rate 取增速、histogram_quantile 算分位，避开平均值陷阱。"
+    },
+    {
+      "term": "Exporter 与 Micrometer",
+      "explanation": "Exporter 把中间件与主机的内部状态转成指标端点供拉取；Micrometer 在应用内做维度埋点，Actuator 将其输出为 Prometheus 文本格式。"
+    },
+    {
+      "term": "Grafana 看板与变量",
+      "explanation": "Grafana 只查询与展示，不产生数据。看板按入口层、服务层、资源层分层，用变量切换实例与环境，第一屏只放 RED 或 USE 四个信号。"
+    },
+    {
+      "term": "告警规则、抑制与静默",
+      "explanation": "规则用 PromQL 表达式加 for 持续时间过滤抖动，先进 pending 再触发；Alertmanager 负责分组、路由、静默与抑制，避免同一根因刷屏。"
+    },
+    {
+      "term": "OpenTelemetry 与 traceId",
+      "explanation": "OTel 统一 trace、metric、log 的埋点协议与 SDK，traceId 串起跨服务 span；写进日志与响应头才能对齐。采样用头部或尾部策略控成本，错误请求必须保留。"
+    },
+    {
+      "term": "日志聚合",
+      "explanation": "Loki、Elasticsearch 把多实例日志集中存储与检索，按 traceId、服务、级别建索引；成本主要来自标签与保留期，结构化字段比全文堆砌有用。"
+    },
+    {
+      "term": "RED 与 USE",
+      "explanation": "RED 面向请求：Rate、Errors、Duration；USE 面向资源：Utilization、Saturation、Errors。服务健康看 RED，主机、数据库与连接池看 USE。"
+    },
+    {
+      "term": "SLO、SLI 与错误预算",
+      "explanation": "SLI 是可度量的好请求比例，SLO 是目标线，错误预算等于 1 减 SLO。预算烧完就冻结发布，用多窗口燃烧率告警替代单点阈值。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "对齐三支柱与信号",
+      "goal": "列出当前服务现有的 metric、log、trace 出口并标出缺失项，用一次真实故障复盘说明该先看哪个信号。",
+      "hours": 0.5,
+      "resources": [
+        "README.md",
+        "actuator"
+      ]
+    },
+    {
+      "title": "本地起 Prometheus 与 Grafana",
+      "goal": "用 docker-compose 起 Prometheus、Grafana、Alertmanager，抓取 /actuator/prometheus，确认 target 为 UP 且能看到 JVM 指标。",
+      "hours": 1,
+      "resources": [
+        "docker-compose",
+        "Prometheus 官方文档"
+      ]
+    },
+    {
+      "title": "埋点与标签设计",
+      "goal": "用 Micrometer 增加业务计数器与 Timer，标签只保留枚举维度，估算每个指标会产生多少条序列。",
+      "hours": 1.5,
+      "resources": [
+        "Micrometer 文档",
+        "backend/src/main/resources/application.yml"
+      ]
+    },
+    {
+      "title": "写 PromQL 与 RED 看板",
+      "goal": "为流量、错误、延迟、饱和度各写一条查询，做出第一屏看板，并对比 avg 与 histogram_quantile 的结论差异。",
+      "hours": 1.5,
+      "resources": [
+        "PromQL 官方文档"
+      ]
+    },
+    {
+      "title": "告警规则与抑制",
+      "goal": "写一条带 for 的错误率告警和一条抑制规则，人为制造故障后确认只收到一条有效通知。",
+      "hours": 1,
+      "resources": [
+        "Alertmanager 文档",
+        "kubernetes-basics"
+      ]
+    },
+    {
+      "title": "打通 traceId 与日志",
+      "goal": "接入 OpenTelemetry agent 或 starter，把 traceId 写进日志与响应头，做到从指标跳到日志再跳到链路。",
+      "hours": 1.5,
+      "resources": [
+        "OpenTelemetry Java 文档",
+        "linux-basics"
+      ]
+    },
+    {
+      "title": "定 SLO 与告警治理",
+      "goal": "为详情接口定 99.9% 可用性 SLI，配置多窗口燃烧率告警，写清 runbook 与静默审批流程。",
+      "hours": 1,
+      "resources": [
+        "SRE Workbook：SLO 章节",
+        "spring-cloud-gateway"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "抓取配置与错误率告警",
+      "language": "yaml",
+      "description": "Prometheus 只抓管理端口；规则先用 record 预计算错误率，再用 for 过滤抖动，并挂上 runbook。",
+      "code": "# prometheus.yml：只抓管理端口，指标名与标签由 Micrometer 决定\nglobal:\n  scrape_interval: 15s\n  evaluation_interval: 15s\n\nscrape_configs:\n  - job_name: learnhub-backend\n    metrics_path: /actuator/prometheus\n    static_configs:\n      - targets: [\"backend:9090\"]\n        labels:\n          env: prod\n          app: java-learn-hub\n\nrule_files:\n  - rules/*.yml\n\n# rules/http.yml：先预计算再告警，避免每张图重复算\ngroups:\n  - name: http-red\n    rules:\n      - record: job:http_error_ratio:5m\n        expr: |\n          sum by (job) (rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]))\n          /\n          sum by (job) (rate(http_server_requests_seconds_count[5m]))\n      - alert: HighErrorRatio\n        expr: job:http_error_ratio:5m > 0.05\n        for: 10m\n        labels:\n          severity: page\n        annotations:\n          summary: \"{{ $labels.job }} 5xx 比例 {{ $value | humanizePercentage }}\"\n          runbook: \"https://wiki.example.com/runbook/http-5xx\""
+    },
+    {
+      "title": "RED 四问与错误预算查询",
+      "language": "promql",
+      "description": "流量、错误、延迟、饱和度各一条，最后用燃烧率把指标接到 SLO 上；注意分位必须先按 le 聚合。",
+      "code": "# 1. 流量：每秒请求数，按 URI 模板拆分\nsum by (uri) (rate(http_server_requests_seconds_count{job=\"learnhub-backend\"}[5m]))\n\n# 2. 错误：5xx 占比\nsum(rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]))\n  / sum(rate(http_server_requests_seconds_count[5m]))\n\n# 3. 延迟：P99，Histogram 必须先按 le 聚合再求分位\nhistogram_quantile(0.99,\n  sum by (le) (rate(http_server_requests_seconds_bucket{job=\"learnhub-backend\"}[5m])))\n\n# 4. 饱和度：连接池占用率，USE 里的 Saturation\nmax by (pool) (hikaricp_connections_active{job=\"learnhub-backend\"})\n  / max by (pool) (hikaricp_connections_max{job=\"learnhub-backend\"})\n\n# 5. 燃烧率：1 小时窗口消耗多少倍预算（SLO 99.9%）\n(\n  sum(rate(http_server_requests_seconds_count{status=~\"5..\"}[1h]))\n    / sum(rate(http_server_requests_seconds_count[1h]))\n) / (1 - 0.999)"
+    },
+    {
+      "title": "traceId 透出与请求计数",
+      "language": "java",
+      "description": "把 traceId 写进响应头，并按模板化 URI 与状态码计数，避免原始路径进标签导致基数爆炸。",
+      "code": "package com.learn.hub.observability;\n\nimport io.micrometer.core.instrument.MeterRegistry;\nimport jakarta.servlet.FilterChain;\nimport jakarta.servlet.ServletException;\nimport jakarta.servlet.http.HttpServletRequest;\nimport jakarta.servlet.http.HttpServletResponse;\nimport org.slf4j.MDC;\nimport org.springframework.stereotype.Component;\nimport org.springframework.web.filter.OncePerRequestFilter;\n\nimport java.io.IOException;\n\n/** traceId 落到日志与响应头，同时按模板化 URI 记录请求结果。 */\n@Component\npublic class TraceAndMetricsFilter extends OncePerRequestFilter {\n\n    private final MeterRegistry registry;\n\n    public TraceAndMetricsFilter(MeterRegistry registry) { this.registry = registry; }\n\n    @Override\n    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,\n                                    FilterChain chain) throws ServletException, IOException {\n        if (MDC.get(\"traceId\") != null) {\n            response.setHeader(\"X-Trace-Id\", MDC.get(\"traceId\"));\n        }\n        try {\n            chain.doFilter(request, response);\n        } finally {\n            // 模板化路径 + 状态码做标签，避免把原始 URI 写进标签造成基数爆炸\n            String uri = request.getRequestURI().replaceAll(\"/\\\\d+\", \"/{id}\");\n            registry.counter(\"learnhub_http_requests_total\",\n                            \"method\", request.getMethod(), \"uri\", uri,\n                            \"status\", String.valueOf(response.getStatus()))\n                    .increment();\n        }\n    }\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "标签基数爆炸",
+      "detail": "现象：Prometheus 内存与磁盘暴涨，查询变慢甚至触发 series 上限。原因：把 userId、sessionId、原始 URI、异常堆栈塞进标签，每个取值都是一条新序列。规避：标签只留低基数枚举，动态值走日志或 trace，新增标签前先估算「取值数 × 时间序列倍数」。"
+    },
+    {
+      "title": "用平均值当延迟指标",
+      "detail": "现象：看板延迟很平稳，用户仍在投诉卡顿。原因：平均值抹掉了长尾，少量慢请求被大量快请求稀释。规避：Histogram 配 histogram_quantile 看 P95/P99，并同时看错误率与饱和度，别单看一条平均线。"
+    },
+    {
+      "title": "告警没有 for，抖动即刷屏",
+      "detail": "现象：一次发布或 GC 抖动就触发几十条告警，值班开始无视。原因：阈值直接比较瞬时值，没有持续时间和最小样本量约束。规避：加 for: 5m 以上、要求分母有足够请求量、用 rate 窗口平滑；把真正的故障与噪声分开评估。"
+    },
+    {
+      "title": "分位计算跨实例先平均",
+      "detail": "现象：各实例 P99 都正常，汇总后指标异常或对不上日志。原因：分位不可加，把各实例的分位值再平均在数学上无意义。规避：先 sum by (le) 聚合桶再求分位，或直接查后端聚合结果，不要对分位做二次运算。"
+    },
+    {
+      "title": "traceId 断链，三支柱各说各话",
+      "detail": "现象：日志里没有 traceId，指标告警后无法定位到具体请求与下游。原因：网关或异步线程池未透传上下文，MDC 在新线程里为空。规避：入口统一生成或继承 traceId，异步任务显式传递上下文，日志格式固定输出 traceId，并在响应头回传。"
+    },
+    {
+      "title": "静默与抑制掩盖真实故障",
+      "detail": "现象：故障期间没有任何通知，事后才发现规则被长期静默或抑制范围过宽。原因：静默没设过期时间，抑制规则用服务级匹配覆盖了大面积告警。规避：静默必须带截止时间与变更单号，抑制只在明确的父子关系上生效，并定期审计静默清单。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "应用配置",
+      "path": "backend/src/main/resources/application.yml"
+    },
+    {
+      "label": "本地启动说明",
+      "path": "README.md"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "发布后 P99 突然翻倍",
+      "signal": "Grafana 延迟曲线台阶式上升，错误率暂时正常，日志里没有异常堆栈",
+      "approach": "先按 RED 拆分：确认流量是否同比例变化、错误率是否滞后上升；再看 URI 维度定位具体接口，用 trace 找最慢的 span；若是下游依赖变慢，查该依赖的连接池与 USE 指标，而不是先回滚。"
+    },
+    {
+      "title": "一晚上收到两百条告警",
+      "signal": "一个数据库实例抖动，触发多个服务的错误率、延迟、健康检查告警",
+      "approach": "短期用 Alertmanager 的分组与抑制把同根因告警收敛为一条，并给受影响服务发静默；中期把直接依赖类告警改成基于 SLO 燃烧率，减少低价值通知。"
+    },
+    {
+      "title": "大促前要定容量与发布节奏",
+      "signal": "业务方要求承诺可用性，但团队没有明确的 SLO 与错误预算",
+      "approach": "选一个用户可感知的 SLI（如详情接口 2xx 且 300ms 内成功的比例），定 99.9% 目标；用历史数据算当前预算消耗，配置多窗口燃烧率告警，约定预算耗尽即冻结非必要发布。"
+    },
+    {
+      "title": "日志账单突然涨了三倍",
+      "signal": "日志平台存储与索引成本飙升，查询却越来越慢",
+      "approach": "先按服务与级别统计日志量与标签基数，把 debug 与重复异常栈降采样或改采样输出；正文结构化字段化，长文本走对象存储，保留期按合规要求分层。"
+    },
+    {
+      "title": "跨服务调用慢，定位不到哪一跳",
+      "signal": "网关耗时 800ms，下游各服务自报指标都在 100ms 内",
+      "approach": "用 traceId 拉完整调用链，看 span 的时间分布与父子关系，重点排查重试、序列化、连接池等待与异步队列；把发现的时间空洞补上埋点，再回到指标验证。"
+    }
+  ]
+}

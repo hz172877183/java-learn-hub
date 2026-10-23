@@ -1,0 +1,227 @@
+{
+  "slug": "spring-boot-advanced",
+  "title": "Spring Boot 3 进阶：自动配置、启动与 Native",
+  "category": "spring-core",
+  "summary": "从自动配置源码到 AOT、虚拟线程与测试切片，把 Boot 的默认行为变成可解释、可替换的机制。",
+  "difficulty": "intermediate",
+  "estimatedHours": 8,
+  "tags": [
+    "spring-boot",
+    "auto-configuration",
+    "starter",
+    "actuator",
+    "aot",
+    "virtual-threads"
+  ],
+  "status": "published",
+  "integrationStatus": "snippet",
+  "officialDocsUrl": "https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html",
+  "prerequisites": [
+    "spring-boot-fundamentals",
+    "spring-web-rest"
+  ],
+  "nextTopics": [
+    "observability-prometheus",
+    "kubernetes-basics"
+  ],
+  "relatedTopics": [
+    "actuator",
+    "integration-testing",
+    "config-and-secrets"
+  ],
+  "overviewMd": "基础篇把 Boot 当成能跑的骨架，进阶篇要回答三个问题：这个默认 Bean 是谁装的、启动那几秒到底发生了什么、换一种运行时（Native Image、虚拟线程）还成不成立。对应的知识也分三块：装配机制（AutoConfiguration.imports、@Conditional 系列、自定义 Starter）、生命周期（SpringApplication 启动流程、启动事件、优雅停机、启动失败分析）与运行形态（AOT/Native Image、虚拟线程、测试切片）。\n\n装配只有一条主线：条件驱动 + 后来者覆盖。自动配置类登记在 `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` 里，Boot 在 refresh 之前把它们当作普通配置类排序导入；每个类用 @ConditionalOnClass 保证依赖缺失时安静跳过，用 @ConditionalOnMissingBean 把优先权让给使用者声明的 Bean。启动流程则是 prepareEnvironment → createApplicationContext → prepareContext → refreshContext → afterRefresh → running，事件按 Starting、EnvironmentPrepared、ContextPrepared、ContextLoaded、Prepared、Started、Ready 的顺序发出，失败时发 Failed 并交给 FailureAnalyzer 翻译成人话。\n\n该用时：要把团队约定固化成内部 Starter、启动时间或停机行为需要可解释、准备上 Native Image 或评估虚拟线程、测试套件因为 @SpringBootTest 太慢而需要切片。不该用时：只写增删改查的业务服务、团队还没弄懂 Bean 生命周期与作用域——这时候先读基础篇收益更大。进阶知识不是炫技清单，而是排障时的坐标系。\n\n版本注意点：Boot 3.x 的硬约束是 Java 17+（本仓库用 21）、Spring Framework 6 与 Jakarta 命名空间；自动配置清单一律走 AutoConfiguration.imports，spring.factories 在 3.0 之后不再是自动配置入口（其他扩展点仍然用它）。虚拟线程要 Boot 3.2+ 且 JDK 21+，一条 `spring.threads.virtual.enabled` 开关；Native Image 需要 GraalVM 与 AOT 处理，构建期生成代理、反射与资源提示，换来更快的启动与更小的内存，但构建慢、动态能力受限。本仓库对齐 Boot 3.5 / Framework 6.2。\n\n放在本仓库里看：backend 已经开启 graceful shutdown 与 health 探针，是现成的观察点——改一个配置、kill 一次进程、看一次 --debug 报告，比读十页文档有效。建议把自定义 Starter 实验放在独立子模块，Actuator 端点只暴露必要信息，Native 实验单独起一个 demo，不要在主线上一次性引入全部机制。",
+  "concepts": [
+    {
+      "term": "AutoConfiguration.imports",
+      "explanation": "Boot 3 的自动配置清单，位于 META-INF/spring/ 下，一行一个全限定类名；spring.factories 不再是自动配置入口。"
+    },
+    {
+      "term": "@Conditional 家族",
+      "explanation": "按类、Bean、属性、资源、Web 类型决定是否装配；@ConditionalOnMissingBean 把优先权交给使用者，条件报告是它的可读输出。"
+    },
+    {
+      "term": "自定义 Starter",
+      "explanation": "拆成 autoconfigure 与 starter 两个模块：逻辑放 autoconfigure，starter 只聚合依赖，条件注解齐全才能被安全覆盖或排除。"
+    },
+    {
+      "term": "启动流程与事件",
+      "explanation": "prepareEnvironment、createContext、prepareContext、refresh、running 五个阶段；监听器选错事件，就会拿到半成品上下文。"
+    },
+    {
+      "term": "配置导入与绑定",
+      "explanation": "@Import、@ImportResource、ImportSelector 把外部配置拉进容器；@ConfigurationProperties 负责绑定与校验，Starter 里两者通常成对出现。"
+    },
+    {
+      "term": "优雅停机",
+      "explanation": "server.shutdown=graceful 让内嵌容器停止接新请求并等待在途请求，超时由 timeout-per-shutdown-phase 控制，还需配合网关摘流。"
+    },
+    {
+      "term": "启动失败分析",
+      "explanation": "FailureAnalyzer 把端口占用、Bean 缺失、配置绑定失败翻译成结论与动作；先读这段，再看条件报告里的负向匹配。"
+    },
+    {
+      "term": "AOT 与 Native Image",
+      "explanation": "构建期生成 Bean 定义、代理与反射提示，运行期不再扫描 classpath；反射、资源、动态代理没注册 hint，就会在运行期才炸。"
+    },
+    {
+      "term": "虚拟线程",
+      "explanation": "Boot 3.2+ 一行开关让 Tomcat 使用虚拟线程；synchronized 长临界区会钉住载体线程，连接池容量也不会自动扩容。"
+    },
+    {
+      "term": "测试切片",
+      "explanation": "@WebMvcTest、@DataJpaTest 只加载相关自动配置，用隔离换速度；切片外的依赖要显式补，MockBean 在 3.4+ 已被 MockitoBean 取代。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "读一遍自动配置清单",
+      "goal": "解压 spring-boot-autoconfigure，在 imports 文件里找到 WebMvcAutoConfiguration，再读它的类级条件，说清它为什么生效。",
+      "hours": 0.5,
+      "resources": [
+        "spring-boot-autoconfigure jar",
+        "Auto-configuration 文档"
+      ]
+    },
+    {
+      "title": "用 --debug 做条件考古",
+      "goal": "启动时加 --debug，在 ConditionEvaluationReport 里挑一个 negative match，判断是缺类、缺 Bean 还是属性未开启。",
+      "hours": 1,
+      "resources": [
+        "ConditionEvaluationReport",
+        "backend/src/main/resources/application.yml"
+      ]
+    },
+    {
+      "title": "写一个内部 Starter",
+      "goal": "建 autoconfigure 与 starter 两个模块，用 @AutoConfiguration 加 @ConditionalOnProperty 装配一个客户端，并补上 imports 文件。",
+      "hours": 1.5,
+      "resources": [
+        "本页示例",
+        "Spring Boot 自定义 Starter 文档"
+      ]
+    },
+    {
+      "title": "观察启动事件顺序",
+      "goal": "注册 ApplicationListener 打印事件到达顺序，再让一个 Bean 构造抛异常，确认 Failed 事件、退出码与 failure analysis 输出。",
+      "hours": 1,
+      "resources": [
+        "SpringApplication 事件文档",
+        "backend/src/main/java/com/learn/hub/JavaLearnHubApplication.java"
+      ]
+    },
+    {
+      "title": "自定义端点并验证停机",
+      "goal": "写一个 @Endpoint 暴露内容统计并用 curl 调到，再发 SIGTERM 观察在途请求是否跑完、超时时间是否生效。",
+      "hours": 1.5,
+      "resources": [
+        "Actuator 端点文档",
+        "本页示例"
+      ]
+    },
+    {
+      "title": "试一次 AOT 与 Native 构建",
+      "goal": "先执行 process-aot 看生成物，再用 GraalVM 构建 native 镜像，对比启动时间与内存，记录缺失的反射 hint。",
+      "hours": 1.5,
+      "resources": [
+        "GraalVM Native Image 文档",
+        "spring-boot-maven-plugin"
+      ]
+    },
+    {
+      "title": "开虚拟线程并做切片测试",
+      "goal": "打开 spring.threads.virtual.enabled 压测对比前后吞吐，再把一个 @SpringBootTest 改成 @WebMvcTest，记录启动耗时变化。",
+      "hours": 1,
+      "resources": [
+        "虚拟线程支持文档",
+        "Spring Boot Testing 文档"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "自定义 Starter 的自动配置",
+      "language": "java",
+      "description": "写在 autoconfigure 模块里：类级条件决定是否参与装配，方法级 @ConditionalOnMissingBean 让使用者可以换掉默认实现；imports 文件只需登记 AuditAutoConfiguration 一行。",
+      "code": "package com.learnhub.audit.autoconfigure;\n\nimport java.time.Duration;\nimport org.springframework.boot.autoconfigure.AutoConfiguration;\nimport org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;\nimport org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;\nimport org.springframework.boot.context.properties.ConfigurationProperties;\nimport org.springframework.boot.context.properties.EnableConfigurationProperties;\nimport org.springframework.context.annotation.Bean;\n\n@AutoConfiguration\n@ConditionalOnProperty(prefix = \"learnhub.audit\", name = \"enabled\", havingValue = \"true\")\n@EnableConfigurationProperties(AuditAutoConfiguration.AuditProperties.class)\npublic class AuditAutoConfiguration {\n\n    @Bean\n    @ConditionalOnMissingBean\n    AuditClient auditClient(AuditProperties properties) {\n        return new AuditClient(properties.endpoint(), properties.timeout());\n    }\n\n    @ConfigurationProperties(prefix = \"learnhub.audit\")\n    public record AuditProperties(String endpoint, Duration timeout) {\n\n        public AuditProperties {\n            endpoint = endpoint == null ? \"http://localhost:9000\" : endpoint;\n            timeout = timeout == null ? Duration.ofSeconds(2) : timeout;\n        }\n    }\n\n    public record AuditClient(String endpoint, Duration timeout) {\n\n        public void record(String action) {\n            System.out.println(\"audit \" + action + \" -> \" + endpoint);\n        }\n    }\n}"
+    },
+    {
+      "title": "自定义 Actuator 端点",
+      "language": "java",
+      "description": "读取内容统计的只读端点；@Endpoint 的 id 就是 URL 片段，记得在 management.endpoints.web.exposure.include 里加上 learnhub，否则只会得到 404。",
+      "code": "package com.learn.hub.actuator;\n\nimport java.time.Instant;\nimport org.springframework.boot.actuate.endpoint.annotation.Endpoint;\nimport org.springframework.boot.actuate.endpoint.annotation.ReadOperation;\nimport org.springframework.boot.actuate.endpoint.annotation.Selector;\nimport org.springframework.stereotype.Component;\n\n@Component\n@Endpoint(id = \"learnhub\")\npublic class LearnHubEndpoint {\n\n    private final ContentStats stats;\n\n    public LearnHubEndpoint(ContentStats stats) {\n        this.stats = stats;\n    }\n\n    @ReadOperation\n    public Report report() {\n        return new Report(stats.topicCount(), stats.quizCount(), Instant.now());\n    }\n\n    @ReadOperation\n    public TopicDetail topic(@Selector String slug) {\n        return stats.find(slug)\n                .map(topic -> new TopicDetail(topic.slug(), topic.title(), topic.concepts()))\n                .orElseThrow(() -> new IllegalArgumentException(\"unknown topic: \" + slug));\n    }\n\n    public record Report(int topics, int quizzes, Instant sampledAt) { }\n\n    public record TopicDetail(String slug, String title, int concepts) { }\n}"
+    },
+    {
+      "title": "生产配置：停机、虚拟线程与端点",
+      "language": "yaml",
+      "description": "优雅停机的两处开关、虚拟线程、探针与端点暴露。开启虚拟线程后 Tomcat 线程池上限不再生效，容量要按数据库连接池与下游限流来算。",
+      "code": "server:\n  port: ${SERVER_PORT:8080}\n  shutdown: graceful\n\nspring:\n  application:\n    name: java-learn-hub\n  lifecycle:\n    timeout-per-shutdown-phase: 25s\n  threads:\n    virtual:\n      enabled: true\n\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: health,info,metrics,learnhub\n  endpoint:\n    health:\n      probes:\n        enabled: true\n      show-details: when-authorized\n\nlogging:\n  level:\n    com.learn.hub: INFO"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "还在用 spring.factories 登记自动配置",
+      "detail": "现象：Starter 引进来后什么都没发生，也没有报错。原因：Boot 3.0 起自动配置只认 AutoConfiguration.imports。规避：在 autoconfigure 模块的 META-INF/spring/ 下建该文件，一行一个类名；spring.factories 留给 EnvironmentPostProcessor 等其它扩展点。"
+    },
+    {
+      "title": "配置类被组件扫描重复处理",
+      "detail": "现象：同一个 Bean 定义两次，或条件判断结果与预期相反。原因：@AutoConfiguration 类放在主类扫描范围内，被当成普通配置类提前处理。规避：自动配置放独立包（如 xxx.autoconfigure）并排除在主扫描之外。"
+    },
+    {
+      "title": "写了端点却一直 404",
+      "detail": "现象：@Endpoint 类已注册，访问 /actuator/learnhub 返回 404。原因：web.exposure.include 默认只放 health，端点未暴露。规避：显式 include 端点 id，生产环境配合 Spring Security 限制访问角色。"
+    },
+    {
+      "title": "优雅停机并不优雅",
+      "detail": "现象：日志显示 graceful，滚动发布时仍有 502。原因：摘流晚于进程退出，或 shutdown 超时小于最长请求耗时。规避：先让网关与 readiness 摘流，再发 SIGTERM，并让 timeout-per-shutdown-phase 覆盖 P99 请求时间。"
+    },
+    {
+      "title": "虚拟线程与线程池错配",
+      "detail": "现象：打开虚拟线程后吞吐不升反降，偶发卡顿。原因：synchronized 长临界区钉住载体线程，或数据库连接池仍是按线程数配的固定值。规避：用 ReentrantLock 替代长临界区，按连接池与下游限流重新算并发，而不是沿用 Tomcat 线程数。"
+    },
+    {
+      "title": "Native 镜像运行期才发现反射问题",
+      "detail": "现象：JVM 上一切正常，native 镜像启动或首次调用时抛 ClassNotFoundException、序列化失败。原因：运行期反射、动态代理、资源加载没有 AOT hint。规避：先在构建日志里看 hint 警告，必要时用 @RegisterReflectionForBinding 或 RuntimeHintsRegistrar 显式注册。"
+    }
+  ],
+  "repoPointers": [
+    {
+      "label": "运行配置",
+      "path": "backend/src/main/resources/application.yml"
+    },
+    {
+      "label": "启动类",
+      "path": "backend/src/main/java/com/learn/hub/JavaLearnHubApplication.java"
+    },
+    {
+      "label": "构建文件",
+      "path": "backend/pom.xml"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "把团队约定做成内部 Starter",
+      "signal": "三个以上服务重复写同一段审计或鉴权装配代码，改一次要改多处",
+      "approach": "抽出 autoconfigure 模块，用 @AutoConfiguration 加条件注解装配客户端，再配一个只做依赖聚合的 starter；每个扩展点都留 @ConditionalOnMissingBean，README 写清可覆盖的 Bean 与配置键。"
+    },
+    {
+      "title": "启动变慢或直接失败",
+      "signal": "本地启动要 20 秒以上，或日志出现 APPLICATION FAILED TO START",
+      "approach": "先读 failure analysis 的结论段，再用 --debug 看条件报告与自动配置耗时；排除不需要的 starter，必要时用 spring.autoconfigure.exclude 精确关掉，而不是盲目调大内存。"
+    },
+    {
+      "title": "评估 Native Image",
+      "signal": "容器冷启动与内存占用成为关键指标，JVM 模式已经调不动",
+      "approach": "先跑 process-aot 看看有多少 hint 警告，选一个无重量级反射依赖的边缘服务试构建；把构建耗时、镜像体积、启动时间、峰值内存四项与 JVM 版本并列对比后再决定推广范围。"
+    },
+    {
+      "title": "滚动发布仍有失败请求",
+      "signal": "发布窗口内监控出现 5xx，但应用日志毫无异常",
+      "approach": "确认 readiness 在停机时先转为未就绪，网关先摘流再等几秒；服务端开启 graceful 并把 timeout-per-shutdown-phase 设为 P99 请求时间以上，再做一次压测中的滚动发布验证。"
+    },
+    {
+      "title": "评估虚拟线程迁移",
+      "signal": "服务是阻塞 IO 型，线程数上不去但 CPU 很闲",
+      "approach": "先在预发打开 spring.threads.virtual.enabled，用同一份压测脚本对比吞吐与 P99；同时检查 synchronized 使用、连接池上限与 ThreadLocal 依赖，再决定是否全量开启。"
+    }
+  ]
+}

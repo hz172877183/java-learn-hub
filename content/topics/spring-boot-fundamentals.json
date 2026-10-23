@@ -8,96 +8,175 @@
   "tags": [
     "spring-boot",
     "maven",
-    "java21"
+    "java21",
+    "auto-configuration",
+    "configuration",
+    "jakarta-ee"
   ],
   "status": "published",
   "integrationStatus": "runtime",
-  "officialDocsUrl": "https://docs.spring.io/spring-boot/docs/current/reference/html/",
+  "officialDocsUrl": "https://docs.spring.io/spring-boot/reference/",
   "prerequisites": [],
   "nextTopics": [
-    "spring-web-rest"
+    "spring-web-rest",
+    "spring-data-jpa"
   ],
   "relatedTopics": [
-    "actuator"
+    "actuator",
+    "config-and-secrets",
+    "integration-testing"
   ],
-  "overviewMd": "Spring Boot 把 Spring 生态的样板工作收成起步依赖和自动配置。你声明「我要 Web」，它带上嵌入式 Tomcat、Jackson 和合理的默认值。\n\n**该用时：** 新的后端服务、教学项目、大多数中小业务系统。\n\n**不该神话：** Boot 不是新语言，底层仍是 Spring 容器、Bean 生命周期和条件注解。出问题时要会读自动配置报告，而不是只搜「报错复制」。",
+  "overviewMd": "Spring Boot 是 Spring 生态的装配层，不是另一门框架。它用三件事把样板代码收走：起步依赖解决「哪些库版本能一起工作」，自动配置按 classpath 补上合理的默认 Bean，内嵌容器让一个普通 `main` 方法就能起 HTTP 服务。底层仍是 ApplicationContext、Bean 生命周期、AOP 与事务，Boot 只是把这些组装好。\n\n核心心智模型：一个运行中的应用 = 主类 + 一组条件装配的自动配置 + 外部化配置。想知道某个 Bean 从哪来，只查三处：classpath 上有没有对应库、条件（@ConditionalOnClass / @ConditionalOnMissingBean / @ConditionalOnProperty）是否满足、配置属性有没有给值。装配是「你不覆盖我才给默认值」，所以自定义 Bean 通常比改自动配置更省事。\n\n该用时：新服务从零起步、「我要 Web + 校验 + 监控 + 配置」这类标准组合、以及教学项目需要一条能跑通的最小路径。不该用时：对启动时间和内存极敏感的场景、只想要一个轻量 DI 容器、或者需要与环境强绑定、大量手写 XML 的遗留系统——这些场景引入 Boot 只会多一层需要理解的黑盒。\n\n版本注意点：Boot 3.x 要求 Java 17+（本仓库用 21），底层是 Spring Framework 6 与 Jakarta EE 9+。这意味着 `javax.servlet`、`javax.persistence`、`javax.validation` 全部换成 `jakarta.*`，这是 2.x 升级最常见的编译错误来源。3.2+ 才能开启虚拟线程（`spring.threads.virtual.enabled=true`），3.x 对 `@ConfigurationProperties` 的绑定与校验也更严格。\n\n放在本仓库里看：backend 是单模块 Boot 应用，启动类在 `com.learn.hub` 根包，配置集中在 `application.yml`，内容由 `ContentLoader` 从 `content/*.json` 读取后写入数据库。把它当成「能跑的最小骨架」：先跑通，再逐个替换其中的默认行为，比通读文档更快建立手感。",
   "concepts": [
     {
       "term": "起步依赖",
-      "explanation": "如 spring-boot-starter-web，把一组兼容版本的库打成套餐，避免自己对齐 Jackson、Tomcat、校验 API。"
+      "explanation": "spring-boot-starter-web 这类套餐把 Web、JSON、校验与内嵌容器的版本一次对齐，你只声明能力，不写版本号。"
     },
     {
       "term": "自动配置",
-      "explanation": "@SpringBootApplication 会导入 AutoConfiguration。classpath 上有某类且你没覆盖时，Boot 才创建对应 Bean。"
+      "explanation": "按 classpath 与已有 Bean 决定装配什么，条件不满足就静默跳过；「自动配置没生效」多半是条件问题。"
     },
     {
-      "term": "应用入口",
-      "explanation": "带 main 的 @SpringBootApplication 类负责创建 ApplicationContext 并启动嵌入式服务器。"
+      "term": "条件注解",
+      "explanation": "@ConditionalOnXxx 系列组成装配开关；写自定义配置时，用 @ConditionalOnMissingBean 给使用者留覆盖入口。"
     },
     {
-      "term": "application.yml",
-      "explanation": "外部化配置。同一套代码用 profile（dev/prod）切换数据源、端口、日志级别。"
+      "term": "主类与包扫描",
+      "explanation": "@SpringBootApplication 等于配置类加自动配置加包扫描，扫描范围是主类所在包及其子包，放错层级组件就找不到。"
+    },
+    {
+      "term": "外部化配置优先级",
+      "explanation": "命令行参数高于环境变量，环境变量高于 application-{profile}.yml，最后才是 application.yml；不生效先查谁覆盖了谁。"
+    },
+    {
+      "term": "类型安全配置",
+      "explanation": "@ConfigurationProperties 把同一前缀的一组配置绑定到 record 或类，比散落的 @Value 更易校验，也能生成 IDE 元数据。"
+    },
+    {
+      "term": "profile",
+      "explanation": "用 spring.profiles.active 切换环境差异；默认文件只放安全的本机值，生产差异一律靠环境变量注入。"
+    },
+    {
+      "term": "内嵌容器",
+      "explanation": "Tomcat 或 Jetty 作为普通依赖随 jar 启动，没有外部容器可部署；端口、线程池、优雅停机都由 server.* 控制。"
     },
     {
       "term": "可执行 Jar",
-      "explanation": "spring-boot-maven-plugin 打出的 fat jar 内嵌依赖，java -jar 即可启动。"
+      "explanation": "spring-boot-maven-plugin 重打包出 fat jar，依赖躺在 BOOT-INF/lib 下；它不能再被别的项目当普通依赖引用。"
+    },
+    {
+      "term": "启动失败分析",
+      "explanation": "FailureAnalyzer 会把端口占用、Bean 缺失翻译成可读建议，先读这段结论再决定是否去搜堆栈。"
     }
   ],
   "pathSteps": [
     {
-      "title": "跑起来",
-      "goal": "用本仓库 backend 模块启动，访问健康或学习项接口。",
+      "title": "先把服务跑起来",
+      "goal": "用 JDK 21 启动 backend，访问 /api/v1/topics 和 /actuator/health 都拿到 200，确认端口与 profile。",
+      "hours": 0.5,
+      "resources": [
+        "README.md",
+        "backend/pom.xml"
+      ]
+    },
+    {
+      "title": "认清目录与调用链",
+      "goal": "分清 api、topic、content、persistence 四个包，能口述一个请求从 Controller 到 ContentLoader 的路径。",
       "hours": 1,
       "resources": [
-        "本仓库 README",
+        "backend/src/main/java/com/learn/hub",
+        "backend/src/main/java/com/learn/hub/JavaLearnHubApplication.java"
+      ]
+    },
+    {
+      "title": "改配置并观察优先级",
+      "goal": "改 server.port、日志级别和 learn-hub 下的一个值，再用环境变量覆盖一次，确认最终生效值来自哪里。",
+      "hours": 1,
+      "resources": [
+        "backend/src/main/resources/application.yml",
+        "Spring Boot 外部化配置"
+      ]
+    },
+    {
+      "title": "读一次自动配置报告",
+      "goal": "用 --debug 启动，找到 WebMvcAutoConfiguration 生效的正向匹配，再排除一个自动配置观察差异。",
+      "hours": 1.5,
+      "resources": [
+        "Spring Boot Auto-configuration 文档",
+        "ConditionEvaluationReport"
+      ]
+    },
+    {
+      "title": "写类型安全的配置类",
+      "goal": "用 @ConfigurationProperties 收拢一组业务配置，加上约束校验，让 IDE 能提示键名。",
+      "hours": 1,
+      "resources": [
+        "Spring Boot 配置属性文档",
         "本页示例"
       ]
     },
     {
-      "title": "认目录",
-      "goal": "分清 api / content / config 包，知道内容 JSON 从哪加载。",
-      "hours": 1,
+      "title": "打包并独立运行",
+      "goal": "执行 mvn -DskipTests package 后 java -jar 启动，对比 IDE 启动时 classpath 与工作目录的差异。",
+      "hours": 0.5,
       "resources": [
-        "backend/src/main/java"
+        "spring-boot-maven-plugin 文档"
       ]
     },
     {
-      "title": "改一处配置",
-      "goal": "改 server.port 或日志级别并观察生效。",
-      "hours": 1,
+      "title": "制造一次启动失败",
+      "goal": "占用 8080 端口再启动，读 failure analysis；再打开 health 端点看结构化状态。",
+      "hours": 0.5,
       "resources": [
-        "application.yml"
-      ]
-    },
-    {
-      "title": "读自动配置",
-      "goal": "启动加 --debug 或看 ConditionEvaluationReport，理解为何某个 Bean 出现。",
-      "hours": 3,
-      "resources": [
-        "官方文档 Auto-configuration"
+        "Actuator 文档",
+        "backend/src/main/resources/application.yml"
       ]
     }
   ],
   "samples": [
     {
-      "title": "最小启动类",
+      "title": "启动类与启动信息",
       "language": "java",
-      "description": "本项目入口。扫描 com.learn.hub 下的控制器与内容加载器。",
-      "code": "package com.learn.hub;\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n\n@SpringBootApplication\npublic class JavaLearnHubApplication {\n    public static void main(String[] args) {\n        SpringApplication.run(JavaLearnHubApplication.class, args);\n    }\n}"
+      "description": "本项目入口的加强版：扫描配置属性，并在启动后打印 profile 与端口，便于确认生效配置。",
+      "code": "package com.learn.hub;\n\nimport org.springframework.boot.CommandLineRunner;\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\nimport org.springframework.boot.context.properties.ConfigurationPropertiesScan;\nimport org.springframework.context.annotation.Bean;\nimport org.springframework.core.env.Environment;\n\n@SpringBootApplication\n@ConfigurationPropertiesScan\npublic class JavaLearnHubApplication {\n\n    public static void main(String[] args) {\n        SpringApplication.run(JavaLearnHubApplication.class, args);\n    }\n\n    @Bean\n    CommandLineRunner startupInfo(Environment env) {\n        return args -> System.out.println(\n                \"profiles=\" + String.join(\",\", env.getActiveProfiles())\n                        + \" port=\" + env.getProperty(\"server.port\", \"8080\"));\n    }\n}"
+    },
+    {
+      "title": "类型安全的配置属性",
+      "language": "java",
+      "description": "把 learn-hub.* 收进一个 record，用 jakarta 约束校验；非法配置在启动时就失败，而不是运行到一半才 NPE。",
+      "code": "package com.learn.hub.config;\n\nimport jakarta.validation.constraints.Max;\nimport jakarta.validation.constraints.Min;\nimport jakarta.validation.constraints.NotBlank;\nimport org.springframework.boot.context.properties.ConfigurationProperties;\nimport org.springframework.validation.annotation.Validated;\n\n@Validated\n@ConfigurationProperties(prefix = \"learn-hub\")\npublic record LearnHubProperties(\n        @NotBlank String contentDir,\n        @Min(1) @Max(100) int pageSize\n) {\n\n    public LearnHubProperties {\n        if (pageSize == 0) {\n            pageSize = 20;\n        }\n        if (contentDir == null || contentDir.isBlank()) {\n            contentDir = \"content\";\n        }\n    }\n}"
+    },
+    {
+      "title": "带 profile 与虚拟线程的配置",
+      "language": "yaml",
+      "description": "公共项留在主文件，环境差异靠外部变量；virtual.threads 需要 Boot 3.2+，本机用 local profile 即可启动。",
+      "code": "spring:\n  application:\n    name: java-learn-hub\n  profiles:\n    default: local\n  threads:\n    virtual:\n      enabled: true\n\nserver:\n  port: ${SERVER_PORT:8080}\n  shutdown: graceful\n\nmanagement:\n  endpoints:\n    web:\n      exposure:\n        include: health,info\n  endpoint:\n    health:\n      show-details: never\n\nlearn-hub:\n  content-dir: ${CONTENT_DIR:content}\n  page-size: ${PAGE_SIZE:20}"
     }
   ],
   "pitfalls": [
     {
-      "title": "默认 JDK 仍是 8",
-      "detail": "本机 java -version 可能是 1.8。Spring Boot 3 需要 17+。本仓库用 IntelliJ JBR 21 或自行安装 JDK 21 再编译。"
+      "title": "默认 JDK 不是 21",
+      "detail": "现象：mvn 编译报 invalid target release，或运行时报 UnsupportedClassVersionError。原因：JAVA_HOME 或 IDE 的 Maven Runner JRE 还指向 8/17。规避：mvn -v 先确认，Project SDK 与 Runner 一起改，CI 里固定版本而不是依赖本机默认值。"
+    },
+    {
+      "title": "javax 改成 jakarta 后编译不过",
+      "detail": "现象：cannot find symbol，指向 javax.servlet 或 javax.persistence。原因：Boot 3 只认 Jakarta EE 9+ 的命名空间。规避：全局替换 import 为 jakarta.*，依赖升到兼容版本（如 Tomcat 10.1），并排除残留的 javax 老包。"
     },
     {
       "title": "组件扫不到",
-      "detail": "启动类若放在过深或过浅的包，@Component/@RestController 不会被扫描。保持启动类在根包。"
+      "detail": "现象：启动正常但接口 404，或注入时报 NoSuchBeanDefinition。原因：主类不在根包，@Component 落在兄弟包里。规避：主类放根包；确有跨包需求时显式写 scanBasePackages，而不是到处加 @Import。"
     },
     {
-      "title": "配置优先级混乱",
-      "detail": "命令行参数 > 环境变量 > application-{profile}.yml > application.yml。改了文件不生效时先查是否被环境变量盖住。"
+      "title": "配置被更高优先级覆盖",
+      "detail": "现象：改了 yml 却没生效，甚至重启也没变化。原因：命令行、环境变量或 profile 文件优先级更高，或改的是 target 里的旧副本。规避：用 /actuator/env 或启动日志确认最终值，同一项只在一层定义。"
+    },
+    {
+      "title": "循环依赖直接启动失败",
+      "detail": "现象：BeanCurrentlyInCreationException，两个 Bean 构造器互相引用。原因：Boot 2.6 起默认禁止循环引用，3.x 延续该策略。规避：抽出第三层或改用事件解耦；不要用 allow-circular-references 把设计问题藏起来。"
+    },
+    {
+      "title": "fat jar 当普通依赖用",
+      "detail": "现象：java -jar 报 no main manifest attribute，或别的模块引用后类加载混乱。原因：可执行 jar 的类在 BOOT-INF 下，不是常规布局。规避：保留 spring-boot-maven-plugin 的 repackage，需要复用的代码拆成普通 jar 模块。"
     }
   ],
   "repoPointers": [
@@ -108,18 +187,37 @@
     {
       "label": "配置",
       "path": "backend/src/main/resources/application.yml"
+    },
+    {
+      "label": "构建文件",
+      "path": "backend/pom.xml"
     }
   ],
   "scenarios": [
     {
       "title": "从零起一个新服务",
-      "signal": "需要 Web、校验、监控、配置，但不想自己拼版本",
-      "approach": "用 start.spring.io 选 starter，交给 Spring Boot 管理依赖版本和自动配置；只写业务配置"
+      "signal": "需要 Web、校验、监控和配置，但不想手工对齐 Spring、Jackson、Tomcat 的版本",
+      "approach": "用 start.spring.io 选 Java 21 与需要的 starter，版本交给 BOM 管理；只写业务配置和一个自定义 @ConfigurationProperties，其余默认值先接受再按需覆盖。"
     },
     {
-      "title": "同一套代码要跑多个环境",
-      "signal": "本地、测试、生产的数据源和开关不同",
-      "approach": "用 application-{profile}.yml + 环境变量覆盖，敏感项不进仓库；启动时指定 profile"
+      "title": "一份产物跑多环境",
+      "signal": "本地、测试、生产的数据源和开关不同，但不想为每个环境重新打包",
+      "approach": "公共项留在 application.yml，差异进 profile 文件或环境变量，敏感项只从环境变量读；启动时用 --spring.profiles.active 指定，并校验必填项。"
+    },
+    {
+      "title": "想改自动配置的默认行为",
+      "signal": "某个 starter 提供的默认 Bean 不满足需求，比如 ObjectMapper 的序列化规则",
+      "approach": "先读对应 AutoConfiguration 类的条件，再自己声明同类型 Bean 触发 @ConditionalOnMissingBean；整体不需要时用 spring.autoconfigure.exclude 关掉，不要复制整份配置。"
+    },
+    {
+      "title": "启动失败但日志很长",
+      "signal": "出现 APPLICATION FAILED TO START，或 Bean 依赖找不到",
+      "approach": "先读 failure analysis 的结论段，再用 --debug 看 ConditionEvaluationReport 的 negative matches，定位是缺依赖、条件不满足还是配置缺值。"
+    },
+    {
+      "title": "从 Boot 2.7 升级到 3.x",
+      "signal": "编译时满屏 javax 找不到符号，或启动报方言、序列化相关异常",
+      "approach": "先把 JDK 升到 21 并升级依赖，用依赖树排除旧命名空间包，全局替换 import 为 jakarta.*，最后跑集成测试与 health 检查做回归。"
     }
   ]
 }

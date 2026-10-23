@@ -33,6 +33,9 @@
       "goal": "能容器化依赖、定义错误契约、补集成测试，并管好配置与密钥。",
       "topicSlugs": [
         "docker-basics",
+        "docker-compose",
+        "linux-basics",
+        "network-basics",
         "vue3-spa",
         "http-error-contract",
         "cors-practice",
@@ -44,6 +47,23 @@
       "title": "7. 进阶地图",
       "goal": "知道微服务与搜索在业务里的位置，不必一期全部跑起来。",
       "topicSlugs": ["spring-cloud-overview", "elasticsearch"]
+    },
+    {
+      "title": "8. 热门技术栈加餐",
+      "goal": "按目标岗位选学：容器编排、网关、可观测性、响应式与 AI 应用。",
+      "topicSlugs": [
+        "spring-boot-advanced",
+        "spring-cloud-gateway",
+        "kubernetes-basics",
+        "nginx-basics",
+        "observability-prometheus",
+        "mysql-tuning",
+        "redis-advanced",
+        "reactive-webflux",
+        "spring-ai-rag",
+        "design-patterns",
+        "ddd-domain-modeling"
+      ]
     }
   ]
 }

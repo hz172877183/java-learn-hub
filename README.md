@@ -9,7 +9,7 @@
 ## 技术栈
 
 - Java 21 + Spring Boot 3.5（只读 API + 管理端写接口）
-- MySQL 8 + Flyway + Spring Data JPA（内容落库，JSON 仅作首次导入种子）
+- MySQL 8 + Flyway + Spring Data JPA（内容落库，JSON 按版本同步为种子）
 - Vue 3 + Vite + TypeScript + Element Plus（含 `/admin` 管理页）
 
 ## 数据库
@@ -31,7 +31,9 @@ docker run -d --name java-learn-hub-db `
 连接配置走环境变量，默认值见 `backend/src/main/resources/application.yml`：`DB_USER` / `DB_PASSWORD`。
 
 - 建表由 Flyway 负责（`backend/src/main/resources/db/migration`），首次启动自动执行。
-- 首次启动时，如果 `topic` 表为空，会把 `content/topics/*.json` 和 `content/tracks/*.json` 自动导入作为种子数据；之后数据库是唯一数据源，改 `content/` 不会再生效。
+- 内容按版本同步：`content/seed-version.txt` 与数据库 `content_seed_state` 比较，版本变化时自动同步学习项、路线、随堂题和面试题；版本不变时数据库是唯一数据源，管理端编辑不会被覆盖。
+- 想重新导入最新种子：修改 `content/seed-version.txt` 的版本号后重启后端即可，不需要清库。
+- 管理端手工创建、且不在种子中的面试题带 `seed_key = NULL`，同步时保留。
 
 ## 启动
 
@@ -62,19 +64,23 @@ npm run dev
 
 ## 学习内容
 
-- 每个学习项除概述、概念、路线、示例、常见坑外，新增「典型使用场景」：说清什么信号出现时该想到用它、具体怎么做。
-- 每个学习项配 2–3 道面试真题，种子文件在 `content/quizzes/{slug}.json`：
+- 现有 22 个学习项全部做过一轮扩写：每个目录包含 3–5 段概述、8–10 个核心概念、6–7 步学习路线、2–3 段示例代码、5–6 条常见坑、4–5 个典型使用场景。
+- 新增 14 个热门技术栈学习目录：Spring Boot 进阶、响应式 WebFlux、Spring AI / RAG、Spring Cloud Gateway、Kubernetes、Docker Compose、Nginx、Linux、计算机网络、设计模式、DDD、可观测性、MySQL 调优、Redis 高可用。
+- 新增「云原生与 AI 应用进阶路线」，`/track` 页面可在「Java 后端求职向路线」与该路线之间切换。
+- 每个学习项配 2–3 道随堂题，种子文件在 `content/quizzes/{slug}.json`：
   - `choice` 单选：提交后立即判分，并展示知识点说明。
   - `text` 自答：系统不判分，用户先写，再展开参考答案与知识点。
-- 场景和题目都可在管理端编辑；`content/` 只用于首次导入。
+- 场景和题目都可在管理端编辑；`content/` 按 `seed-version.txt` 版本同步。
 
 ## 面试题专区
 
 - 前台 `/interview`：按等级（初级 / 中级 / 高级 / 架构师）和分类筛选；单选题提交即判分，自答题先作答再对照参考答案。
-- 题库独立于学习项：种子文件 `content/interview/questions.json`，当前 24 道（4 个等级各 6 道）。
-- 分类：Java 基础、集合、并发、JVM、Spring、MySQL、Redis、消息队列、分布式、架构设计、工程实践。
+- 题库独立于学习项：种子文件 `content/interview/questions.json`，当前约 670 道，覆盖 23 个分类。
+- 分类：Java 基础、集合、并发、JVM、Spring、Spring Boot、微服务、MySQL、Redis、消息队列、分布式、架构设计、工程实践、容器与 K8s、计算机网络、操作系统 / Linux、设计模式、算法与数据结构、前端、Web 安全、测试与质量、AI 应用、项目与软技能。
+- 每道题都有解析；选择题 4 个选项，自答题给出分点参考答案。列表支持 10 / 20 / 50 条每页与页码跳转。
 - 管理端 `/admin/interview`：新增、编辑、删除，支持自定义分类。
 - 接口：`GET /api/v1/interview/questions`、`GET /api/v1/interview/meta`；管理端 `GET/POST/PUT/DELETE /api/v1/admin/interview/questions`。
+- 题库分片：`content/interview/parts/*.json`，用 `python scripts/build_interview_bank.py` 合并去重，再用 `python scripts/validate_content.py` 校验。
 
 ## 手机访问
 
@@ -106,7 +112,7 @@ npm run dev
 两种方式：
 
 1. **管理页**：`/admin` → 新建学习项，保存后立即生效（无需重启）。
-2. **改种子 + 重置库**：在 `content/topics/{slug}.json` 按 schema 编写，清空数据库后重启后端重新导入。
+2. **改种子文件**：在 `content/topics/{slug}.json` 按 schema 编写，同步更新 `content/seed-version.txt` 的版本号，重启后端自动同步；不需要清库。
 
 ## 测试与构建
 

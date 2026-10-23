@@ -44,6 +44,10 @@ public class InterviewQuestionEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String explanation;
 
+    /** 种子题稳定标识；管理端手工创建的题为 null。 */
+    @Column(name = "seed_key", length = 64)
+    private String seedKey;
+
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
@@ -68,6 +72,22 @@ public class InterviewQuestionEntity {
             int sortOrder,
             LocalDateTime now
     ) {
+        this(category, level, type, stem, options, correctIndex, referenceAnswer, explanation, null, sortOrder, now);
+    }
+
+    public InterviewQuestionEntity(
+            String category,
+            String level,
+            String type,
+            String stem,
+            String options,
+            Integer correctIndex,
+            String referenceAnswer,
+            String explanation,
+            String seedKey,
+            int sortOrder,
+            LocalDateTime now
+    ) {
         this.category = category;
         this.level = level;
         this.type = type;
@@ -76,6 +96,7 @@ public class InterviewQuestionEntity {
         this.correctIndex = correctIndex;
         this.referenceAnswer = referenceAnswer;
         this.explanation = explanation;
+        this.seedKey = seedKey;
         this.sortOrder = sortOrder;
         this.createdAt = now;
         this.updatedAt = now;
@@ -140,6 +161,10 @@ public class InterviewQuestionEntity {
 
     public String getExplanation() {
         return explanation;
+    }
+
+    public String getSeedKey() {
+        return seedKey;
     }
 
     public int getSortOrder() {

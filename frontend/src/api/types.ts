@@ -48,6 +48,12 @@ export interface TrackResponse {
   stages: { title: string; goal: string; topics: TopicSummary[] }[]
 }
 
+export interface TrackSummary {
+  slug: string
+  title: string
+  audience: string
+}
+
 export interface Concept {
   term: string
   explanation: string

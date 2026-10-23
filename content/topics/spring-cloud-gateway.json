@@ -1,0 +1,211 @@
+{
+  "slug": "spring-cloud-gateway",
+  "title": "Spring Cloud Gateway 网关",
+  "category": "cloud",
+  "summary": "路由、断言、过滤器与限流降级：把网关当横切层，不堆业务逻辑。",
+  "difficulty": "intermediate",
+  "estimatedHours": 7,
+  "tags": [
+    "spring-cloud",
+    "gateway",
+    "rate-limit",
+    "circuit-breaker",
+    "canary"
+  ],
+  "status": "published",
+  "integrationStatus": "docs_only",
+  "officialDocsUrl": "https://docs.spring.io/spring-cloud-gateway/reference/",
+  "prerequisites": [
+    "spring-cloud-overview",
+    "spring-web-rest"
+  ],
+  "nextTopics": [
+    "observability-prometheus",
+    "kubernetes-basics"
+  ],
+  "relatedTopics": [
+    "nginx-basics"
+  ],
+  "overviewMd": "Spring Cloud Gateway 是 Spring Cloud 体系的 API 网关，跑在 WebFlux 和 Reactor Netty 上，用非阻塞方式处理请求。它位于客户端与后端服务之间，统一承接路由转发、鉴权、限流、跨域、灰度与可观测埋点，让这些横切关注点不必在每个业务服务里重复实现。对已经使用 Spring 的团队，它比在 Nginx 里写 Lua 更容易纳入 Java 工程化体系。\n\n核心模型只有四件事：Route 由 id、目标 uri、Predicate 集合和 Filter 集合组成；Predicate 决定请求是否匹配，Path、Method、Header、Query、Host、Weight 等条件默认按 AND 组合；Filter 在请求前后改写流量，分为绑定单条路由的 GatewayFilter 和作用于全部路由的 GlobalFilter。配置既可以写在 application.yml，也可以用 RouteLocator 的 Java DSL，复杂逻辑优先 DSL。\n\n它适合做业务网关：JWT 校验、用户身份透传、按 Header 或权重灰度、按用户维度限流、下游熔断降级。它不负责 TLS 卸载、静态资源、WAF 和超大流量的四层代理，这些仍应交给 Nginx、SLB 或云网关；常见拓扑是 Nginx 在最外层做 TLS 与静态缓存，Gateway 在第二层做业务路由，二者职责不要混。\n\n版本上，Gateway 4.x 要求 Java 17+，与 Spring Boot 3.x、Spring Cloud 2023/2024 配套；它基于 WebFlux，classpath 里不能再有 spring-boot-starter-web，否则 MVC 与 WebFlux 冲突。新项目先确认 Spring Cloud 发布列车与 Boot 版本兼容，再引入 spring-cloud-starter-gateway、loadbalancer 和 resilience4j。本仓库当前是模块化单体，只有在出现第二个可独立部署的服务后，才需要把这里的路由示例落成真实网关。",
+  "concepts": [
+    {
+      "term": "Route 路由",
+      "explanation": "路由是网关的最小转发单元，由 id、目标 uri、一组断言和一组过滤器组成；匹配成功才转发，uri 可写 http 地址或 lb://服务名。"
+    },
+    {
+      "term": "Predicate 断言",
+      "explanation": "断言判断请求是否命中路由，常用 Path、Method、Header、Query、Host、Weight；同一路由多个断言默认同时满足，顺序不影响结果。"
+    },
+    {
+      "term": "GatewayFilter",
+      "explanation": "GatewayFilter 只作用于绑定的路由，可做 StripPrefix、RewritePath、增删请求头、限流与熔断；在 yaml 的 filters 或 Java DSL 中声明。"
+    },
+    {
+      "term": "GlobalFilter",
+      "explanation": "GlobalFilter 对所有路由生效，适合统一鉴权、TraceId 注入、访问日志与响应包装；通过 Ordered 控制先后，注意不要阻塞事件循环。"
+    },
+    {
+      "term": "过滤器执行顺序",
+      "explanation": "过滤器按 Ordered 值排序，值越小优先级越高；pre 阶段顺序执行，post 阶段逆序返回，排查头信息被覆盖时要同时看两个方向。"
+    },
+    {
+      "term": "身份与请求头透传",
+      "explanation": "网关校验 JWT 后应删除客户端自带的 X-User-Id 等头，再用可信值重写；下游只信任网关来源，避免直接暴露后被伪造身份。"
+    },
+    {
+      "term": "Redis 令牌桶限流",
+      "explanation": "RequestRateLimiter 用 Redis 令牌桶，replenishRate 是每秒补充令牌数，burstCapacity 是桶容量；KeyResolver 决定按用户、IP 还是接口限流。"
+    },
+    {
+      "term": "熔断降级",
+      "explanation": "CircuitBreaker 过滤器把下游异常交给 Resilience4j 统计，打开后快速失败并转发到 fallback URI；降级响应要区分超时、5xx 与限流。"
+    },
+    {
+      "term": "灰度路由",
+      "explanation": "灰度可按 Header 精确切流，也可用 Weight 断言按百分比分组；权重路由要保证同一用户会话尽量稳定，并准备好一键切回。"
+    },
+    {
+      "term": "跨域与超时",
+      "explanation": "跨域在 globalcors 统一配置，避免网关和下游重复返回 CORS 头；超时用 connect-timeout 与 response-timeout 控制，且要小于上游 Nginx 的等待。"
+    }
+  ],
+  "pathSteps": [
+    {
+      "title": "吃透 Route 模型",
+      "goal": "用一句话说清 Route、Predicate、Filter 的关系，并能画出一次请求经过网关的顺序。",
+      "hours": 1,
+      "resources": [
+        "官方 How It Works",
+        "本页概念"
+      ]
+    },
+    {
+      "title": "写第一条 YAML 路由",
+      "goal": "把 /api/v1/topics/** 转发到本地服务，验证 StripPrefix、请求头与响应头。",
+      "hours": 1,
+      "resources": [
+        "官方 Configuration",
+        "本页 yaml 示例"
+      ]
+    },
+    {
+      "title": "Java DSL 与全局鉴权",
+      "goal": "用 RouteLocator 声明路由，实现 GlobalFilter 校验 JWT 并覆盖写 X-User-Id。",
+      "hours": 1,
+      "resources": [
+        "Fluent Java Routes API",
+        "Global Filters"
+      ]
+    },
+    {
+      "title": "接 Redis 做限流",
+      "goal": "启动 Redis，配置 KeyResolver 和令牌桶参数，用压测观察 429 与桶恢复。",
+      "hours": 1,
+      "resources": [
+        "RequestRateLimiter",
+        "本仓库 docker-basics"
+      ]
+    },
+    {
+      "title": "加熔断与降级",
+      "goal": "给下游路由配 CircuitBreaker，准备 fallback 响应，断网验证快速失败与半开恢复。",
+      "hours": 1,
+      "resources": [
+        "CircuitBreaker Filter",
+        "Resilience4j 文档"
+      ]
+    },
+    {
+      "title": "灰度与跨域",
+      "goal": "按 Header 精确切流、按 Weight 放量，并收敛全局 CORS 配置。",
+      "hours": 1,
+      "resources": [
+        "Weight 断言",
+        "CORS Configuration"
+      ]
+    },
+    {
+      "title": "超时与 Nginx 划边界",
+      "goal": "设置连接/响应超时，明确 Nginx 做 TLS 与静态资源、Gateway 做业务路由的分工。",
+      "hours": 1,
+      "resources": [
+        "Http timeouts",
+        "Nginx 反向代理文档"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "title": "YAML 路由：限流、跨域与超时",
+      "language": "yaml",
+      "description": "Gateway 4.x（Boot 3.x）写法；lb:// 需要 spring-cloud-starter-loadbalancer，key-resolver 引用下方 Java 配置中的 Bean。",
+      "code": "server:\n  port: 8080\n\nspring:\n  data:\n    redis:\n      host: localhost\n      port: 6379\n  cloud:\n    gateway:\n      globalcors:\n        cors-configurations:\n          '[/**]':\n            allowedOrigins: \"https://learn.example.com\"\n            allowedMethods: [GET, POST, PUT, DELETE]\n            allowedHeaders: \"*\"\n            allowCredentials: true\n      default-filters:\n        - AddResponseHeader=X-Gateway, learnhub\n      routes:\n        - id: topic-service\n          uri: lb://topic-service\n          predicates:\n            - Path=/api/v1/topics/**\n            - Method=GET,POST\n          filters:\n            - StripPrefix=1\n            - name: RequestRateLimiter\n              args:\n                redis-rate-limiter.replenishRate: 20\n                redis-rate-limiter.burstCapacity: 40\n                key-resolver: \"#{@userKeyResolver}\"\n          metadata:\n            response-timeout: 3000\n            connect-timeout: 1000\n        - id: search-canary\n          uri: lb://search-v2\n          predicates:\n            - Path=/api/v1/search/**\n            - Header=X-Canary, v2\n          filters:\n            - StripPrefix=1"
+    },
+    {
+      "title": "Java DSL：路由、熔断与限流 Key",
+      "language": "java",
+      "description": "复杂条件优先用 DSL；circuitBreaker 需要 resilience4j 依赖，fallback 路径由网关自身提供。",
+      "code": "@Configuration\npublic class GatewayRoutes {\n\n    @Bean\n    RouteLocator routes(RouteLocatorBuilder builder) {\n        return builder.routes()\n                .route(\"topic-service\", r -> r\n                        .path(\"/api/v1/topics/**\")\n                        .and().method(HttpMethod.GET, HttpMethod.POST)\n                        .filters(f -> f\n                                .stripPrefix(1)\n                                .addRequestHeader(\"X-Gateway\", \"learnhub\")\n                                .circuitBreaker(c -> c.setName(\"topicCB\")\n                                        .setFallbackUri(\"forward:/fallback/topics\")))\n                        .uri(\"lb://topic-service\"))\n                .route(\"search-canary\", r -> r\n                        .path(\"/api/v1/search/**\")\n                        .and().header(\"X-Canary\", \"v2\")\n                        .filters(f -> f.stripPrefix(1))\n                        .uri(\"lb://search-v2\"))\n                .build();\n    }\n\n    @Bean\n    KeyResolver userKeyResolver() {\n        return exchange -> exchange.getPrincipal()\n                .map(Principal::getName)\n                .defaultIfEmpty(\"anonymous\");\n    }\n}"
+    },
+    {
+      "title": "GlobalFilter：验 JWT 并重写身份头",
+      "language": "java",
+      "description": "先移除客户端同名头，再写入验签后的用户信息；白名单只放健康检查和登录接口。",
+      "code": "@Component\npublic class AuthGlobalFilter implements GlobalFilter, Ordered {\n    private final JwtService jwtService;\n\n    public AuthGlobalFilter(JwtService jwtService) {\n        this.jwtService = jwtService;\n    }\n\n    @Override\n    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {\n        String path = exchange.getRequest().getURI().getPath();\n        if (path.equals(\"/actuator/health\") || path.startsWith(\"/api/v1/auth/\")) {\n            return chain.filter(exchange);\n        }\n        String authorization = exchange.getRequest().getHeaders()\n                .getFirst(HttpHeaders.AUTHORIZATION);\n        if (authorization == null || !authorization.startsWith(\"Bearer \")) {\n            return unauthorized(exchange);\n        }\n        try {\n            JwtUser user = jwtService.verify(authorization.substring(7));\n            ServerHttpRequest request = exchange.getRequest().mutate()\n                    .headers(headers -> {\n                        headers.remove(\"X-User-Id\");\n                        headers.remove(\"X-User-Roles\");\n                    })\n                    .header(\"X-User-Id\", String.valueOf(user.id()))\n                    .header(\"X-User-Roles\", String.join(\",\", user.roles()))\n                    .build();\n            return chain.filter(exchange.mutate().request(request).build());\n        } catch (JwtException ex) {\n            return unauthorized(exchange);\n        }\n    }\n\n    private Mono<Void> unauthorized(ServerWebExchange exchange) {\n        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);\n        return exchange.getResponse().setComplete();\n    }\n\n    @Override\n    public int getOrder() {\n        return -100;\n    }\n}"
+    }
+  ],
+  "pitfalls": [
+    {
+      "title": "WebFlux 里混进 Servlet 栈",
+      "detail": "同时引入 spring-boot-starter-web 后，Gateway 启动报 MVC 与 WebFlux 冲突或路由 404；网关模块只保留 webflux，把业务服务另起进程。"
+    },
+    {
+      "title": "无条件信任身份头",
+      "detail": "客户端直接传 X-User-Id，网关不删除就转发，下游会误当已认证用户；网关必须覆盖写，并且只暴露网关入口。"
+    },
+    {
+      "title": "限流 key 取到代理 IP",
+      "detail": "经过 Nginx/SLB 后 remoteAddress 常是代理地址，所有用户共用一个桶；改用 Principal、Token 或可信的转发头解析真实来源。"
+    },
+    {
+      "title": "CORS 配了两遍",
+      "detail": "网关 globalcors 与下游 @CrossOrigin 同时生效，响应出现两个 Access-Control-Allow-Origin，浏览器直接拒绝；只保留一层并正确处理 OPTIONS。"
+    },
+    {
+      "title": "lb:// 服务名解析失败",
+      "detail": "缺少 spring-cloud-starter-loadbalancer、服务未注册或服务名大小写不一致时返回 503；先查注册中心，再确认依赖与路由 uri。"
+    },
+    {
+      "title": "超时链路倒挂",
+      "detail": "网关 response-timeout 大于 Nginx 的 proxy_read_timeout，Nginx 先断开而网关仍在等待；让外层超时略大于内层，并只重试幂等请求。"
+    }
+  ],
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "多个后端服务需要一个统一入口",
+      "signal": "前端要记多个域名和端口，鉴权、CORS、日志在每个服务里重复实现",
+      "approach": "Nginx 做 TLS 与静态资源，Gateway 按 Path 路由，GlobalFilter 统一 JWT 与身份头，下游服务只开内网"
+    },
+    {
+      "title": "刷接口或爬虫把下游打满",
+      "signal": "单用户或单 IP 的 QPS 飙升，数据库连接池和线程池同时吃紧",
+      "approach": "用 Redis 令牌桶按用户与接口限流，超限返回 429 和 Retry-After；热点数据再加缓存与降级"
+    },
+    {
+      "title": "下游抖动导致网关堆积",
+      "signal": "某个服务 P99 延迟升高，网关连接数、错误率和超时同时上升",
+      "approach": "设置连接与响应超时，CircuitBreaker 打开后走 fallback，恢复时半开放量；非幂等请求不要自动重试"
+    },
+    {
+      "title": "新版本只开放给部分用户",
+      "signal": "搜索新排序需要先小流量验证，出问题要能一分钟内切回",
+      "approach": "Header 精确切流加 Weight 按比例放量，持续对比错误率与延迟，异常时下调权重或下线灰度路由"
+    },
+    {
+      "title": "前后端分离的预检请求失败",
+      "signal": "浏览器 OPTIONS 返回 403/404，或响应缺少 Access-Control-Allow-Origin",
+      "approach": "网关统一 globalcors，放行必要的方法与请求头，预检不经过鉴权；带 Cookie 时不能把 allowedOrigins 写成 *"
+    }
+  ]
+}
