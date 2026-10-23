@@ -1,11 +1,13 @@
 package com.learn.hub.content;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learn.hub.persistence.TopicEntity;
 import com.learn.hub.persistence.TopicRepository;
 import com.learn.hub.persistence.TrackEntity;
 import com.learn.hub.persistence.TrackRepository;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
@@ -124,6 +126,20 @@ public class ContentLoader {
     /**
      * 解析数据库里的学习项 JSON，并补齐缺失字段。
      */
+    /**
+     * 读取 content/interview/questions.json，作为面试题库的种子。
+     */
+    public List<ContentModels.InterviewSeed> readSeedInterviewQuestions() throws IOException {
+        Resource resource = new ClassPathResource("content/interview/questions.json");
+        if (!resource.exists()) {
+            return List.of();
+        }
+        try (InputStream in = resource.getInputStream()) {
+            return objectMapper.readValue(in, new TypeReference<List<ContentModels.InterviewSeed>>() {
+            });
+        }
+    }
+
     public ContentModels.TopicDocument parseTopic(String json) {        try {
             return objectMapper.readValue(json, ContentModels.TopicDocument.class).normalized();
         } catch (JsonProcessingException e) {

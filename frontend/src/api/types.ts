@@ -146,3 +146,45 @@ export interface QuizQuestion {
   referenceAnswer?: string
   explanation: string
 }
+export type InterviewLevel = 'junior' | 'mid' | 'senior' | 'architect'
+
+export interface InterviewQuestion {
+  id: number
+  category: string
+  level: InterviewLevel
+  type: QuizType
+  stem: string
+  options: string[]
+  correctIndex?: number
+  referenceAnswer?: string
+  explanation: string
+}
+
+export interface InterviewQuestionList {
+  items: InterviewQuestion[]
+  page: number
+  size: number
+  total: number
+}
+
+export interface InterviewStat {
+  id: string
+  count: number
+}
+
+export interface InterviewMeta {
+  levels: InterviewStat[]
+  categories: InterviewStat[]
+  total: number
+}
+
+export interface InterviewQuestionPayload {
+  category: string
+  level: string
+  type: QuizType
+  stem: string
+  options: string[]
+  correctIndex?: number
+  referenceAnswer?: string
+  explanation: string
+}

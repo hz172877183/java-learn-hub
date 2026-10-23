@@ -19,6 +19,7 @@ function logout() {
       <nav>
         <RouterLink to="/catalog">学习目录</RouterLink>
         <RouterLink to="/track">总路线</RouterLink>
+        <RouterLink to="/interview">面试专区</RouterLink>
         <RouterLink to="/about">关于</RouterLink>
         <RouterLink v-if="auth.isLoggedIn" to="/me">我的学习</RouterLink>
         <RouterLink to="/admin">管理</RouterLink>

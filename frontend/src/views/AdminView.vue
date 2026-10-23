@@ -94,6 +94,7 @@ onMounted(() => {
         <el-input v-model="q" placeholder="搜索 slug / 标题 / 分类" clearable @keyup.enter="load" />
         <el-button @click="load">搜索</el-button>
         <el-button type="primary" @click="router.push('/admin/topics/new')">新建学习项</el-button>
+        <el-button @click="router.push('/admin/interview')">面试题维护</el-button>
         <el-button text @click="logout">退出</el-button>
       </div>
 
@@ -138,7 +139,7 @@ onMounted(() => {
 }
 .toolbar {
   display: grid;
-  grid-template-columns: 2fr auto auto auto;
+  grid-template-columns: 2fr auto auto auto auto;
   gap: 10px;
   margin: 16px 0;
 }

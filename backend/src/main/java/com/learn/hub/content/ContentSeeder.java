@@ -1,5 +1,8 @@
 package com.learn.hub.content;
 
+import com.learn.hub.interview.InterviewDtos;
+import com.learn.hub.interview.InterviewQuestionRepository;
+import com.learn.hub.interview.InterviewService;
 import com.learn.hub.persistence.TopicEntity;
 import com.learn.hub.persistence.TopicRepository;
 import com.learn.hub.persistence.TrackEntity;
@@ -30,6 +33,8 @@ public class ContentSeeder implements ApplicationRunner {
     private final TrackRepository trackRepository;
     private final QuizQuestionRepository quizQuestionRepository;
     private final QuizService quizService;
+    private final InterviewQuestionRepository interviewQuestionRepository;
+    private final InterviewService interviewService;
 
     public ContentSeeder(
             ContentLoader contentLoader,
@@ -37,7 +42,9 @@ public class ContentSeeder implements ApplicationRunner {
             TopicRepository topicRepository,
             TrackRepository trackRepository,
             QuizQuestionRepository quizQuestionRepository,
-            QuizService quizService
+            QuizService quizService,
+            InterviewQuestionRepository interviewQuestionRepository,
+            InterviewService interviewService
     ) {
         this.contentLoader = contentLoader;
         this.catalogStore = catalogStore;
@@ -45,6 +52,8 @@ public class ContentSeeder implements ApplicationRunner {
         this.trackRepository = trackRepository;
         this.quizQuestionRepository = quizQuestionRepository;
         this.quizService = quizService;
+        this.interviewQuestionRepository = interviewQuestionRepository;
+        this.interviewService = interviewService;
     }
 
     /**
@@ -100,6 +109,23 @@ public class ContentSeeder implements ApplicationRunner {
                 }
             }
             log.info("已导入面试题 {} 道", imported);
+        }
+
+        if (interviewQuestionRepository.count() == 0) {
+            var seeds = contentLoader.readSeedInterviewQuestions();
+            interviewService.seed(seeds.stream()
+                    .map(seed -> new InterviewDtos.QuestionRequest(
+                            seed.category(),
+                            seed.level(),
+                            seed.type(),
+                            seed.stem(),
+                            seed.options(),
+                            seed.correctIndex(),
+                            seed.referenceAnswer(),
+                            seed.explanation()
+                    ))
+                    .toList());
+            log.info("已导入面试题库 {} 道", seeds.size());
         }
     }
 

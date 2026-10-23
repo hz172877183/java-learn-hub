@@ -146,6 +146,22 @@ public final class ContentModels {
         }
     }
 
+    /**
+     * 面试题种子：content/interview/questions.json 的数组元素。
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record InterviewSeed(
+            String category,
+            String level,
+            String type,
+            String stem,
+            List<String> options,
+            Integer correctIndex,
+            String referenceAnswer,
+            String explanation
+    ) {
+    }
+
     private static <T> List<T> nonNull(List<T> value) {
         return value == null ? List.of() : List.copyOf(value);
     }

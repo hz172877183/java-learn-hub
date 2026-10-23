@@ -1,6 +1,10 @@
 /** HTTP 客户端：公开接口、管理端接口与当前用户接口的统一封装。 */
 import type {
   AuthResponse,
+  InterviewMeta,
+  InterviewQuestion,
+  InterviewQuestionList,
+  InterviewQuestionPayload,
   LearningState,
   MetaResponse,
   NoteItem,
@@ -224,4 +228,69 @@ export function saveNote(slug: string, content: string) {
 /** 删除笔记。 */
 export function deleteNote(slug: string) {
   return request<void>(`/api/v1/me/notes/${slug}`, userInit('DELETE'))
+}
+
+/* ---------------- 面试题专区 ---------------- */
+
+function interviewParams(params: {
+  category?: string
+  level?: string
+  q?: string
+  page?: number
+  size?: number
+}) {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') search.set(key, String(value))
+  })
+  const suffix = search.toString() ? `?${search}` : ''
+  return suffix
+}
+
+/** 面试题列表：按分类/等级/关键词筛选。 */
+export function fetchInterviewQuestions(params: {
+  category?: string
+  level?: string
+  q?: string
+  page?: number
+  size?: number
+}) {
+  return request<InterviewQuestionList>(`/api/v1/interview/questions${interviewParams(params)}`)
+}
+
+/** 面试题分类与等级统计。 */
+export function fetchInterviewMeta() {
+  return request<InterviewMeta>('/api/v1/interview/meta')
+}
+
+/** 管理端面试题列表。 */
+export function adminListInterviewQuestions(params: {
+  category?: string
+  level?: string
+  q?: string
+  page?: number
+  size?: number
+}) {
+  return request<InterviewQuestionList>(
+    `/api/v1/admin/interview/questions${interviewParams(params)}`,
+    adminInit('GET'),
+  )
+}
+
+/** 新建面试题。 */
+export function adminCreateInterviewQuestion(payload: InterviewQuestionPayload) {
+  return request<InterviewQuestion>('/api/v1/admin/interview/questions', adminInit('POST', payload))
+}
+
+/** 更新面试题。 */
+export function adminUpdateInterviewQuestion(id: number, payload: InterviewQuestionPayload) {
+  return request<InterviewQuestion>(
+    `/api/v1/admin/interview/questions/${id}`,
+    adminInit('PUT', payload),
+  )
+}
+
+/** 删除面试题。 */
+export function adminDeleteInterviewQuestion(id: number) {
+  return request<void>(`/api/v1/admin/interview/questions/${id}`, adminInit('DELETE'))
 }

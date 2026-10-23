@@ -68,6 +68,14 @@ npm run dev
   - `text` 自答：系统不判分，用户先写，再展开参考答案与知识点。
 - 场景和题目都可在管理端编辑；`content/` 只用于首次导入。
 
+## 面试题专区
+
+- 前台 `/interview`：按等级（初级 / 中级 / 高级 / 架构师）和分类筛选；单选题提交即判分，自答题先作答再对照参考答案。
+- 题库独立于学习项：种子文件 `content/interview/questions.json`，当前 24 道（4 个等级各 6 道）。
+- 分类：Java 基础、集合、并发、JVM、Spring、MySQL、Redis、消息队列、分布式、架构设计、工程实践。
+- 管理端 `/admin/interview`：新增、编辑、删除，支持自定义分类。
+- 接口：`GET /api/v1/interview/questions`、`GET /api/v1/interview/meta`；管理端 `GET/POST/PUT/DELETE /api/v1/admin/interview/questions`。
+
 ## 普通用户
 
 - 注册 / 登录：`/register`、`/login`，接口为 `POST /api/v1/auth/register|login`，成功后返回 JWT。
@@ -103,4 +111,4 @@ cd frontend; npm run build
 
 - 集成测试使用独立的 `learnhub_test` 库（`spring.profiles.active=test`），首次运行自动创建并执行 Flyway，每个用例事务回滚，不影响开发库。
 - 运行集成测试需要本机 MySQL 容器已启动；连不上会直接失败。
-- 目前 29 个用例：公开 API 单测 6、认证与用户隔离 12、管理端与题目 11。
+- 目前 35 个用例：公开 API 6、认证与用户隔离 12、管理端与题目 11、面试题库 6。
