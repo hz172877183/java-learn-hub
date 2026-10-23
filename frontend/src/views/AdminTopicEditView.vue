@@ -1,3 +1,4 @@
+<!-- 管理端编辑：学习项字段、使用场景、面试题与保存。 -->
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -141,6 +142,7 @@ async function save() {
   error.value = ''
   saving.value = true
   try {
+    // 先保存学习项，再整组替换题目；两步分开，题目失败不回滚已保存的正文
     const saved = editing.value
       ? await adminUpdateTopic(slugParam.value, payload())
       : await adminCreateTopic(payload())
@@ -192,6 +194,7 @@ function removeOption(question: QuizQuestion, index: number) {
     question.correctIndex = 0
   }
 }
+/** 切换题型时补齐选项与正确下标，避免残留非法状态。 */
 function onQuizTypeChange(question: QuizQuestion) {
   if (question.type === 'choice') {
     if (question.options.length < 2) {

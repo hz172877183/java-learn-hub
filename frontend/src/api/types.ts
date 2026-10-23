@@ -1,3 +1,4 @@
+/** 接口与页面共用的 TypeScript 类型。 */
 export interface TopicSummary {
   slug: string
   title: string

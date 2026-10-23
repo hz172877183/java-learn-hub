@@ -9,6 +9,9 @@ import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 
+/**
+ * 面试题实体：按学习项分组，题目内容保存在 payload JSON 中。
+ */
 @Entity
 @Table(name = "quiz_question")
 public class QuizQuestionEntity {
@@ -53,6 +56,9 @@ public class QuizQuestionEntity {
         this.updatedAt = now;
     }
 
+    /**
+     * 更新题目内容与排序号。
+     */
     public void update(String type, String payload, int sortOrder, LocalDateTime now) {
         this.type = type;
         this.payload = payload;

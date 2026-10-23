@@ -1,3 +1,4 @@
+<!-- 应用外壳：顶部导航、登录态展示与路由出口。 -->
 <script setup lang="ts">
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'

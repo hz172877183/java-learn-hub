@@ -4,6 +4,9 @@ import com.learn.hub.content.ContentModels;
 
 import java.util.List;
 
+/**
+ * 公开读接口的响应 DTO。
+ */
 public final class TopicDtos {
 
     private TopicDtos() {

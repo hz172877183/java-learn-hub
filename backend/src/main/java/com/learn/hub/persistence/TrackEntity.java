@@ -9,6 +9,9 @@ import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 
+/**
+ * 路线持久化实体：阶段结构保存在 payload JSON 中。
+ */
 @Entity
 @Table(name = "track")
 public class TrackEntity {

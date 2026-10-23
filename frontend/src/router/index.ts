@@ -1,3 +1,4 @@
+/** 路由表：公开页面、个人学习与管理端页面。 */
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 

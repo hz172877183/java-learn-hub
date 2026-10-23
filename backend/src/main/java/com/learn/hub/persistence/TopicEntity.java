@@ -9,6 +9,9 @@ import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 
+/**
+ * 学习项持久化实体：检索字段 + 完整 JSON payload。
+ */
 @Entity
 @Table(name = "topic")
 public class TopicEntity {
@@ -78,6 +81,9 @@ public class TopicEntity {
         this.updatedAt = now;
     }
 
+    /**
+     * 覆盖可检索字段与 payload；用于更新已有学习项。
+     */
     public void apply(
             String title,
             String category,

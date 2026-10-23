@@ -1,3 +1,4 @@
+<!-- 我的学习：进度汇总、按状态分组与笔记列表。 -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
@@ -36,6 +37,7 @@ async function load() {
   }
 }
 
+/** 状态变更后重新拉取列表，保证排序和时间戳与服务端一致。 */
 async function changeState(item: ProgressItem, state: LearningState) {
   try {
     await setProgress(item.topicSlug, state)

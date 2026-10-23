@@ -1,3 +1,4 @@
+<!-- 关于页：项目边界与内容规范。 -->
 <script setup lang="ts">
 </script>
 

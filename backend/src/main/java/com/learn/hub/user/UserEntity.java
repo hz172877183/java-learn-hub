@@ -9,6 +9,9 @@ import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
 
+/**
+ * 用户实体：用户名唯一，密码只保存 BCrypt 哈希。
+ */
 @Entity
 @Table(name = "app_user")
 public class UserEntity {

@@ -1,3 +1,4 @@
+<!-- 学习项详情：概述、使用场景、概念、路线、示例、常见坑、面试题与进度。 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
@@ -23,6 +24,7 @@ const quizAnswers = ref<Record<number, number | null>>({})
 const quizText = ref<Record<number, string>>({})
 const quizRevealed = ref<Record<number, boolean>>({})
 
+/** 清空所有题目的作答与解析状态，用于“全部重做”。 */
 function resetQuiz() {
   const answers: Record<number, number | null> = {}
   const texts: Record<number, string> = {}
@@ -37,10 +39,12 @@ function resetQuiz() {
   quizRevealed.value = revealed
 }
 
+/** 展开本题的答案与知识点说明。 */
 function reveal(index: number) {
   quizRevealed.value = { ...quizRevealed.value, [index]: true }
 }
 
+/** 单选题判分：只比较选中下标，自答题不参与。 */
 function isCorrect(index: number) {
   const question = quizzes.value[index]
   return question?.type === 'choice' && quizAnswers.value[index] === question.correctIndex
@@ -50,6 +54,7 @@ function optionLabel(index: number) {
   return String.fromCharCode(65 + index)
 }
 
+/** 题目加载失败不影响正文阅读，静默降级为空列表。 */
 async function loadQuizzes(slug: string) {
   quizzes.value = []
   try {
@@ -89,6 +94,7 @@ async function saveState(value: LearningState) {
   }
 }
 
+// 路由参数变化即整页重载；进度与题目并行加载，互不阻塞
 watch(
   () => route.params.slug,
   async (slug) => {

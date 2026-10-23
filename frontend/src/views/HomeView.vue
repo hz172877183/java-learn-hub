@@ -1,3 +1,4 @@
+<!-- 首页：项目定位、推荐路线与最新学习项。 -->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'

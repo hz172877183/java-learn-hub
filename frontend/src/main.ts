@@ -1,3 +1,4 @@
+/** 前端入口：注册 Pinia、路由与 Element Plus。 */
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'

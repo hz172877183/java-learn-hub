@@ -1,3 +1,4 @@
+<!-- 学习项卡片：首页、目录与路线复用。 -->
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
 import type { TopicSummary } from '@/api/types'

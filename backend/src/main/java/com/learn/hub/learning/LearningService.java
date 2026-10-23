@@ -10,6 +10,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * 学习行为服务：进度三态流转与每题一条笔记的读写，全部按用户隔离。
+ */
 @Service
 public class LearningService {
 
@@ -30,6 +33,9 @@ public class LearningService {
         this.catalogStore = catalogStore;
     }
 
+    /**
+     * 当前用户的全部进度，按最近更新倒序。
+     */
     @Transactional(readOnly = true)
     public List<LearningDtos.ProgressView> progress(Long userId) {
         return progressRepository.findByUserIdOrderByUpdatedAtDesc(userId).stream()
@@ -37,6 +43,9 @@ public class LearningService {
                 .toList();
     }
 
+    /**
+     * 更新单个学习项状态：not_started 直接删除记录，learning/completed 记录时间戳。
+     */
     @Transactional
     public LearningDtos.ProgressView setProgress(Long userId, String slug, String state) {
         if (state == null || !STATES.contains(state)) {
@@ -45,6 +54,7 @@ public class LearningService {
         requireTopic(slug);
 
         ProgressEntity entity = progressRepository.findByUserIdAndTopicSlug(userId, slug).orElse(null);
+        // 回到“未开始”时删除行，避免留下空记录影响统计
         if ("not_started".equals(state)) {
             if (entity != null) {
                 progressRepository.delete(entity);
@@ -66,6 +76,9 @@ public class LearningService {
                 .ifPresent(progressRepository::delete);
     }
 
+    /**
+     * 当前用户的全部笔记（含正文），按最近更新倒序。
+     */
     @Transactional(readOnly = true)
     public List<LearningDtos.NoteView> notes(Long userId) {
         return noteRepository.findByUserIdOrderByUpdatedAtDesc(userId).stream()
@@ -78,6 +91,9 @@ public class LearningService {
                 .toList();
     }
 
+    /**
+     * 读取单个学习项的笔记；没有写过时返回空内容而不是 404，方便前端直接绑定。
+     */
     @Transactional(readOnly = true)
     public LearningDtos.NoteView note(Long userId, String slug) {
         requireTopic(slug);
@@ -87,6 +103,9 @@ public class LearningService {
                 .orElseGet(() -> new LearningDtos.NoteView(slug, title(slug), "", null));
     }
 
+    /**
+     * 保存笔记（upsert）；内容为空白时等价于删除，避免存空行。
+     */
     @Transactional
     public LearningDtos.NoteView saveNote(Long userId, String slug, String content) {
         requireTopic(slug);
@@ -96,6 +115,7 @@ public class LearningService {
         }
         LocalDateTime now = LocalDateTime.now();
         NoteEntity entity = noteRepository.findByUserIdAndTopicSlug(userId, slug).orElse(null);
+        // 空白内容视为删除，前端清空后不需要额外调用 DELETE
         if (value.isBlank()) {
             if (entity != null) {
                 noteRepository.delete(entity);
@@ -128,6 +148,9 @@ public class LearningService {
         );
     }
 
+    /**
+     * 进度/笔记只允许操作已发布的学习项，草稿与不存在的 slug 统一 404。
+     */
     private void requireTopic(String slug) {
         ContentModels.TopicDocument doc = catalogStore.get().topic(slug)
                 .orElseThrow(() -> new NotFoundException("TOPIC_NOT_FOUND", "未找到学习项: " + slug));

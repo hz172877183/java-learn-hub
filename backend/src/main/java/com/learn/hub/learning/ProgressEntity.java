@@ -15,6 +15,9 @@ import java.time.LocalDateTime;
         name = "learning_progress",
         uniqueConstraints = @UniqueConstraint(name = "uk_progress_user_topic", columnNames = {"user_id", "topic_slug"})
 )
+/**
+ * 学习进度实体：三态与开始/完成时间，user_id + topic_slug 唯一。
+ */
 public class ProgressEntity {
 
     @Id
@@ -52,9 +55,11 @@ public class ProgressEntity {
     public void applyState(String state, LocalDateTime now) {
         this.state = state;
         this.updatedAt = now;
+        // 第一次进入非“未开始”状态时记录开始时间，之后不覆盖
         if (!"not_started".equals(state) && this.startedAt == null) {
             this.startedAt = now;
         }
+        // 完成时间只保留第一次完成的时间；退回学习中时清空
         this.completedAt = "completed".equals(state) ? (this.completedAt == null ? now : this.completedAt) : null;
     }
 

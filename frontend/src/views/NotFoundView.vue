@@ -1,3 +1,4 @@
+<!-- 404 页面。 -->
 <template>
   <main class="page">
     <h1>页面不存在</h1>

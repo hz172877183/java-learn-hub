@@ -5,6 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * 内容只读快照：按 slug 索引学习项与路线，供读接口使用。
+ */
 public final class ContentCatalog {
 
     private final Map<String, ContentModels.TopicDocument> topics;

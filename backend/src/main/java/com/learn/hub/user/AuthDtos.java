@@ -1,4 +1,7 @@
 package com.learn.hub.user;
+/**
+ * 认证接口 DTO。
+ */
 
 public final class AuthDtos {
 

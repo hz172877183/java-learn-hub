@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 公开题目接口：按学习项返回面试真题。
+ */
 @RestController
 @RequestMapping("/api/v1/topics/{slug}/quizzes")
 public class QuizController {
@@ -18,6 +21,9 @@ public class QuizController {
         this.quizService = quizService;
     }
 
+    /**
+     * 返回某个学习项的面试题（含答案与知识点说明）。
+     */
     @GetMapping
     public List<ContentModels.QuizQuestion> list(@PathVariable String slug) {
         return quizService.listPublished(slug);

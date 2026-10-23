@@ -5,6 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 进度仓储：按用户查询与状态统计。
+ */
 public interface ProgressRepository extends JpaRepository<ProgressEntity, Long> {
 
     List<ProgressEntity> findByUserIdOrderByUpdatedAtDesc(Long userId);

@@ -5,11 +5,15 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
 
+/**
+ * 内容模型：与 content/*.json 对应的记录类型，缺失字段统一归一化。
+ */
 public final class ContentModels {
 
     private ContentModels() {
     }
 
+    /** 与 content/topics/*.json 对应的完整学习项。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record TopicDocument(
             String slug,
@@ -122,6 +126,7 @@ public final class ContentModels {
         }
     }
 
+    /** 与 content/tracks/*.json 对应的路线。 */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record TrackDocument(
             String slug,

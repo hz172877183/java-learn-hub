@@ -1,3 +1,4 @@
+<!-- 推荐路线：阶段目标、整体进度与逐项状态切换。 -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -9,6 +10,7 @@ import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()
 const track = ref<TrackResponse | null>(null)
 const error = ref('')
+// slug -> 状态；未出现的 slug 视为 not_started
 const states = ref<Record<string, LearningState>>({})
 
 const totalTopics = computed(
@@ -22,6 +24,7 @@ function stateOf(slug: string): LearningState {
   return states.value[slug] ?? 'not_started'
 }
 
+/** 阶段内完成数，用于阶段标题右侧的 x / y。 */
 function completedIn(stageTopics: { slug: string }[]) {
   return stageTopics.filter((topic) => stateOf(topic.slug) === 'completed').length
 }
@@ -42,6 +45,7 @@ async function loadProgress() {
   }
 }
 
+/** 本地先更新，避免等待接口导致下拉框回跳；失败时提示但保留旧值。 */
 async function change(slug: string, state: LearningState) {
   try {
     await setProgress(slug, state)

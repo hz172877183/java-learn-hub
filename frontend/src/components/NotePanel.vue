@@ -1,3 +1,4 @@
+<!-- 笔记悬浮窗：可关闭，关闭时自动保存，按学习项加载。 -->
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -6,6 +7,7 @@ import { fetchNote, saveNote } from '@/api/client'
 const props = defineProps<{ slug: string; title: string }>()
 
 const OPEN_KEY = 'learnhub-note-open'
+// 记住开合状态：用户在 A 学习项打开后，切到 B 仍然保持打开
 const open = ref(localStorage.getItem(OPEN_KEY) === '1')
 const content = ref('')
 const status = ref('')
@@ -48,6 +50,7 @@ async function persist(silent = false) {
   }
 }
 
+// 关闭时若有未保存内容，先静默保存再收起，避免丢笔记
 async function close() {
   if (dirty.value) {
     await persist(true)
@@ -61,6 +64,7 @@ function toggle() {
   localStorage.setItem(OPEN_KEY, open.value ? '1' : '0')
 }
 
+// 切换学习项时重新加载对应笔记，不清空面板开合状态
 watch(() => props.slug, load, { immediate: true })
 </script>
 

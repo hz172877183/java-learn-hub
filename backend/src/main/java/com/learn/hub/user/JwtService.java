@@ -13,6 +13,9 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
 
+/**
+ * JWT 签发与解析：HS256，密钥和有效期来自配置。
+ */
 @Service
 public class JwtService {
 
@@ -27,6 +30,9 @@ public class JwtService {
         this.ttlMillis = ttlHours * 60L * 60L * 1000L;
     }
 
+    /**
+     * 签发访问令牌：sub 存用户 ID，附带用户名，默认有效期由配置决定。
+     */
     public String issue(Long userId, String username) {
         Instant now = Instant.now();
         return Jwts.builder()
@@ -38,6 +44,9 @@ public class JwtService {
                 .compact();
     }
 
+    /**
+     * 校验签名与有效期并取出用户 ID；任何异常都视为未认证，交由调用方返回 401。
+     */
     public Optional<Long> parseUserId(String token) {
         try {
             Claims claims = Jwts.parser()

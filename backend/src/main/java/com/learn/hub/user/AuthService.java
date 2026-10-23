@@ -9,6 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.regex.Pattern;
 
+/**
+ * 账号服务：注册校验、BCrypt 哈希、登录校验与 JWT 签发。
+ */
 @Service
 public class AuthService {
 
@@ -23,6 +26,9 @@ public class AuthService {
         this.jwtService = jwtService;
     }
 
+    /**
+     * 注册新用户：校验用户名/密码，使用 BCrypt 存哈希，直接返回登录令牌。
+     */
     @Transactional
     public AuthDtos.AuthResponse register(AuthDtos.RegisterRequest request) {
         if (request == null) {
@@ -56,6 +62,9 @@ public class AuthService {
         return response(user);
     }
 
+    /**
+     * 登录校验：用户名不存在与密码错误返回同一个 401，避免泄露账号是否存在。
+     */
     @Transactional(readOnly = true)
     public AuthDtos.AuthResponse login(AuthDtos.LoginRequest request) {
         if (request == null || request.username() == null || request.password() == null) {
@@ -69,6 +78,9 @@ public class AuthService {
         return response(user);
     }
 
+    /**
+     * 读取当前用户信息；用户被删除后旧令牌会在这里失效。
+     */
     @Transactional(readOnly = true)
     public AuthDtos.UserView view(Long userId) {
         UserEntity user = userRepository.findById(userId)

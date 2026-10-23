@@ -1,3 +1,4 @@
+/** HTTP 客户端：公开接口、管理端接口与当前用户接口的统一封装。 */
 import type {
   AuthResponse,
   LearningState,
@@ -36,6 +37,7 @@ async function getJson<T>(url: string): Promise<T> {
   return request<T>(url)
 }
 
+/** 学习项目录：组合筛选 + 分页。 */
 export function fetchTopics(params: Record<string, string | undefined>) {
   const q = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
@@ -45,18 +47,22 @@ export function fetchTopics(params: Record<string, string | undefined>) {
   return getJson<TopicListResponse>(`/api/v1/topics${suffix}`)
 }
 
+/** 学习项详情。 */
 export function fetchTopic(slug: string) {
   return getJson<TopicDetail>(`/api/v1/topics/${slug}`)
 }
 
+/** 某个学习项的面试题。 */
 export function fetchQuizzes(slug: string) {
   return getJson<QuizQuestion[]>(`/api/v1/topics/${slug}/quizzes`)
 }
 
+/** 推荐路线与阶段。 */
 export function fetchTrack(slug = 'java-backend-job-ready') {
   return getJson<TrackResponse>(`/api/v1/tracks/${slug}`)
 }
 
+/** 分类统计。 */
 export function fetchMeta() {
   return getJson<MetaResponse>('/api/v1/meta/categories')
 }
@@ -67,10 +73,12 @@ export function getAdminToken() {
   return localStorage.getItem(TOKEN_KEY) ?? ''
 }
 
+/** 写入管理令牌。 */
 export function setAdminToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token)
 }
 
+/** 清除管理令牌。 */
 export function clearAdminToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
@@ -89,31 +97,38 @@ function adminInit(method: string, body?: unknown): RequestInit {
   }
 }
 
+/** 管理端列表（包含草稿）。 */
 export function adminListTopics(q = '') {
   const suffix = q ? `?q=${encodeURIComponent(q)}` : ''
   return request<TopicDocument[]>(`/api/v1/admin/topics${suffix}`, adminInit('GET'))
 }
 
+/** 管理端读取单个学习项。 */
 export function adminGetTopic(slug: string) {
   return request<TopicDocument>(`/api/v1/admin/topics/${slug}`, adminInit('GET'))
 }
 
+/** 新建学习项。 */
 export function adminCreateTopic(doc: TopicDocument) {
   return request<TopicDocument>('/api/v1/admin/topics', adminInit('POST', doc))
 }
 
+/** 更新学习项（slug 不可变）。 */
 export function adminUpdateTopic(slug: string, doc: TopicDocument) {
   return request<TopicDocument>(`/api/v1/admin/topics/${slug}`, adminInit('PUT', doc))
 }
 
+/** 物理删除学习项。 */
 export function adminDeleteTopic(slug: string) {
   return request<void>(`/api/v1/admin/topics/${slug}`, adminInit('DELETE'))
 }
 
+/** 管理端读取题目。 */
 export function adminGetQuizzes(slug: string) {
   return request<QuizQuestion[]>(`/api/v1/admin/topics/${slug}/quizzes`, adminInit('GET'))
 }
 
+/** 题目整组替换。 */
 export function adminSaveQuizzes(slug: string, questions: QuizQuestion[]) {
   return request<QuizQuestion[]>(
     `/api/v1/admin/topics/${slug}/quizzes`,
@@ -125,10 +140,12 @@ export function adminSaveQuizzes(slug: string, questions: QuizQuestion[]) {
 
 const USER_TOKEN_KEY = 'learnhub-token'
 
+/** 读取用户 JWT。 */
 export function getUserToken() {
   return localStorage.getItem(USER_TOKEN_KEY) ?? ''
 }
 
+/** 写入或清除用户 JWT。 */
 export function setUserToken(token: string) {
   if (token) {
     localStorage.setItem(USER_TOKEN_KEY, token)
@@ -159,42 +176,52 @@ function userInit(method: string, body?: unknown): RequestInit {
   }
 }
 
+/** 注册并自动登录。 */
 export function register(payload: { username: string; password: string; displayName?: string }) {
   return request<AuthResponse>('/api/v1/auth/register', jsonInit('POST', payload))
 }
 
+/** 登录并返回 JWT。 */
 export function login(payload: { username: string; password: string }) {
   return request<AuthResponse>('/api/v1/auth/login', jsonInit('POST', payload))
 }
 
+/** 当前用户信息。 */
 export function fetchMe() {
   return request<UserInfo>('/api/v1/me', userInit('GET'))
 }
 
+/** 我的学习进度。 */
 export function fetchProgress() {
   return request<ProgressItem[]>('/api/v1/me/progress', userInit('GET'))
 }
 
+/** 更新单个学习项状态。 */
 export function setProgress(slug: string, state: LearningState) {
   return request<ProgressItem>(`/api/v1/me/progress/${slug}`, userInit('PUT', { state }))
 }
 
+/** 重置进度。 */
 export function resetProgress(slug: string) {
   return request<void>(`/api/v1/me/progress/${slug}`, userInit('DELETE'))
 }
 
+/** 我的全部笔记。 */
 export function fetchNotes() {
   return request<NoteItem[]>('/api/v1/me/notes', userInit('GET'))
 }
 
+/** 单个学习项的笔记。 */
 export function fetchNote(slug: string) {
   return request<NoteItem>(`/api/v1/me/notes/${slug}`, userInit('GET'))
 }
 
+/** 保存笔记（空白即删除）。 */
 export function saveNote(slug: string, content: string) {
   return request<NoteItem>(`/api/v1/me/notes/${slug}`, userInit('PUT', { content }))
 }
 
+/** 删除笔记。 */
 export function deleteNote(slug: string) {
   return request<void>(`/api/v1/me/notes/${slug}`, userInit('DELETE'))
 }

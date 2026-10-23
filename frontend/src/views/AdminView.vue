@@ -1,3 +1,4 @@
+<!-- 管理端列表：令牌登录、搜索、删除与跳转编辑。 -->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -31,6 +32,7 @@ async function load() {
     items.value = await adminListTopics(q.value)
     authed.value = true
   } catch (e) {
+    // 401 时回到令牌输入卡片，并展示服务端提示
     authed.value = false
     error.value = (e as Error).message
   } finally {

@@ -15,6 +15,9 @@ import java.time.LocalDateTime;
         name = "topic_note",
         uniqueConstraints = @UniqueConstraint(name = "uk_note_user_topic", columnNames = {"user_id", "topic_slug"})
 )
+/**
+ * 学习笔记实体：user_id + topic_slug 唯一，保证一人一项一条。
+ */
 public class NoteEntity {
 
     @Id

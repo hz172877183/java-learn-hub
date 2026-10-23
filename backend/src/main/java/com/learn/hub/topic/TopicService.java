@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * 只读查询服务：列表筛选与分页、详情组装、路线展开、分类统计。
+ */
 @Service
 public class TopicService {
 
@@ -28,10 +31,16 @@ public class TopicService {
         this.fixedCatalog = catalog;
     }
 
+    /**
+     * 返回当前内容快照；快照为空时懒加载（首次请求的兜底）。
+     */
     private ContentCatalog catalog() {
         return fixedCatalog != null ? fixedCatalog : catalogStore.get();
     }
 
+    /**
+     * 分页查询已发布学习项，支持分类、难度、接入状态与关键词组合筛选。
+     */
     public TopicDtos.TopicListResponse list(
             String category,
             String difficulty,
@@ -59,6 +68,9 @@ public class TopicService {
         return new TopicDtos.TopicListResponse(all.subList(from, to), page, size, all.size());
     }
 
+    /**
+     * 查询单个学习项详情；草稿与不存在的 slug 一律按 404 处理。
+     */
     public TopicDtos.TopicDetail detail(String slug) {
         ContentModels.TopicDocument doc = catalog().topic(slug)
                 .filter(ContentModels.TopicDocument::published)
@@ -86,6 +98,9 @@ public class TopicService {
         );
     }
 
+    /**
+     * 展开路线：把阶段里引用的学习项解析为摘要，自动跳过草稿与失效引用。
+     */
     public TopicDtos.TrackResponse track(String slug) {
         ContentModels.TrackDocument track = catalog().track(slug)
                 .orElseThrow(() -> new NotFoundException("TRACK_NOT_FOUND", "未找到学习路线: " + slug));
@@ -104,6 +119,9 @@ public class TopicService {
         return new TopicDtos.TrackResponse(track.slug(), track.title(), track.audience(), stages);
     }
 
+    /**
+     * 按分类统计已发布学习项数量，供目录页筛选器使用。
+     */
     public TopicDtos.MetaResponse meta() {
         List<ContentModels.TopicDocument> published = catalog().topics().stream()
                 .filter(ContentModels.TopicDocument::published)

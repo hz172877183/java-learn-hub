@@ -24,6 +24,9 @@ public class UserAuthFilter extends OncePerRequestFilter {
         this.jwtService = jwtService;
     }
 
+    /**
+     * 只保护 /api/v1/me/**；OPTIONS 预检直接放行，避免浏览器拿不到真实请求的响应头。
+     */
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,

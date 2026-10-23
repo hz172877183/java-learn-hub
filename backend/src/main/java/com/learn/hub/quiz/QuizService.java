@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 题目服务：读取、校验与整组替换。
+ */
 @Service
 public class QuizService {
 
@@ -30,6 +33,9 @@ public class QuizService {
         this.catalogStore = catalogStore;
     }
 
+    /**
+     * 公开读取：只允许已发布学习项的题目，草稿与未知 slug 返回 404。
+     */
     @Transactional(readOnly = true)
     public List<ContentModels.QuizQuestion> listPublished(String slug) {
         ContentModels.TopicDocument topic = catalogStore.get().topic(slug)
@@ -40,6 +46,9 @@ public class QuizService {
         return list(slug);
     }
 
+    /**
+     * 按排序号读取某个学习项的全部题目（管理端也复用）。
+     */
     @Transactional(readOnly = true)
     public List<ContentModels.QuizQuestion> list(String slug) {
         return quizQuestionRepository.findByTopicSlugOrderBySortOrderAscIdAsc(slug).stream()
@@ -49,6 +58,9 @@ public class QuizService {
 
     /**
      * 管理端整组替换：先清空该学习项的题目，再按顺序写入。
+     */
+    /**
+     * 管理端整组替换：先校验全部题目，再删旧插新，避免部分写入。
      */
     @Transactional
     public List<ContentModels.QuizQuestion> replace(String slug, List<ContentModels.QuizQuestion> questions) {
@@ -79,6 +91,9 @@ public class QuizService {
         return list(slug);
     }
 
+    /**
+     * 首次启动导入种子题目。
+     */
     @Transactional
     public void seed(String slug, List<ContentModels.QuizQuestion> questions) {
         LocalDateTime now = LocalDateTime.now();
@@ -95,6 +110,9 @@ public class QuizService {
         }
     }
 
+    /**
+     * 校验题型与必填项：选择题要求 2-6 个选项与正确下标，自答题要求参考答案。
+     */
     private void validate(ContentModels.QuizQuestion question) {
         if (question == null) {
             throw new IllegalArgumentException("题目不能为空");

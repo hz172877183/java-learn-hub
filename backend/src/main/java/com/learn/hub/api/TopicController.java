@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 公开只读接口：学习项目录、详情、路线和分类统计。
+ */
 @RestController
 @RequestMapping("/api/v1")
 public class TopicController {
@@ -18,6 +21,9 @@ public class TopicController {
         this.topicService = topicService;
     }
 
+    /**
+     * 学习项目录：分页 + 分类/难度/接入状态/关键词筛选。
+     */
     @GetMapping("/topics")
     public TopicDtos.TopicListResponse list(
             @RequestParam(required = false) String category,
@@ -30,16 +36,25 @@ public class TopicController {
         return topicService.list(category, difficulty, integrationStatus, q, page, size);
     }
 
+    /**
+     * 学习项详情；草稿与未知 slug 返回 404。
+     */
     @GetMapping("/topics/{slug}")
     public TopicDtos.TopicDetail detail(@PathVariable String slug) {
         return topicService.detail(slug);
     }
 
+    /**
+     * 推荐路线：阶段 + 每个阶段引用的学习项摘要。
+     */
     @GetMapping("/tracks/{slug}")
     public TopicDtos.TrackResponse track(@PathVariable String slug) {
         return topicService.track(slug);
     }
 
+    /**
+     * 分类统计，供目录页筛选器展示数量。
+     */
     @GetMapping("/meta/categories")
     public TopicDtos.MetaResponse meta() {
         return topicService.meta();

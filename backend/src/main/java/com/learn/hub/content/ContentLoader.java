@@ -17,6 +17,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 内容加载器：从数据库读取并解析 JSON，也负责种子文件读取与校验。
+ */
 @Component
 public class ContentLoader {
 
@@ -118,6 +121,9 @@ public class ContentLoader {
         return result;
     }
 
+    /**
+     * 解析数据库里的学习项 JSON，并补齐缺失字段。
+     */
     public ContentModels.TopicDocument parseTopic(String json) {        try {
             return objectMapper.readValue(json, ContentModels.TopicDocument.class).normalized();
         } catch (JsonProcessingException e) {
@@ -125,6 +131,9 @@ public class ContentLoader {
         }
     }
 
+    /**
+     * 解析数据库里的路线 JSON。
+     */
     public ContentModels.TrackDocument parseTrack(String json) {
         try {
             return objectMapper.readValue(json, ContentModels.TrackDocument.class).normalized();
@@ -133,6 +142,9 @@ public class ContentLoader {
         }
     }
 
+    /**
+     * 解析数据库里的题目 JSON。
+     */
     public ContentModels.QuizQuestion parseQuiz(String json) {
         try {
             return objectMapper.readValue(json, ContentModels.QuizQuestion.class).normalized();
@@ -141,6 +153,9 @@ public class ContentLoader {
         }
     }
 
+    /**
+     * 序列化为紧凑 JSON，作为数据库 payload 保存。
+     */
     public String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -149,6 +164,9 @@ public class ContentLoader {
         }
     }
 
+    /**
+     * 全量校验：已发布内容必须完整；路线允许引用暂时不存在的学习项。
+     */
     public void validate(
             Map<String, ContentModels.TopicDocument> topics,
             Map<String, ContentModels.TrackDocument> tracks
@@ -168,6 +186,9 @@ public class ContentLoader {
         // 路线允许临时引用不存在的学习项，读取时会自动跳过，避免删除学习项被路线阻塞。
     }
 
+    /**
+     * 单条校验，供管理端写入前复用同一套发布规则。
+     */
     public void validateOne(ContentModels.TopicDocument topic) {
         Map<String, ContentModels.TopicDocument> single = new LinkedHashMap<>();
         single.put(topic.slug(), topic);

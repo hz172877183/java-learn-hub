@@ -47,6 +47,9 @@ public class ContentSeeder implements ApplicationRunner {
         this.quizService = quizService;
     }
 
+    /**
+     * 启动后执行：空库时导入学习项、路线与题目，然后重建内容快照。
+     */
     @Override
     public void run(ApplicationArguments args) throws Exception {
         LocalDateTime now = LocalDateTime.now();

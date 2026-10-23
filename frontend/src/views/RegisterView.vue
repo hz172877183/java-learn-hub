@@ -1,3 +1,4 @@
+<!-- 注册页。 -->
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

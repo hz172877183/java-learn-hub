@@ -1,3 +1,4 @@
+/** 枚举值到中文标签的映射。 */
 export const categoryLabel: Record<string, string> = {
   'spring-core': 'Spring 核心',
   data: '数据访问',

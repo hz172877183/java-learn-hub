@@ -53,6 +53,7 @@ public class AdminAuthFilter extends OncePerRequestFilter {
             return false;
         }
         byte[] provided = header.substring(PREFIX.length()).getBytes(StandardCharsets.UTF_8);
+        // 常量时间比较，避免通过响应时间猜测令牌
         return MessageDigest.isEqual(expectedToken, provided);
     }
 }
