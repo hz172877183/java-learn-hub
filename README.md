@@ -73,7 +73,7 @@ npm run dev
 - 注册 / 登录：`/register`、`/login`，接口为 `POST /api/v1/auth/register|login`，成功后返回 JWT。
 - 权限：`/api/v1/me/**` 需要 `Authorization: Bearer <JWT>`；JWT 默认有效期 7 天（`LEARNHUB_JWT_TTL_HOURS`）。
 - 学习进度：`/track` 页每个学习项可选「未开始 / 学习中 / 已完成」，并显示阶段与整体进度；`/me` 汇总。
-- 私人笔记：每个学习项一条 Markdown 笔记，在详情页编辑保存，仅本人可见（按 user_id 隔离）。
+- 私人笔记：每个学习项一条 Markdown 笔记，详情页右下角悬浮窗可随时打开，关闭时自动保存，仅本人可见（按 user_id 隔离）。
 - 面试真题：`GET /api/v1/topics/{slug}/quizzes`，详情页内完成答题与查看解析。
 - 相关表：`app_user`、`learning_progress`、`topic_note`（V2 迁移）。
 - 注意：普通用户与 `/admin` 的 Bearer Token 是两套鉴权，互不影响。

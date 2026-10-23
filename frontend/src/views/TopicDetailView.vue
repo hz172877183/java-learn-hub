@@ -3,10 +3,11 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
-import { fetchNote, fetchProgress, fetchQuizzes, fetchTopic, saveNote, setProgress } from '@/api/client'
+import { fetchProgress, fetchQuizzes, fetchTopic, setProgress } from '@/api/client'
 import type { LearningState, QuizQuestion, TopicDetail } from '@/api/types'
 import { categoryLabel, difficultyLabel, integrationLabel } from '@/labels'
 import { useAuthStore } from '@/stores/auth'
+import NotePanel from '@/components/NotePanel.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -16,9 +17,6 @@ const error = ref('')
 const html = computed(() => (topic.value ? marked.parse(topic.value.overviewMd) : ''))
 
 const state = ref<LearningState>('not_started')
-const note = ref('')
-const noteStatus = ref('')
-const savingNote = ref(false)
 
 const quizzes = ref<QuizQuestion[]>([])
 const quizAnswers = ref<Record<number, number | null>>({})
@@ -68,18 +66,12 @@ async function copy(code: string) {
 
 async function loadStudy(slug: string) {
   state.value = 'not_started'
-  note.value = ''
-  noteStatus.value = ''
   if (!auth.isLoggedIn) {
     return
   }
   try {
-    const [progressList, noteData] = await Promise.all([fetchProgress(), fetchNote(slug)])
+    const progressList = await fetchProgress()
     state.value = progressList.find((item) => item.topicSlug === slug)?.state ?? 'not_started'
-    note.value = noteData.content
-    if (noteData.updatedAt) {
-      noteStatus.value = `上次保存：${noteData.updatedAt.replace('T', ' ').slice(0, 16)}`
-    }
   } catch {
     /* 未登录或网络问题时保持默认值 */
   }
@@ -94,24 +86,6 @@ async function saveState(value: LearningState) {
     ElMessage.success('已更新学习状态')
   } catch (e) {
     ElMessage.error((e as Error).message)
-  }
-}
-
-async function saveNoteNow() {
-  if (!topic.value) {
-    return
-  }
-  savingNote.value = true
-  try {
-    const saved = await saveNote(topic.value.slug, note.value)
-    noteStatus.value = saved.updatedAt
-      ? `已保存：${saved.updatedAt.replace('T', ' ').slice(0, 16)}`
-      : '已清空笔记'
-    ElMessage.success('笔记已保存')
-  } catch (e) {
-    ElMessage.error((e as Error).message)
-  } finally {
-    savingNote.value = false
   }
 }
 
@@ -329,20 +303,9 @@ watch(
         </div>
       </section>
 
-      <section v-if="auth.isLoggedIn" class="card note-box">
-        <h2>我的笔记 <span class="muted">仅自己可见</span></h2>
-        <el-input
-          v-model="note"
-          type="textarea"
-          :rows="8"
-          placeholder="记录你的理解、命令、踩坑……支持 Markdown。"
-        />
-        <div class="note-actions">
-          <el-button type="primary" :loading="savingNote" @click="saveNoteNow">保存笔记</el-button>
-          <span class="muted">{{ noteStatus }}</span>
-        </div>
-      </section>
     </article>
+
+    <NotePanel v-if="topic && auth.isLoggedIn" :slug="topic.slug" :title="topic.title" />
   </main>
 </template>
 
@@ -380,20 +343,6 @@ dd {
 }
 .state-select {
   width: 120px;
-}
-.note-box {
-  margin-top: 28px;
-}
-.note-box h2 {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-.note-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
 }
 .scenario-grid {
   display: grid;
