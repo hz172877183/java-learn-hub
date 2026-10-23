@@ -100,3 +100,7 @@ npm run dev
 cd backend;  mvn test
 cd frontend; npm run build
 ```
+
+- 集成测试使用独立的 `learnhub_test` 库（`spring.profiles.active=test`），首次运行自动创建并执行 Flyway，每个用例事务回滚，不影响开发库。
+- 运行集成测试需要本机 MySQL 容器已启动；连不上会直接失败。
+- 目前 29 个用例：公开 API 单测 6、认证与用户隔离 12、管理端与题目 11。
