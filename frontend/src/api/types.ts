@@ -25,6 +25,7 @@ export interface TopicDetail extends TopicSummary {
   nextTopics: TopicRef[]
   relatedTopics: TopicRef[]
   repoPointers: { label: string; path: string }[]
+  scenarios: Scenario[]
 }
 
 export interface TopicListResponse {
@@ -96,6 +97,7 @@ export interface TopicDocument {
   samples?: Sample[]
   pitfalls?: Pitfall[]
   repoPointers?: RepoPointer[]
+  scenarios?: Scenario[]
 }
 
 export interface UserInfo {
@@ -125,4 +127,21 @@ export interface NoteItem {
   title: string
   content: string
   updatedAt?: string
+}
+
+export interface Scenario {
+  title: string
+  signal: string
+  approach: string
+}
+
+export type QuizType = 'choice' | 'text'
+
+export interface QuizQuestion {
+  type: QuizType
+  stem: string
+  options: string[]
+  correctIndex?: number
+  referenceAnswer?: string
+  explanation: string
 }

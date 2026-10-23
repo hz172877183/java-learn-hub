@@ -1,6 +1,7 @@
 package com.learn.hub.admin;
 
 import com.learn.hub.content.ContentModels;
+import com.learn.hub.quiz.QuizService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -20,9 +21,11 @@ import java.util.List;
 public class AdminTopicController {
 
     private final TopicAdminService topicAdminService;
+    private final QuizService quizService;
 
-    public AdminTopicController(TopicAdminService topicAdminService) {
+    public AdminTopicController(TopicAdminService topicAdminService, QuizService quizService) {
         this.topicAdminService = topicAdminService;
+        this.quizService = quizService;
     }
 
     @GetMapping
@@ -54,5 +57,18 @@ public class AdminTopicController {
     public ResponseEntity<Void> delete(@PathVariable String slug) {
         topicAdminService.delete(slug);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{slug}/quizzes")
+    public List<ContentModels.QuizQuestion> quizzes(@PathVariable String slug) {
+        return quizService.list(slug);
+    }
+
+    @PutMapping("/{slug}/quizzes")
+    public List<ContentModels.QuizQuestion> replaceQuizzes(
+            @PathVariable String slug,
+            @RequestBody List<ContentModels.QuizQuestion> questions
+    ) {
+        return quizService.replace(slug, questions);
     }
 }

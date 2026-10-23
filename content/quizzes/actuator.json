@@ -1,0 +1,20 @@
+[
+  {
+    "type": "choice",
+    "stem": "默认配置下，访问 /actuator/health 返回的内容是？",
+    "options": [
+      "所有依赖的详细状态",
+      "仅整体 status（UP/DOWN）",
+      "环境变量列表",
+      "线程堆栈"
+    ],
+    "correctIndex": 1,
+    "explanation": "show-details 默认为 never，只返回聚合后的 status；要看组件细节需要显式打开，且生产环境要评估泄露风险。"
+  },
+  {
+    "type": "text",
+    "stem": "线上接口偶发超时，你会怎样用 Actuator 快速缩小范围？",
+    "referenceAnswer": "先看 health 确认数据库、磁盘等依赖是否异常；再打开 metrics，查看 http.server.requests 的 P99 和错误率，以及 jvm.memory、线程池指标；结合日志里的 traceId 定位到具体依赖或代码段。",
+    "explanation": "排查顺序是「依赖是否健康 → 指标是否异常 → 日志定位」。Actuator 负责前两步，避免一上来就翻代码。"
+  }
+]

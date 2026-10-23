@@ -1,0 +1,32 @@
+[
+  {
+    "type": "choice",
+    "stem": "联合索引 (a, b, c)，下面哪个查询能有效命中索引？",
+    "options": [
+      "where b = 1",
+      "where a = 1 and c = 2",
+      "where a = 1 and b = 2",
+      "where c = 1"
+    ],
+    "correctIndex": 2,
+    "explanation": "联合索引遵循最左前缀原则；(a,b) 连续匹配可用；跳过 a 或只用 c 无法有效使用该索引。"
+  },
+  {
+    "type": "text",
+    "stem": "线上一条 SQL 突然变慢，你的排查步骤是什么？",
+    "referenceAnswer": "先用 EXPLAIN 看 type、key、rows 和 Extra，确认是否走索引、是否回表或文件排序；检查统计信息与数据量变化；再看锁等待和慢查询日志；最后考虑改写 SQL、加覆盖索引或拆分查询。",
+    "explanation": "先定位执行计划，再怀疑数据分布和锁；不要一上来就加索引。"
+  },
+  {
+    "type": "choice",
+    "stem": "能避免脏读、但允许不可重复读的隔离级别是？",
+    "options": [
+      "READ UNCOMMITTED",
+      "READ COMMITTED",
+      "REPEATABLE READ",
+      "SERIALIZABLE"
+    ],
+    "correctIndex": 1,
+    "explanation": "READ COMMITTED 只读到已提交数据（避免脏读），但同一事务内两次读可能不同（不可重复读）。"
+  }
+]

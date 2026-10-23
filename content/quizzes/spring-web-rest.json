@@ -1,0 +1,26 @@
+[
+  {
+    "type": "choice",
+    "stem": "Spring MVC 中做统一异常处理，应该用？",
+    "options": [
+      "@RestControllerAdvice + @ExceptionHandler",
+      "@RequestMapping",
+      "@ComponentScan",
+      "@Bean"
+    ],
+    "correctIndex": 0,
+    "explanation": "@RestControllerAdvice 全局拦截异常，配合 @ExceptionHandler 把异常转换成统一的 HTTP 状态码和错误体。"
+  },
+  {
+    "type": "text",
+    "stem": "REST 接口的参数校验一般怎么做？",
+    "referenceAnswer": "在 DTO 上用 Bean Validation 注解声明规则，Controller 参数加 @Valid/@Validated；校验失败抛 MethodArgumentNotValidException，由全局异常处理器转成 400 和字段级错误信息。",
+    "explanation": "校验放在入参边界，业务层不再重复判空；错误结构统一，前端才好处理。"
+  },
+  {
+    "type": "text",
+    "stem": "设计一个分页接口，你会考虑哪些点？",
+    "referenceAnswer": "参数用 page/size 或 cursor，并限制最大 size；返回 items、total、page、size；排序字段做白名单校验；深分页考虑 keyset；错误参数返回 400 而不是 500。",
+    "explanation": "分页接口的坑主要在边界：超大 size、非法 page、任意排序字段和深 offset。"
+  }
+]

@@ -1,0 +1,20 @@
+[
+  {
+    "type": "choice",
+    "stem": "Flyway 靠什么保证同一个迁移脚本不会重复执行？",
+    "options": [
+      "文件修改时间",
+      "数据库里的 schema history 表",
+      "文件名前缀",
+      "开发者手动记录"
+    ],
+    "correctIndex": 1,
+    "explanation": "Flyway 在 flyway_schema_history 中记录已执行的版本和校验和；重复启动时只执行未应用的版本。"
+  },
+  {
+    "type": "text",
+    "stem": "已上线的表需要新增字段，Flyway 的正确做法是什么？",
+    "referenceAnswer": "新增一个 V{n}__add_xxx.sql，写 ALTER TABLE 并提交评审；随下一次发布自动执行。不要修改已经执行过的历史脚本，需要回退时新增反向迁移。",
+    "explanation": "迁移脚本是只增不改的变更日志；改历史脚本会导致校验和不一致，不同环境状态分叉。"
+  }
+]

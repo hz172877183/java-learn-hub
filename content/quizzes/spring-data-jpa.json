@@ -1,0 +1,26 @@
+[
+  {
+    "type": "choice",
+    "stem": "解决 JPA 的 N+1 查询问题，常用手段是？",
+    "options": [
+      "在循环里逐个查询",
+      "fetch join 或 @EntityGraph",
+      "关闭事务",
+      "给所有字段加索引"
+    ],
+    "correctIndex": 1,
+    "explanation": "N+1 是查主表后又逐条查关联；用 fetch join / EntityGraph / DTO 投影一次取回，或批量抓取。"
+  },
+  {
+    "type": "text",
+    "stem": "LazyInitializationException 通常是什么原因？",
+    "referenceAnswer": "在事务或持久化上下文关闭后访问懒加载关联集合；常见于 Controller 层直接读实体。解决方式是查询时 fetch join、用 DTO 投影，或把访问限制在事务边界内。",
+    "explanation": "懒加载依赖 Session；把实体直接序列化返回是典型触发场景。"
+  },
+  {
+    "type": "text",
+    "stem": "用 JPA 做大表分页时要注意什么？",
+    "referenceAnswer": "注意 count 查询的成本、深分页 offset 的性能，以及 join fetch 集合会导致分页在内存完成；只查需要的列，必要时用游标/keyset 分页。",
+    "explanation": "ORM 的分页不是免费的：先看 SQL，再决定是否改成 DTO 投影或原生查询。"
+  }
+]

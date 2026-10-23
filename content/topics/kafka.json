@@ -5,23 +5,60 @@
   "summary": "日志型流：分区、位移、高吞吐。本路线作对照，一期仅文档。",
   "difficulty": "practical",
   "estimatedHours": 8,
-  "tags": ["kafka", "streaming"],
+  "tags": [
+    "kafka",
+    "streaming"
+  ],
   "status": "published",
   "integrationStatus": "docs_only",
   "officialDocsUrl": "https://kafka.apache.org/documentation/",
-  "prerequisites": ["rabbitmq"],
+  "prerequisites": [
+    "rabbitmq"
+  ],
   "nextTopics": [],
-  "relatedTopics": ["rabbitmq"],
+  "relatedTopics": [
+    "rabbitmq"
+  ],
   "overviewMd": "Kafka 把消息当成可重放的日志。多个消费者组各自维护位移，适合埋点、管道、事件溯源。教学主推 RabbitMQ 后，用本页建立「何时换 Kafka」的判断，而不是两个 Broker 都在本机跑起来。",
   "concepts": [
-    { "term": "Topic 与 Partition", "explanation": "分区是并行与顺序的单位。同一 key 进同一分区则有序。" },
-    { "term": "Consumer Group", "explanation": "组内分摊分区；多组可重复消费同一日志。" },
-    { "term": "Offset", "explanation": "消费进度。可重置以重放，这是和 Rabbit 队列「取走即消失」的最大不同。" }
+    {
+      "term": "Topic 与 Partition",
+      "explanation": "分区是并行与顺序的单位。同一 key 进同一分区则有序。"
+    },
+    {
+      "term": "Consumer Group",
+      "explanation": "组内分摊分区；多组可重复消费同一日志。"
+    },
+    {
+      "term": "Offset",
+      "explanation": "消费进度。可重置以重放，这是和 Rabbit 队列「取走即消失」的最大不同。"
+    }
   ],
   "pathSteps": [
-    { "title": "对比表", "goal": "从模型、顺序、重放、运维成本四列对比 Rabbit。", "hours": 2, "resources": ["rabbitmq"] },
-    { "title": "看一条消息生命周期", "goal": "produce → log → consume → commit offset。", "hours": 3, "resources": ["官方介绍"] },
-    { "title": "决定不接入一期", "goal": "写清楚本学习门户没有事件管道需求。", "hours": 1, "resources": ["PRD"] }
+    {
+      "title": "对比表",
+      "goal": "从模型、顺序、重放、运维成本四列对比 Rabbit。",
+      "hours": 2,
+      "resources": [
+        "rabbitmq"
+      ]
+    },
+    {
+      "title": "看一条消息生命周期",
+      "goal": "produce → log → consume → commit offset。",
+      "hours": 3,
+      "resources": [
+        "官方介绍"
+      ]
+    },
+    {
+      "title": "决定不接入一期",
+      "goal": "写清楚本学习门户没有事件管道需求。",
+      "hours": 1,
+      "resources": [
+        "PRD"
+      ]
+    }
   ],
   "samples": [
     {
@@ -32,9 +69,30 @@
     }
   ],
   "pitfalls": [
-    { "title": "分区数随意", "detail": "分区只能加不能廉价地减。先按吞吐估算。" },
-    { "title": "和 Rabbit 当同义词", "detail": "队列语义 vs 日志语义。选错会在重放和 fan-out 上痛苦。" },
-    { "title": "本机同时跑两套 Broker 学概念", "detail": "记忆会被运维噪音淹没。先把 Rabbit 跑通再碰 Kafka。" }
+    {
+      "title": "分区数随意",
+      "detail": "分区只能加不能廉价地减。先按吞吐估算。"
+    },
+    {
+      "title": "和 Rabbit 当同义词",
+      "detail": "队列语义 vs 日志语义。选错会在重放和 fan-out 上痛苦。"
+    },
+    {
+      "title": "本机同时跑两套 Broker 学概念",
+      "detail": "记忆会被运维噪音淹没。先把 Rabbit 跑通再碰 Kafka。"
+    }
   ],
-  "repoPointers": []
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "下单后要通知库存、积分、消息中心",
+      "signal": "同步调用链越来越长，任一环节慢都拖垮主流程",
+      "approach": "把“下单成功”发布成事件，下游各自订阅；主流程只保证事件发出，失败靠重试和处理幂等兜底"
+    },
+    {
+      "title": "流量高峰要削峰",
+      "signal": "大促或批量导入时瞬时写入量远超数据库承受能力",
+      "approach": "先写 Kafka 缓冲，消费者按数据库能力匀速消费；用分区数控制并行度，按业务 key 保证顺序"
+    }
+  ]
 }

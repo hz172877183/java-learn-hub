@@ -81,7 +81,8 @@ public class TopicService {
                 refs(doc.prerequisites()),
                 refs(doc.nextTopics()),
                 refs(doc.relatedTopics()),
-                doc.repoPointers()
+                doc.repoPointers(),
+                doc.scenarios()
         );
     }
 

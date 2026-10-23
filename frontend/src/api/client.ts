@@ -4,6 +4,7 @@ import type {
   MetaResponse,
   NoteItem,
   ProgressItem,
+  QuizQuestion,
   TopicDetail,
   TopicDocument,
   TopicListResponse,
@@ -46,6 +47,10 @@ export function fetchTopics(params: Record<string, string | undefined>) {
 
 export function fetchTopic(slug: string) {
   return getJson<TopicDetail>(`/api/v1/topics/${slug}`)
+}
+
+export function fetchQuizzes(slug: string) {
+  return getJson<QuizQuestion[]>(`/api/v1/topics/${slug}/quizzes`)
 }
 
 export function fetchTrack(slug = 'java-backend-job-ready') {
@@ -103,6 +108,17 @@ export function adminUpdateTopic(slug: string, doc: TopicDocument) {
 
 export function adminDeleteTopic(slug: string) {
   return request<void>(`/api/v1/admin/topics/${slug}`, adminInit('DELETE'))
+}
+
+export function adminGetQuizzes(slug: string) {
+  return request<QuizQuestion[]>(`/api/v1/admin/topics/${slug}/quizzes`, adminInit('GET'))
+}
+
+export function adminSaveQuizzes(slug: string, questions: QuizQuestion[]) {
+  return request<QuizQuestion[]>(
+    `/api/v1/admin/topics/${slug}/quizzes`,
+    adminInit('PUT', questions),
+  )
 }
 
 /* ---------------- 普通用户 ---------------- */

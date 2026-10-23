@@ -5,25 +5,73 @@
   "summary": "用容器起 MySQL/Redis/RabbitMQ，不把中间件安装污染到主机。",
   "difficulty": "beginner",
   "estimatedHours": 5,
-  "tags": ["docker", "compose"],
+  "tags": [
+    "docker",
+    "compose"
+  ],
   "status": "published",
   "integrationStatus": "docs_only",
   "officialDocsUrl": "https://docs.docker.com/",
   "prerequisites": [],
-  "nextTopics": ["mysql-basics", "redis"],
-  "relatedTopics": ["actuator"],
+  "nextTopics": [
+    "mysql-basics",
+    "redis"
+  ],
+  "relatedTopics": [
+    "actuator"
+  ],
   "overviewMd": "一期门户不需要 Docker 也能跑（Java + Node）。二期中间件建议全部用 Compose 启动。镜像与端口写进仓库，避免「我机器上是 3307」。",
   "concepts": [
-    { "term": "镜像与容器", "explanation": "镜像是只读模板，容器是实例。" },
-    { "term": "端口映射", "explanation": "宿主机 3306:容器 3306。冲突就改左边。" },
-    { "term": "Volume", "explanation": "数据要持久就挂卷，否则容器一删库也没。" },
-    { "term": "Compose", "explanation": "多容器编排文件，一条命令起栈。" }
+    {
+      "term": "镜像与容器",
+      "explanation": "镜像是只读模板，容器是实例。"
+    },
+    {
+      "term": "端口映射",
+      "explanation": "宿主机 3306:容器 3306。冲突就改左边。"
+    },
+    {
+      "term": "Volume",
+      "explanation": "数据要持久就挂卷，否则容器一删库也没。"
+    },
+    {
+      "term": "Compose",
+      "explanation": "多容器编排文件，一条命令起栈。"
+    }
   ],
   "pathSteps": [
-    { "title": "安装引擎", "goal": "Windows 上 Docker Desktop 或等价引擎能 docker version。", "hours": 1, "resources": ["官方安装"] },
-    { "title": "跑 Redis", "goal": "docker run 起一个 Redis 并 redis-cli ping。", "hours": 1, "resources": ["本页示例"] },
-    { "title": "读 Compose 草案", "goal": "为二期 MySQL+Redis 做心理准备。", "hours": 2, "resources": ["本页 compose"] },
-    { "title": "本机 JDK", "goal": "开发仍建议本机 JDK 21 编译，容器只跑中间件。", "hours": 1, "resources": ["README"] }
+    {
+      "title": "安装引擎",
+      "goal": "Windows 上 Docker Desktop 或等价引擎能 docker version。",
+      "hours": 1,
+      "resources": [
+        "官方安装"
+      ]
+    },
+    {
+      "title": "跑 Redis",
+      "goal": "docker run 起一个 Redis 并 redis-cli ping。",
+      "hours": 1,
+      "resources": [
+        "本页示例"
+      ]
+    },
+    {
+      "title": "读 Compose 草案",
+      "goal": "为二期 MySQL+Redis 做心理准备。",
+      "hours": 2,
+      "resources": [
+        "本页 compose"
+      ]
+    },
+    {
+      "title": "本机 JDK",
+      "goal": "开发仍建议本机 JDK 21 编译，容器只跑中间件。",
+      "hours": 1,
+      "resources": [
+        "README"
+      ]
+    }
   ],
   "samples": [
     {
@@ -34,9 +82,30 @@
     }
   ],
   "pitfalls": [
-    { "title": "把密钥写进镜像层", "detail": "用环境变量或 secrets，不要 docker commit 含密码的容器当镜像。" },
-    { "title": "端口习惯不同未文档化", "detail": "README 必须写死开发端口。" },
-    { "title": "在 Linux 容器里用 Windows 路径当 volume 胡写", "detail": "Compose 路径分隔与盘符要按官方 Windows 说明。" }
+    {
+      "title": "把密钥写进镜像层",
+      "detail": "用环境变量或 secrets，不要 docker commit 含密码的容器当镜像。"
+    },
+    {
+      "title": "端口习惯不同未文档化",
+      "detail": "README 必须写死开发端口。"
+    },
+    {
+      "title": "在 Linux 容器里用 Windows 路径当 volume 胡写",
+      "detail": "Compose 路径分隔与盘符要按官方 Windows 说明。"
+    }
   ],
-  "repoPointers": []
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "本地要跑 MySQL / Redis / MQ，但不想装一堆中间件",
+      "signal": "换电脑、重装系统、或者多个项目需要不同版本的同一中间件",
+      "approach": "用 docker run / compose 起依赖，端口映射到本机，数据放命名卷；项目里只保留一份 compose 文件"
+    },
+    {
+      "title": "“在我机器上是好的”",
+      "signal": "同事拉下代码跑不起来，JDK、Node、数据库版本不一致",
+      "approach": "把运行时和中间件都容器化，镜像固定版本；应用配置只通过环境变量注入，环境差异收敛到 compose"
+    }
+  ]
 }

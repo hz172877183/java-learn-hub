@@ -2,19 +2,21 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { adminCreateTopic, adminGetTopic, adminUpdateTopic, getAdminToken } from '@/api/client'
+import { adminCreateTopic, adminGetQuizzes, adminGetTopic, adminSaveQuizzes, adminUpdateTopic, getAdminToken } from '@/api/client'
 import type {
   Concept,
   PathStep,
   Pitfall,
+  QuizQuestion,
   RepoPointer,
   Sample,
+  Scenario,
   TopicDocument,
 } from '@/api/types'
 
 type FormDoc = Omit<
   TopicDocument,
-  'tags' | 'prerequisites' | 'nextTopics' | 'relatedTopics' | 'concepts' | 'pathSteps' | 'samples' | 'pitfalls' | 'repoPointers'
+  'tags' | 'prerequisites' | 'nextTopics' | 'relatedTopics' | 'concepts' | 'pathSteps' | 'samples' | 'pitfalls' | 'repoPointers' | 'scenarios'
 > & {
   tags: string[]
   prerequisites: string[]
@@ -25,6 +27,7 @@ type FormDoc = Omit<
   samples: Sample[]
   pitfalls: Pitfall[]
   repoPointers: RepoPointer[]
+  scenarios: Scenario[]
 }
 
 const route = useRoute()
@@ -36,6 +39,7 @@ const form = reactive<FormDoc>(blank())
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
+const quizzes = ref<QuizQuestion[]>([])
 
 function blank(): FormDoc {
   return {
@@ -58,6 +62,7 @@ function blank(): FormDoc {
     samples: [],
     pitfalls: [],
     repoPointers: [],
+    scenarios: [],
   }
 }
 
@@ -74,6 +79,7 @@ function normalize(doc: TopicDocument): FormDoc {
     samples: doc.samples ?? [],
     pitfalls: doc.pitfalls ?? [],
     repoPointers: doc.repoPointers ?? [],
+    scenarios: doc.scenarios ?? [],
   }
 }
 
@@ -88,7 +94,12 @@ onMounted(async () => {
   }
   loading.value = true
   try {
-    Object.assign(form, normalize(await adminGetTopic(slugParam.value)))
+    const [doc, quizList] = await Promise.all([
+      adminGetTopic(slugParam.value),
+      adminGetQuizzes(slugParam.value),
+    ])
+    Object.assign(form, normalize(doc))
+    quizzes.value = quizList
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -122,6 +133,7 @@ function payload(): TopicDocument {
     samples: form.samples.filter((s) => s.title || s.code),
     pitfalls: form.pitfalls.filter((p) => p.title || p.detail),
     repoPointers: form.repoPointers.filter((r) => r.label || r.path),
+    scenarios: form.scenarios.filter((s) => s.title || s.signal || s.approach),
   }
 }
 
@@ -129,11 +141,10 @@ async function save() {
   error.value = ''
   saving.value = true
   try {
-    if (editing.value) {
-      await adminUpdateTopic(slugParam.value, payload())
-    } else {
-      await adminCreateTopic(payload())
-    }
+    const saved = editing.value
+      ? await adminUpdateTopic(slugParam.value, payload())
+      : await adminCreateTopic(payload())
+    await adminSaveQuizzes(saved.slug, quizzes.value)
     ElMessage.success('已保存')
     await router.push('/admin')
   } catch (e) {
@@ -157,6 +168,39 @@ function addPitfall() {
 }
 function addPointer() {
   form.repoPointers.push({ label: '', path: '' })
+}
+function addScenario() {
+  form.scenarios.push({ title: '', signal: '', approach: '' })
+}
+function addQuiz() {
+  quizzes.value.push({
+    type: 'choice',
+    stem: '',
+    options: ['', '', '', ''],
+    correctIndex: 0,
+    explanation: '',
+  })
+}
+function addOption(question: QuizQuestion) {
+  if (question.options.length < 6) {
+    question.options.push('')
+  }
+}
+function removeOption(question: QuizQuestion, index: number) {
+  question.options.splice(index, 1)
+  if (question.correctIndex === undefined || question.correctIndex >= question.options.length) {
+    question.correctIndex = 0
+  }
+}
+function onQuizTypeChange(question: QuizQuestion) {
+  if (question.type === 'choice') {
+    if (question.options.length < 2) {
+      question.options = ['', '', '', '']
+    }
+    if (question.correctIndex === undefined || question.correctIndex >= question.options.length) {
+      question.correctIndex = 0
+    }
+  }
 }
 </script>
 
@@ -233,6 +277,20 @@ function addPointer() {
 
       <section class="card block">
         <div class="block-head">
+          <h2>典型使用场景</h2>
+          <el-button size="small" @click="addScenario">+ 添加</el-button>
+        </div>
+        <p class="muted">回答“什么时候该想到用它”，帮助读者把知识和实际问题对上。</p>
+        <div v-for="(item, i) in form.scenarios" :key="`sc${i}`" class="row">
+          <el-input v-model="item.title" placeholder="场景名，如：线上服务到底活着没" class="term" />
+          <el-input v-model="item.signal" type="textarea" :rows="2" placeholder="什么时候会想到它（识别信号）" />
+          <el-input v-model="item.approach" type="textarea" :rows="2" placeholder="具体怎么做" />
+          <el-button text type="danger" @click="form.scenarios.splice(i, 1)">删除</el-button>
+        </div>
+      </section>
+
+      <section class="card block">
+        <div class="block-head">
           <h2>核心概念</h2>
           <el-button size="small" @click="addConcept">+ 添加</el-button>
         </div>
@@ -295,6 +353,61 @@ function addPointer() {
         </div>
       </section>
 
+      <section class="card block">
+        <div class="block-head">
+          <h2>面试真题</h2>
+          <el-button size="small" @click="addQuiz">+ 添加题目</el-button>
+        </div>
+        <p class="muted">选择题需指定正确选项；自答题不判分，但必须有参考答案和知识点说明。</p>
+
+        <div v-for="(question, i) in quizzes" :key="`q${i}`" class="row quiz-row">
+          <div class="quiz-top">
+            <el-select v-model="question.type" class="type-select" @change="onQuizTypeChange(question)">
+              <el-option label="单选题" value="choice" />
+              <el-option label="自答题" value="text" />
+            </el-select>
+            <span class="muted">第 {{ i + 1 }} 题</span>
+            <el-button text type="danger" @click="quizzes.splice(i, 1)">删除</el-button>
+          </div>
+
+          <el-input v-model="question.stem" type="textarea" :rows="2" placeholder="题干" />
+
+          <template v-if="question.type === 'choice'">
+            <div v-for="(_, oi) in question.options" :key="oi" class="option-row">
+              <el-radio
+                :model-value="question.correctIndex ?? 0"
+                :value="oi"
+                @change="question.correctIndex = oi"
+              >
+                {{ String.fromCharCode(65 + oi) }}
+              </el-radio>
+              <el-input v-model="question.options[oi]" :placeholder="`选项 ${String.fromCharCode(65 + oi)}`" />
+              <el-button text type="danger" :disabled="question.options.length <= 2" @click="removeOption(question, oi)">
+                删
+              </el-button>
+            </div>
+            <el-button size="small" :disabled="question.options.length >= 6" @click="addOption(question)">
+              + 选项
+            </el-button>
+          </template>
+
+          <el-input
+            v-else
+            v-model="question.referenceAnswer"
+            type="textarea"
+            :rows="3"
+            placeholder="参考答案"
+          />
+
+          <el-input
+            v-model="question.explanation"
+            type="textarea"
+            :rows="2"
+            placeholder="知识点说明（必填）"
+          />
+        </div>
+      </section>
+
       <p v-if="error" class="error">{{ error }}</p>
 
       <div class="actions">
@@ -344,6 +457,23 @@ function addPointer() {
 .mono :deep(textarea) {
   font-family: Consolas, "Courier New", monospace;
   font-size: 13px;
+}
+.quiz-row {
+  gap: 10px;
+}
+.quiz-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.type-select {
+  width: 120px;
+}
+.option-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
 }
 .actions {
   display: flex;

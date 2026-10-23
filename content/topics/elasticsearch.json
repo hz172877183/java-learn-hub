@@ -5,23 +5,61 @@
   "summary": "倒排索引与全文检索。学习项多起来后再值得独立搜索，一期用数据库/内存过滤。",
   "difficulty": "practical",
   "estimatedHours": 8,
-  "tags": ["elasticsearch", "search"],
+  "tags": [
+    "elasticsearch",
+    "search"
+  ],
   "status": "published",
   "integrationStatus": "docs_only",
   "officialDocsUrl": "https://www.elastic.co/docs",
-  "prerequisites": ["spring-web-rest"],
+  "prerequisites": [
+    "spring-web-rest"
+  ],
   "nextTopics": [],
-  "relatedTopics": ["spring-cloud-overview", "mysql-basics"],
+  "relatedTopics": [
+    "spring-cloud-overview",
+    "mysql-basics"
+  ],
   "overviewMd": "现在的搜索是对 title/tags/summary 做内存包含匹配，足够几十条学习项。文档量到「模糊分词、相关性、高亮」再上 ES。本页建立概念，不引入运行时。",
   "concepts": [
-    { "term": "倒排索引", "explanation": "词项指向文档列表，所以全文快，不等于替代事务库。" },
-    { "term": "Analyzer", "explanation": "中文分词决定搜「学习路线」能否命中。选错分析器比调分更致命。" },
-    { "term": "近实时", "explanation": "写入后稍有延迟才可搜。和 MySQL 读己之写不同。" }
+    {
+      "term": "倒排索引",
+      "explanation": "词项指向文档列表，所以全文快，不等于替代事务库。"
+    },
+    {
+      "term": "Analyzer",
+      "explanation": "中文分词决定搜「学习路线」能否命中。选错分析器比调分更致命。"
+    },
+    {
+      "term": "近实时",
+      "explanation": "写入后稍有延迟才可搜。和 MySQL 读己之写不同。"
+    }
   ],
   "pathSteps": [
-    { "title": "先用现有 q 参数", "goal": "感受内存搜索的边界（无分词）。", "hours": 1, "resources": ["目录页"] },
-    { "title": "读倒排索引", "goal": "能在白板上画出 term → docId。", "hours": 3, "resources": ["官方入门"] },
-    { "title": "规划索引字段", "goal": "title、overview、tags 权重不同。", "hours": 4, "resources": ["本页示例"] }
+    {
+      "title": "先用现有 q 参数",
+      "goal": "感受内存搜索的边界（无分词）。",
+      "hours": 1,
+      "resources": [
+        "目录页"
+      ]
+    },
+    {
+      "title": "读倒排索引",
+      "goal": "能在白板上画出 term → docId。",
+      "hours": 3,
+      "resources": [
+        "官方入门"
+      ]
+    },
+    {
+      "title": "规划索引字段",
+      "goal": "title、overview、tags 权重不同。",
+      "hours": 4,
+      "resources": [
+        "本页示例"
+      ]
+    }
   ],
   "samples": [
     {
@@ -32,9 +70,30 @@
     }
   ],
   "pitfalls": [
-    { "title": "当主数据库", "detail": "无事务、更新模型不同。学习项主数据仍应在 MySQL/文件。" },
-    { "title": "中文不配分词", "detail": "standard 分析器对中文往往单字切，体验差。" },
-    { "title": "一期就上集群", "detail": "单节点都还没问题定义时，集群只增加运维。" }
+    {
+      "title": "当主数据库",
+      "detail": "无事务、更新模型不同。学习项主数据仍应在 MySQL/文件。"
+    },
+    {
+      "title": "中文不配分词",
+      "detail": "standard 分析器对中文往往单字切，体验差。"
+    },
+    {
+      "title": "一期就上集群",
+      "detail": "单节点都还没问题定义时，集群只增加运维。"
+    }
   ],
-  "repoPointers": []
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "列表搜索越来越慢",
+      "signal": "LIKE '%关键词%' 走全表扫描，数据量上来后接口超时",
+      "approach": "先确认是否真需要全文检索；需要多字段匹配、相关度排序、高亮时再引入 ES，用倒排索引替代全表扫描"
+    },
+    {
+      "title": "同一批数据要按多个维度查",
+      "signal": "运营要按标题、标签、正文组合搜索，还要按相关度排序",
+      "approach": "把可检索字段写入索引，用 multi_match + boost 控制权重；写入侧通过 binlog/消息同步，接受最终一致"
+    }
+  ]
 }

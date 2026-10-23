@@ -132,7 +132,8 @@ public class TopicAdminService {
                 input.pathSteps(),
                 input.samples(),
                 input.pitfalls(),
-                input.repoPointers()
+                input.repoPointers(),
+                input.scenarios()
         ).normalized();
     }
 
@@ -159,7 +160,8 @@ public class TopicAdminService {
                 input.pathSteps(),
                 input.samples(),
                 input.pitfalls(),
-                input.repoPointers()
+                input.repoPointers(),
+                input.scenarios()
         ).normalized();
     }
 

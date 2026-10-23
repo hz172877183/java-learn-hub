@@ -1,0 +1,32 @@
+[
+  {
+    "type": "choice",
+    "stem": "相比传统 Session，JWT 的核心特点是什么？",
+    "options": [
+      "服务端保存会话状态",
+      "无状态，身份信息放在签名令牌里",
+      "不能设置过期时间",
+      "只能用于单体应用"
+    ],
+    "correctIndex": 1,
+    "explanation": "JWT 把 claims 放在客户端，服务端验签即可；代价是吊销困难、令牌可能被窃取。"
+  },
+  {
+    "type": "text",
+    "stem": "JWT 签发后如何实现“退出登录/强制下线”？",
+    "referenceAnswer": "缩短 access token 有效期，配合 refresh token 续期；服务端维护黑名单或用户令牌版本号，验签时校验；对安全性要求高时改用服务端会话。",
+    "explanation": "无状态令牌的吊销需要额外状态，这是 JWT 的固有取舍。"
+  },
+  {
+    "type": "choice",
+    "stem": "JWT 传给后端的标准位置是？",
+    "options": [
+      "URL 查询参数",
+      "Authorization: Bearer <token>",
+      "明文 Cookie",
+      "请求体字段"
+    ],
+    "correctIndex": 1,
+    "explanation": "放在 Authorization 头符合 HTTP 语义；URL 会进入访问日志，Cookie 需要额外防 CSRF。"
+  }
+]

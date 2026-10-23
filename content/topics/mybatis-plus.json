@@ -5,25 +5,74 @@
   "summary": "在 MyBatis 上提供 CRUD 增强；SQL 可见，国内业务项目非常常见。",
   "difficulty": "intermediate",
   "estimatedHours": 8,
-  "tags": ["mybatis", "sql"],
+  "tags": [
+    "mybatis",
+    "sql"
+  ],
   "status": "published",
   "integrationStatus": "docs_only",
   "officialDocsUrl": "https://baomidou.com/",
-  "prerequisites": ["mysql-basics"],
-  "nextTopics": ["flyway"],
-  "relatedTopics": ["spring-data-jpa"],
+  "prerequisites": [
+    "mysql-basics"
+  ],
+  "nextTopics": [
+    "flyway"
+  ],
+  "relatedTopics": [
+    "spring-data-jpa"
+  ],
   "overviewMd": "MyBatis 让你手写 SQL 或用注解 SQL；MyBatis-Plus 再给 BaseMapper、条件构造器、分页插件。和 JPA 不是谁取代谁：对象图用 JPA 省事，报表和动态条件用 MyBatis 更可控。\n\n本项目一期不引入 MyBatis 依赖，避免启动时强迫连库。",
   "concepts": [
-    { "term": "Mapper", "explanation": "接口 + XML 或注解，方法对应一条 SQL。" },
-    { "term": "BaseMapper", "explanation": "Plus 提供按实体的 insert/selectById 等，减少简单 CRUD 的 XML。" },
-    { "term": "Wrapper", "explanation": "QueryWrapper/LambdaQueryWrapper 拼接条件，注意不要拼出不可读的超长链式调用。" },
-    { "term": "分页插件", "explanation": "拦截 SQL 加 LIMIT；要清楚它改的是 SQL 而不是内存切片。" }
+    {
+      "term": "Mapper",
+      "explanation": "接口 + XML 或注解，方法对应一条 SQL。"
+    },
+    {
+      "term": "BaseMapper",
+      "explanation": "Plus 提供按实体的 insert/selectById 等，减少简单 CRUD 的 XML。"
+    },
+    {
+      "term": "Wrapper",
+      "explanation": "QueryWrapper/LambdaQueryWrapper 拼接条件，注意不要拼出不可读的超长链式调用。"
+    },
+    {
+      "term": "分页插件",
+      "explanation": "拦截 SQL 加 LIMIT；要清楚它改的是 SQL 而不是内存切片。"
+    }
   ],
   "pathSteps": [
-    { "title": "对照心智模型", "goal": "同一「按分类查已发布」分别用 JPA 方法名和 Plus Wrapper 写一遍。", "hours": 2, "resources": ["spring-data-jpa"] },
-    { "title": "读 XML", "goal": "理解 #{} 与 ${} 的差别（后者是拼接，有注入风险）。", "hours": 2, "resources": ["MyBatis 文档"] },
-    { "title": "分页", "goal": "看 Page 对象如何同时查 count 与 list。", "hours": 2, "resources": ["Plus 分页插件"] },
-    { "title": "决定本项目二期", "goal": "学习项主数据建议 JPA；复杂检索可再加 Mapper。", "hours": 2, "resources": ["本仓库 PRD"] }
+    {
+      "title": "对照心智模型",
+      "goal": "同一「按分类查已发布」分别用 JPA 方法名和 Plus Wrapper 写一遍。",
+      "hours": 2,
+      "resources": [
+        "spring-data-jpa"
+      ]
+    },
+    {
+      "title": "读 XML",
+      "goal": "理解 #{} 与 ${} 的差别（后者是拼接，有注入风险）。",
+      "hours": 2,
+      "resources": [
+        "MyBatis 文档"
+      ]
+    },
+    {
+      "title": "分页",
+      "goal": "看 Page 对象如何同时查 count 与 list。",
+      "hours": 2,
+      "resources": [
+        "Plus 分页插件"
+      ]
+    },
+    {
+      "title": "决定本项目二期",
+      "goal": "学习项主数据建议 JPA；复杂检索可再加 Mapper。",
+      "hours": 2,
+      "resources": [
+        "本仓库 PRD"
+      ]
+    }
   ],
   "samples": [
     {
@@ -34,9 +83,30 @@
     }
   ],
   "pitfalls": [
-    { "title": "${} 拼接", "detail": "order by ${column} 一类写法可被注入。排序字段必须白名单。" },
-    { "title": "全用 Wrapper 放弃 XML", "detail": "复杂 join 用 XML 更可读。工具不是教条。" },
-    { "title": "和 JPA 同时操作同一实体又不分层", "detail": "两套会话/缓存容易晕。按模块选一个主方案。" }
+    {
+      "title": "${} 拼接",
+      "detail": "order by ${column} 一类写法可被注入。排序字段必须白名单。"
+    },
+    {
+      "title": "全用 Wrapper 放弃 XML",
+      "detail": "复杂 join 用 XML 更可读。工具不是教条。"
+    },
+    {
+      "title": "和 JPA 同时操作同一实体又不分层",
+      "detail": "两套会话/缓存容易晕。按模块选一个主方案。"
+    }
   ],
-  "repoPointers": []
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "大量单表 CRUD，写烦了",
+      "signal": "简单的增删改查占了大部分 Mapper，SQL 重复且容易写错字段",
+      "approach": "继承 BaseMapper + IService，用条件构造器拼 where；复杂查询仍写 XML，保持 SQL 可控"
+    },
+    {
+      "title": "报表 SQL 需要精确控制",
+      "signal": "多表关联、窗口函数、批量更新，ORM 生成的结果不理想",
+      "approach": "用 MyBatis-Plus 的自定义 SQL / XML，配合分页插件；把复杂查询和领域模型分开"
+    }
+  ]
 }

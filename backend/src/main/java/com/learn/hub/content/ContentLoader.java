@@ -20,6 +20,9 @@ import java.util.Map;
 @Component
 public class ContentLoader {
 
+    public record SeedQuiz(String topicSlug, List<ContentModels.QuizQuestion> questions) {
+    }
+
     private final ObjectMapper objectMapper;
     private final TopicRepository topicRepository;
     private final TrackRepository trackRepository;
@@ -89,8 +92,33 @@ public class ContentLoader {
         return tracks;
     }
 
-    public ContentModels.TopicDocument parseTopic(String json) {
-        try {
+    /**
+     * 读取 content/quizzes/{topicSlug}.json，每个文件是该学习项的题目数组。
+     */
+    public List<SeedQuiz> readSeedQuizzes() throws IOException {
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        Resource[] resources = resolver.getResources("classpath:content/quizzes/*.json");
+        List<SeedQuiz> result = new ArrayList<>();
+        for (Resource resource : resources) {
+            String filename = resource.getFilename();
+            if (filename == null) {
+                continue;
+            }
+            String topicSlug = filename.substring(0, filename.length() - ".json".length());
+            try (InputStream in = resource.getInputStream()) {
+                ContentModels.QuizQuestion[] questions =
+                        objectMapper.readValue(in, ContentModels.QuizQuestion[].class);
+                List<ContentModels.QuizQuestion> list = new ArrayList<>();
+                for (ContentModels.QuizQuestion question : questions) {
+                    list.add(question.normalized());
+                }
+                result.add(new SeedQuiz(topicSlug, list));
+            }
+        }
+        return result;
+    }
+
+    public ContentModels.TopicDocument parseTopic(String json) {        try {
             return objectMapper.readValue(json, ContentModels.TopicDocument.class).normalized();
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("数据库中的学习项 JSON 无法解析", e);
@@ -102,6 +130,14 @@ public class ContentLoader {
             return objectMapper.readValue(json, ContentModels.TrackDocument.class).normalized();
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("数据库中的路线 JSON 无法解析", e);
+        }
+    }
+
+    public ContentModels.QuizQuestion parseQuiz(String json) {
+        try {
+            return objectMapper.readValue(json, ContentModels.QuizQuestion.class).normalized();
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("数据库中的题目 JSON 无法解析", e);
         }
     }
 

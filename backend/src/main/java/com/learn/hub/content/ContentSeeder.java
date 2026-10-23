@@ -4,6 +4,8 @@ import com.learn.hub.persistence.TopicEntity;
 import com.learn.hub.persistence.TopicRepository;
 import com.learn.hub.persistence.TrackEntity;
 import com.learn.hub.persistence.TrackRepository;
+import com.learn.hub.quiz.QuizQuestionRepository;
+import com.learn.hub.quiz.QuizService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -26,17 +28,23 @@ public class ContentSeeder implements ApplicationRunner {
     private final CatalogStore catalogStore;
     private final TopicRepository topicRepository;
     private final TrackRepository trackRepository;
+    private final QuizQuestionRepository quizQuestionRepository;
+    private final QuizService quizService;
 
     public ContentSeeder(
             ContentLoader contentLoader,
             CatalogStore catalogStore,
             TopicRepository topicRepository,
-            TrackRepository trackRepository
+            TrackRepository trackRepository,
+            QuizQuestionRepository quizQuestionRepository,
+            QuizService quizService
     ) {
         this.contentLoader = contentLoader;
         this.catalogStore = catalogStore;
         this.topicRepository = topicRepository;
         this.trackRepository = trackRepository;
+        this.quizQuestionRepository = quizQuestionRepository;
+        this.quizService = quizService;
     }
 
     @Override
@@ -77,6 +85,19 @@ public class ContentSeeder implements ApplicationRunner {
         }
 
         catalogStore.refresh();
+
+        if (quizQuestionRepository.count() == 0) {
+            int imported = 0;
+            for (ContentLoader.SeedQuiz seed : contentLoader.readSeedQuizzes()) {
+                if (topicRepository.existsBySlug(seed.topicSlug())) {
+                    quizService.seed(seed.topicSlug(), seed.questions());
+                    imported += seed.questions().size();
+                } else {
+                    log.warn("跳过题目种子：学习项不存在 {}", seed.topicSlug());
+                }
+            }
+            log.info("已导入面试题 {} 道", imported);
+        }
     }
 
     private String orDefault(String value, String fallback) {

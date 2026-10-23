@@ -5,26 +5,78 @@
   "summary": "内存数据结构：缓存、锁、限流的基础；先掌握 string/hash 与过期。",
   "difficulty": "intermediate",
   "estimatedHours": 8,
-  "tags": ["redis", "cache"],
+  "tags": [
+    "redis",
+    "cache"
+  ],
   "status": "published",
   "integrationStatus": "snippet",
   "officialDocsUrl": "https://redis.io/docs/",
-  "prerequisites": ["spring-boot-fundamentals"],
-  "nextTopics": ["spring-security-jwt"],
-  "relatedTopics": ["actuator"],
+  "prerequisites": [
+    "spring-boot-fundamentals"
+  ],
+  "nextTopics": [
+    "spring-security-jwt"
+  ],
+  "relatedTopics": [
+    "actuator"
+  ],
   "overviewMd": "Redis 是内存里的数据结构服务器。业务最常见的是把热点读缓存起来，或用 SET NX 做锁。一期本项目不强制启动 Redis，避免学习门户跑不起来。\n\n**该用时：** 读多写少、会话、验证码、分布式锁、简单限流。\n\n**不该用时：** 当主数据库存放必须持久且复杂查询的学习项正文（那是 MySQL 的事）。",
   "concepts": [
-    { "term": "String", "explanation": "最常用。可存 JSON 序列化后的详情，配合 EXPIRE。" },
-    { "term": "Hash", "explanation": "对象多字段部分更新时比整包 JSON 省带宽。" },
-    { "term": "TTL", "explanation": "过期时间。没有 TTL 的缓存等于内存泄漏候选项。" },
-    { "term": "缓存旁路 Cache-Aside", "explanation": "读：先 Redis，没有再查库并回填；写：先更库再删缓存。" },
-    { "term": "击穿 / 穿透 / 雪崩", "explanation": "热点过期、查不存在的 key、同时大面积过期。分别用互斥重建、空值短 TTL、随机 TTL 应对。" }
+    {
+      "term": "String",
+      "explanation": "最常用。可存 JSON 序列化后的详情，配合 EXPIRE。"
+    },
+    {
+      "term": "Hash",
+      "explanation": "对象多字段部分更新时比整包 JSON 省带宽。"
+    },
+    {
+      "term": "TTL",
+      "explanation": "过期时间。没有 TTL 的缓存等于内存泄漏候选项。"
+    },
+    {
+      "term": "缓存旁路 Cache-Aside",
+      "explanation": "读：先 Redis，没有再查库并回填；写：先更库再删缓存。"
+    },
+    {
+      "term": "击穿 / 穿透 / 雪崩",
+      "explanation": "热点过期、查不存在的 key、同时大面积过期。分别用互斥重建、空值短 TTL、随机 TTL 应对。"
+    }
   ],
   "pathSteps": [
-    { "title": "CLI 五分钟", "goal": "SET/GET/EXPIRE/TTL 亲手敲一遍。", "hours": 1, "resources": ["redis-cli"] },
-    { "title": "Spring 模板", "goal": "读懂 StringRedisTemplate 示例（先不接入）。", "hours": 2, "resources": ["本页示例"] },
-    { "title": "设计本项目缓存键", "goal": "约定 topic:slug:{slug} ，TTL 5 分钟，内容更新时删除。", "hours": 2, "resources": ["PRD 接口"] },
-    { "title": "想清楚失败", "goal": "Redis 宕了是否降级直查内存/DB。门户可以降级。", "hours": 3, "resources": ["常见坑"] }
+    {
+      "title": "CLI 五分钟",
+      "goal": "SET/GET/EXPIRE/TTL 亲手敲一遍。",
+      "hours": 1,
+      "resources": [
+        "redis-cli"
+      ]
+    },
+    {
+      "title": "Spring 模板",
+      "goal": "读懂 StringRedisTemplate 示例（先不接入）。",
+      "hours": 2,
+      "resources": [
+        "本页示例"
+      ]
+    },
+    {
+      "title": "设计本项目缓存键",
+      "goal": "约定 topic:slug:{slug} ，TTL 5 分钟，内容更新时删除。",
+      "hours": 2,
+      "resources": [
+        "PRD 接口"
+      ]
+    },
+    {
+      "title": "想清楚失败",
+      "goal": "Redis 宕了是否降级直查内存/DB。门户可以降级。",
+      "hours": 3,
+      "resources": [
+        "常见坑"
+      ]
+    }
   ],
   "samples": [
     {
@@ -35,9 +87,30 @@
     }
   ],
   "pitfalls": [
-    { "title": "无 TTL", "detail": "学习项一多、序列化一肥，Redis 会先于你的预期撑满。" },
-    { "title": "只更新缓存不更新库", "detail": "重启或淘汰后数据丢失。Cache-Aside 以数据库为准。" },
-    { "title": "用 Keys * 当生产查询", "detail": "阻塞事件循环。扫描用 SCAN，业务查询用明确 key 或 Redis Search（进阶）。" }
+    {
+      "title": "无 TTL",
+      "detail": "学习项一多、序列化一肥，Redis 会先于你的预期撑满。"
+    },
+    {
+      "title": "只更新缓存不更新库",
+      "detail": "重启或淘汰后数据丢失。Cache-Aside 以数据库为准。"
+    },
+    {
+      "title": "用 Keys * 当生产查询",
+      "detail": "阻塞事件循环。扫描用 SCAN，业务查询用明确 key 或 Redis Search（进阶）。"
+    }
   ],
-  "repoPointers": []
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "同一个热点数据被反复查库",
+      "signal": "首页、商品详情、配置项 QPS 高，数据库压力大但数据变化不频繁",
+      "approach": "读多写少的数据加缓存，设置合理 TTL；更新时先改库再删缓存，接受短暂不一致"
+    },
+    {
+      "title": "需要原子计数或短期状态",
+      "signal": "验证码、登录态、接口限流、排行榜",
+      "approach": "用带 TTL 的 key 存短期状态；计数用 INCR/INCRBY 保证原子性；限流用固定/滑动窗口脚本"
+    }
+  ]
 }

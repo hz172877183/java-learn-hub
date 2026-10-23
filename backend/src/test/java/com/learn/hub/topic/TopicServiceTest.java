@@ -41,6 +41,12 @@ class TopicServiceTest {
     }
 
     @Test
+    void detailIncludesScenarios() {
+        assertEquals(1, service.detail("redis").scenarios().size());
+        assertEquals("热点数据", service.detail("redis").scenarios().getFirst().title());
+    }
+
+    @Test
     void unknownSlugIs404() {
         NotFoundException ex = assertThrows(NotFoundException.class, () -> service.detail("nope"));
         assertEquals("TOPIC_NOT_FOUND", ex.getCode());
@@ -84,7 +90,8 @@ class TopicServiceTest {
                         new ContentModels.Pitfall("b", "b"),
                         new ContentModels.Pitfall("c", "c")
                 ),
-                List.of()
+                List.of(),
+                List.of(new ContentModels.Scenario("热点数据", "重复查库", "加缓存"))
         );
     }
 }

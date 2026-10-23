@@ -54,7 +54,8 @@ public final class TopicDtos {
             List<TopicRef> prerequisites,
             List<TopicRef> nextTopics,
             List<TopicRef> relatedTopics,
-            List<ContentModels.RepoPointer> repoPointers
+            List<ContentModels.RepoPointer> repoPointers,
+            List<ContentModels.Scenario> scenarios
     ) {
     }
 

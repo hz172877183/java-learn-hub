@@ -3,8 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
-import { fetchNote, fetchProgress, fetchTopic, saveNote, setProgress } from '@/api/client'
-import type { LearningState, TopicDetail } from '@/api/types'
+import { fetchNote, fetchProgress, fetchQuizzes, fetchTopic, saveNote, setProgress } from '@/api/client'
+import type { LearningState, QuizQuestion, TopicDetail } from '@/api/types'
 import { categoryLabel, difficultyLabel, integrationLabel } from '@/labels'
 import { useAuthStore } from '@/stores/auth'
 
@@ -19,6 +19,48 @@ const state = ref<LearningState>('not_started')
 const note = ref('')
 const noteStatus = ref('')
 const savingNote = ref(false)
+
+const quizzes = ref<QuizQuestion[]>([])
+const quizAnswers = ref<Record<number, number | null>>({})
+const quizText = ref<Record<number, string>>({})
+const quizRevealed = ref<Record<number, boolean>>({})
+
+function resetQuiz() {
+  const answers: Record<number, number | null> = {}
+  const texts: Record<number, string> = {}
+  const revealed: Record<number, boolean> = {}
+  quizzes.value.forEach((_, index) => {
+    answers[index] = null
+    texts[index] = ''
+    revealed[index] = false
+  })
+  quizAnswers.value = answers
+  quizText.value = texts
+  quizRevealed.value = revealed
+}
+
+function reveal(index: number) {
+  quizRevealed.value = { ...quizRevealed.value, [index]: true }
+}
+
+function isCorrect(index: number) {
+  const question = quizzes.value[index]
+  return question?.type === 'choice' && quizAnswers.value[index] === question.correctIndex
+}
+
+function optionLabel(index: number) {
+  return String.fromCharCode(65 + index)
+}
+
+async function loadQuizzes(slug: string) {
+  quizzes.value = []
+  try {
+    quizzes.value = await fetchQuizzes(slug)
+  } catch {
+    quizzes.value = []
+  }
+  resetQuiz()
+}
 
 async function copy(code: string) {
   await navigator.clipboard.writeText(code)
@@ -81,7 +123,7 @@ watch(
     error.value = ''
     try {
       topic.value = await fetchTopic(String(slug))
-      await loadStudy(String(slug))
+      await Promise.all([loadStudy(String(slug)), loadQuizzes(String(slug))])
     } catch (e) {
       if (e instanceof Error && e.message === '404') missing.value = true
       else error.value = '加载失败'
@@ -126,6 +168,20 @@ watch(
       <section>
         <h2>概述</h2>
         <div class="md" v-html="html" />
+      </section>
+
+      <section v-if="topic.scenarios.length">
+        <h2>典型使用场景</h2>
+        <p class="muted">遇到下面这些信号时，可以想到用它。</p>
+        <div class="scenario-grid">
+          <div v-for="scenario in topic.scenarios" :key="scenario.title" class="card scenario">
+            <h3>{{ scenario.title }}</h3>
+            <p class="label">什么时候会想到它</p>
+            <p>{{ scenario.signal }}</p>
+            <p class="label">具体怎么做</p>
+            <p>{{ scenario.approach }}</p>
+          </div>
+        </div>
       </section>
 
       <section v-if="topic.repoPointers.length">
@@ -207,6 +263,72 @@ watch(
         </div>
       </section>
 
+      <section v-if="quizzes.length" class="quiz">
+        <div class="quiz-head">
+          <h2>面试真题</h2>
+          <el-button text @click="resetQuiz">全部重做</el-button>
+        </div>
+        <p class="muted">选择题提交后判分；自答题先自己写，再看参考答案。</p>
+
+        <div v-for="(question, index) in quizzes" :key="index" class="card quiz-item">
+          <div class="quiz-meta">
+            <span class="pill">{{ question.type === 'choice' ? '单选题' : '自答题' }}</span>
+            <span class="muted">第 {{ index + 1 }} 题</span>
+          </div>
+          <p class="stem">{{ question.stem }}</p>
+
+          <template v-if="question.type === 'choice'">
+            <el-radio-group v-model="quizAnswers[index]" :disabled="quizRevealed[index]" class="options">
+              <el-radio
+                v-for="(option, optionIndex) in question.options"
+                :key="optionIndex"
+                :value="optionIndex"
+                class="option"
+              >
+                {{ optionLabel(optionIndex) }}. {{ option }}
+              </el-radio>
+            </el-radio-group>
+            <div v-if="!quizRevealed[index]" class="quiz-actions">
+              <el-button
+                type="primary"
+                size="small"
+                :disabled="quizAnswers[index] === null || quizAnswers[index] === undefined"
+                @click="reveal(index)"
+              >
+                提交答案
+              </el-button>
+            </div>
+            <div v-else class="answer">
+              <p :class="isCorrect(index) ? 'ok' : 'bad'">
+                {{ isCorrect(index) ? '回答正确' : '回答错误' }}，正确答案是
+                {{ optionLabel(question.correctIndex ?? 0) }}
+              </p>
+              <p class="label">知识点说明</p>
+              <p class="muted">{{ question.explanation }}</p>
+            </div>
+          </template>
+
+          <template v-else>
+            <el-input
+              v-model="quizText[index]"
+              type="textarea"
+              :rows="4"
+              :disabled="quizRevealed[index]"
+              placeholder="先自己写答案，再看参考答案（系统不判分）"
+            />
+            <div v-if="!quizRevealed[index]" class="quiz-actions">
+              <el-button size="small" @click="reveal(index)">查看参考答案</el-button>
+            </div>
+            <div v-else class="answer">
+              <p class="label">参考答案</p>
+              <p>{{ question.referenceAnswer }}</p>
+              <p class="label">知识点说明</p>
+              <p class="muted">{{ question.explanation }}</p>
+            </div>
+          </template>
+        </div>
+      </section>
+
       <section v-if="auth.isLoggedIn" class="card note-box">
         <h2>我的笔记 <span class="muted">仅自己可见</span></h2>
         <el-input
@@ -272,5 +394,80 @@ dd {
   align-items: center;
   gap: 12px;
   margin-top: 12px;
+}
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+.scenario h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.label {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+  margin: 10px 0 2px;
+}
+.scenario p {
+  margin: 0;
+  line-height: 1.6;
+}
+.quiz-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.quiz-item {
+  margin-top: 12px;
+}
+.quiz-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.pill {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+.stem {
+  font-weight: 600;
+  margin: 10px 0 12px;
+  line-height: 1.6;
+}
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.option {
+  height: auto;
+  white-space: normal;
+}
+.quiz-actions {
+  margin-top: 12px;
+}
+.answer {
+  margin-top: 12px;
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+}
+.answer p {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+.ok {
+  color: #1e7a4f;
+  font-weight: 600;
+}
+.bad {
+  color: #c0392b;
+  font-weight: 600;
 }
 </style>

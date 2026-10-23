@@ -1,0 +1,32 @@
+[
+  {
+    "type": "choice",
+    "stem": "Vue 3 组合式 API 中，定义响应式对象常用？",
+    "options": [
+      "ref / reactive",
+      "computed",
+      "watch",
+      "nextTick"
+    ],
+    "correctIndex": 0,
+    "explanation": "ref 包基本类型，reactive 包对象；computed 派生状态，watch 监听变化，nextTick 等 DOM 更新。"
+  },
+  {
+    "type": "text",
+    "stem": "单页应用首屏加载慢，可以怎么优化？",
+    "referenceAnswer": "路由懒加载和组件库按需引入，拆分 vendor chunk；开启 gzip/brotli，静态资源上 CDN；图片懒加载；首屏关键路径外的东西延后加载，必要时用 SSR/预渲染。",
+    "explanation": "先看构建产物体积和网络瀑布，再决定拆包还是预渲染。"
+  },
+  {
+    "type": "choice",
+    "stem": "Pinia 在 Vue 3 项目中的主要用途是？",
+    "options": [
+      "路由管理",
+      "全局状态管理",
+      "代码打包",
+      "单元测试框架"
+    ],
+    "correctIndex": 1,
+    "explanation": "Pinia 管理跨组件共享状态；路由是 Vue Router，打包是 Vite，测试是 Vitest/Jest。"
+  }
+]

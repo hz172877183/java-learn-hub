@@ -1,0 +1,20 @@
+[
+  {
+    "type": "choice",
+    "stem": "MyBatis-Plus 的 BaseMapper 主要解决什么问题？",
+    "options": [
+      "分布式事务",
+      "单表 CRUD 的重复代码",
+      "服务注册发现",
+      "二级缓存一致性"
+    ],
+    "correctIndex": 1,
+    "explanation": "BaseMapper 提供单表增删改查和条件构造器，减少样板 SQL；复杂查询仍应写可控的自定义 SQL。"
+  },
+  {
+    "type": "text",
+    "stem": "JPA 和 MyBatis-Plus 应该怎么选？",
+    "referenceAnswer": "领域模型复杂、关系映射多、以对象操作为主时选 JPA；SQL 需要精确控制、报表多、遗留库表不规范时选 MyBatis-Plus。两者可以在同一项目按模块混用。",
+    "explanation": "没有绝对优劣，区别在抽象层次：JPA 面向对象，MyBatis 面向 SQL。"
+  }
+]

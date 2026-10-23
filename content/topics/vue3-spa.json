@@ -5,25 +5,71 @@
   "summary": "Vite + TypeScript + Vue Router + Pinia + Element Plus，消费只读学习 API。",
   "difficulty": "beginner",
   "estimatedHours": 8,
-  "tags": ["vue", "vite", "typescript"],
+  "tags": [
+    "vue",
+    "vite",
+    "typescript"
+  ],
   "status": "published",
   "integrationStatus": "runtime",
   "officialDocsUrl": "https://vuejs.org/guide/introduction.html",
   "prerequisites": [],
   "nextTopics": [],
-  "relatedTopics": ["spring-web-rest"],
+  "relatedTopics": [
+    "spring-web-rest"
+  ],
   "overviewMd": "前端是学习门户的皮肤。目录、详情、路线都走 `/api/v1`。详情路由是 `/topics/:slug`，刷新可直达，由 Vue Router history 模式配合开发代理。",
   "concepts": [
-    { "term": "SFC", "explanation": "单文件组件：template + script setup + style。" },
-    { "term": "Vue Router", "explanation": "把 URL 映射到页面组件。动态段 slug 对应学习项。" },
-    { "term": "Pinia", "explanation": "跨页状态。筛选条件可以放这里，一期也可用组件内 ref。" },
-    { "term": "Vite 代理", "explanation": "开发时 /api 转到 :8080，避免 CORS 心智负担（后端仍配置了 CORS）。" }
+    {
+      "term": "SFC",
+      "explanation": "单文件组件：template + script setup + style。"
+    },
+    {
+      "term": "Vue Router",
+      "explanation": "把 URL 映射到页面组件。动态段 slug 对应学习项。"
+    },
+    {
+      "term": "Pinia",
+      "explanation": "跨页状态。筛选条件可以放这里，一期也可用组件内 ref。"
+    },
+    {
+      "term": "Vite 代理",
+      "explanation": "开发时 /api 转到 :8080，避免 CORS 心智负担（后端仍配置了 CORS）。"
+    }
   ],
   "pathSteps": [
-    { "title": "启动前端", "goal": "npm install && npm run dev，打开目录页。", "hours": 1, "resources": ["README"] },
-    { "title": "跟一次请求", "goal": "浏览器网络面板看 topics 列表 JSON。", "hours": 1, "resources": ["DevTools"] },
-    { "title": "改卡片字段", "goal": "加一个「预计小时」展示（已有则读样式）。", "hours": 2, "resources": ["CatalogView.vue"] },
-    { "title": "Markdown", "goal": "看详情如何把 overviewMd 渲染成 HTML。", "hours": 2, "resources": ["marked"] }
+    {
+      "title": "启动前端",
+      "goal": "npm install && npm run dev，打开目录页。",
+      "hours": 1,
+      "resources": [
+        "README"
+      ]
+    },
+    {
+      "title": "跟一次请求",
+      "goal": "浏览器网络面板看 topics 列表 JSON。",
+      "hours": 1,
+      "resources": [
+        "DevTools"
+      ]
+    },
+    {
+      "title": "改卡片字段",
+      "goal": "加一个「预计小时」展示（已有则读样式）。",
+      "hours": 2,
+      "resources": [
+        "CatalogView.vue"
+      ]
+    },
+    {
+      "title": "Markdown",
+      "goal": "看详情如何把 overviewMd 渲染成 HTML。",
+      "hours": 2,
+      "resources": [
+        "marked"
+      ]
+    }
   ],
   "samples": [
     {
@@ -34,11 +80,35 @@
     }
   ],
   "pitfalls": [
-    { "title": "把学习项写死在前端数组", "detail": "违反 PRD：新增学习项不得改前端路由硬编码。" },
-    { "title": "生产环境仍指向 localhost:8080", "detail": "用相对路径 /api，部署时同源或网关反代。" },
-    { "title": "v-html 不信任源", "detail": "本期 Markdown 来自仓库，仍避免把用户 UGC 直接 v-html。" }
+    {
+      "title": "把学习项写死在前端数组",
+      "detail": "违反 PRD：新增学习项不得改前端路由硬编码。"
+    },
+    {
+      "title": "生产环境仍指向 localhost:8080",
+      "detail": "用相对路径 /api，部署时同源或网关反代。"
+    },
+    {
+      "title": "v-html 不信任源",
+      "detail": "本期 Markdown 来自仓库，仍避免把用户 UGC 直接 v-html。"
+    }
   ],
   "repoPointers": [
-    { "label": "前端工程", "path": "frontend" }
+    {
+      "label": "前端工程",
+      "path": "frontend"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "后台管理界面交互复杂",
+      "signal": "表格、表单、弹窗、路由状态多，jQuery 式的 DOM 操作难维护",
+      "approach": "用 Vue 3 组件化拆分，Pinia 管跨组件状态，Vue Router 管页面；表单和表格直接用 Element Plus"
+    },
+    {
+      "title": "首屏加载慢",
+      "signal": "打包后的 JS 体积过大，白屏时间长",
+      "approach": "路由懒加载 + 组件库按需引入，拆分 vendor chunk；静态资源开启 gzip/brotli，必要时上 SSR"
+    }
   ]
 }

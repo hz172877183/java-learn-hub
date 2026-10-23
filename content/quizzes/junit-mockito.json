@@ -1,0 +1,20 @@
+[
+  {
+    "type": "choice",
+    "stem": "测试中要隔离外部依赖（如短信服务），应该用？",
+    "options": [
+      "@SpringBootTest 启动完整容器",
+      "Mockito 创建 mock 并打桩",
+      "连接真实测试环境",
+      "Thread.sleep 等待"
+    ],
+    "correctIndex": 1,
+    "explanation": "Mockito 让测试只关注自己的逻辑，能稳定模拟成功、超时、异常等分支，不依赖网络和第三方状态。"
+  },
+  {
+    "type": "text",
+    "stem": "什么样的代码最值得优先补单元测试？",
+    "referenceAnswer": "分支多、边界多的纯逻辑，比如筛选、分页、状态流转、金额计算；它们不依赖 IO，测试快且回归价值高。",
+    "explanation": "测试投入要算回报：纯函数和业务规则最容易写、最容易发现问题；集成链路再用切片测试覆盖。"
+  }
+]

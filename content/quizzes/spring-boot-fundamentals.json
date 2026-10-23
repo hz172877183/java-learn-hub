@@ -1,0 +1,32 @@
+[
+  {
+    "type": "choice",
+    "stem": "@SpringBootApplication 不包含下面哪个注解？",
+    "options": [
+      "@Configuration",
+      "@EnableAutoConfiguration",
+      "@ComponentScan",
+      "@EnableScheduling"
+    ],
+    "correctIndex": 3,
+    "explanation": "@SpringBootApplication 是 @Configuration + @EnableAutoConfiguration + @ComponentScan 的组合；定时任务需要单独开启。"
+  },
+  {
+    "type": "text",
+    "stem": "自动配置在什么情况下不会生效？",
+    "referenceAnswer": "条件注解不满足（缺类、缺 Bean、配置开关关闭）时不会生效；用户自己声明了同类型 Bean 会覆盖默认配置；也可以用 exclude 显式排除。",
+    "explanation": "自动配置是“有条件”的约定；排查时打开 debug 看 condition evaluation report。"
+  },
+  {
+    "type": "choice",
+    "stem": "想覆盖 Spring Boot 自动配置提供的默认 Bean，最直接的做法是？",
+    "options": [
+      "自己声明同类型的 Bean",
+      "修改 starter 源码",
+      "删除所有 starter",
+      "只能关闭自动配置"
+    ],
+    "correctIndex": 0,
+    "explanation": "自动配置大多带 @ConditionalOnMissingBean，用户声明的同类 Bean 会优先；也可以用 exclude 精确排除某个自动配置。"
+  }
+]

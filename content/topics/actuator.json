@@ -5,23 +5,62 @@
   "summary": "健康检查与内部信息端点，是后续 Prometheus 的台阶。",
   "difficulty": "beginner",
   "estimatedHours": 3,
-  "tags": ["actuator", "ops"],
+  "tags": [
+    "actuator",
+    "ops"
+  ],
   "status": "published",
   "integrationStatus": "runtime",
   "officialDocsUrl": "https://docs.spring.io/spring-boot/reference/actuator.html",
-  "prerequisites": ["spring-boot-fundamentals"],
-  "nextTopics": ["docker-basics"],
-  "relatedTopics": ["spring-security-jwt"],
+  "prerequisites": [
+    "spring-boot-fundamentals"
+  ],
+  "nextTopics": [
+    "docker-basics"
+  ],
+  "relatedTopics": [
+    "spring-security-jwt"
+  ],
   "overviewMd": "Actuator 暴露 /actuator/health 等运维端点。一期本项目会打开 health，方便确认进程活着。详细 env、beans 不要对公网裸奔。",
   "concepts": [
-    { "term": "health", "explanation": "聚合磁盘、DB、Redis 等指示器。没接中间件时主要是应用本身 UP。" },
-    { "term": "endpoint 暴露", "explanation": "management.endpoints.web.exposure.include 控制哪些可 HTTP 访问。" },
-    { "term": "独立端口", "explanation": "生产可把管理端口和管理网段隔离。" }
+    {
+      "term": "health",
+      "explanation": "聚合磁盘、DB、Redis 等指示器。没接中间件时主要是应用本身 UP。"
+    },
+    {
+      "term": "endpoint 暴露",
+      "explanation": "management.endpoints.web.exposure.include 控制哪些可 HTTP 访问。"
+    },
+    {
+      "term": "独立端口",
+      "explanation": "生产可把管理端口和管理网段隔离。"
+    }
   ],
   "pathSteps": [
-    { "title": "访问 health", "goal": "启动后 GET /actuator/health 看到 UP。", "hours": 0.5, "resources": ["本仓库"] },
-    { "title": "收紧暴露", "goal": "理解为什么不要 include=* 对公网。", "hours": 1, "resources": ["官方文档"] },
-    { "title": "自定义指示器", "goal": "以后 Redis 接入时增加一个 Down 逻辑。", "hours": 1.5, "resources": ["HealthIndicator"] }
+    {
+      "title": "访问 health",
+      "goal": "启动后 GET /actuator/health 看到 UP。",
+      "hours": 0.5,
+      "resources": [
+        "本仓库"
+      ]
+    },
+    {
+      "title": "收紧暴露",
+      "goal": "理解为什么不要 include=* 对公网。",
+      "hours": 1,
+      "resources": [
+        "官方文档"
+      ]
+    },
+    {
+      "title": "自定义指示器",
+      "goal": "以后 Redis 接入时增加一个 Down 逻辑。",
+      "hours": 1.5,
+      "resources": [
+        "HealthIndicator"
+      ]
+    }
   ],
   "samples": [
     {
@@ -32,11 +71,35 @@
     }
   ],
   "pitfalls": [
-    { "title": "暴露 env 和 heapdump", "detail": "可能泄漏密钥与内存。默认白名单要短。" },
-    { "title": "health 绑死依赖", "detail": "Redis 抖动导致整个探针失败，K8s 盲目重启。可把非关键指示器设为 liveness 不包含。" },
-    { "title": "和业务 API 混在同一鉴权模型里不做区分", "detail": "二期 Security 要单独考虑 actuator。" }
+    {
+      "title": "暴露 env 和 heapdump",
+      "detail": "可能泄漏密钥与内存。默认白名单要短。"
+    },
+    {
+      "title": "health 绑死依赖",
+      "detail": "Redis 抖动导致整个探针失败，K8s 盲目重启。可把非关键指示器设为 liveness 不包含。"
+    },
+    {
+      "title": "和业务 API 混在同一鉴权模型里不做区分",
+      "detail": "二期 Security 要单独考虑 actuator。"
+    }
   ],
   "repoPointers": [
-    { "label": "配置", "path": "backend/src/main/resources/application.yml" }
+    {
+      "label": "配置",
+      "path": "backend/src/main/resources/application.yml"
+    }
+  ],
+  "scenarios": [
+    {
+      "title": "线上服务“到底活着没”",
+      "signal": "刚发布完、监控告警、或者用户反馈 502，需要先确认进程和依赖状态",
+      "approach": "先看 /actuator/health 的 status；需要细节时临时打开 show-details，按 component 定位是数据库、磁盘还是外部依赖"
+    },
+    {
+      "title": "接口偶发变慢，想知道慢在哪",
+      "signal": "P99 抖动、超时重试、但没有明显异常日志",
+      "approach": "打开 metrics，看 http.server.requests 的分位耗时和错误率，再对照 jvm.memory、线程池指标，把“代码慢”和“资源瓶颈”分开"
+    }
   ]
 }

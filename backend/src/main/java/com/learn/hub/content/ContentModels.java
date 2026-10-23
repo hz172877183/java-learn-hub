@@ -1,5 +1,6 @@
 package com.learn.hub.content;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
@@ -29,7 +30,8 @@ public final class ContentModels {
             List<PathStep> pathSteps,
             List<Sample> samples,
             List<Pitfall> pitfalls,
-            List<RepoPointer> repoPointers
+            List<RepoPointer> repoPointers,
+            List<Scenario> scenarios
     ) {
         public TopicDocument normalized() {
             return new TopicDocument(
@@ -51,7 +53,8 @@ public final class ContentModels {
                     nonNull(pathSteps),
                     nonNull(samples),
                     nonNull(pitfalls),
-                    nonNull(repoPointers)
+                    nonNull(repoPointers),
+                    nonNull(scenarios)
             );
         }
 
@@ -81,6 +84,42 @@ public final class ContentModels {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record RepoPointer(String label, String path) {
+    }
+
+    /**
+     * 技术栈的典型使用场景：什么信号出现时，应该想到用它。
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Scenario(String title, String signal, String approach) {
+    }
+
+    /**
+     * 面试真题。type = choice（单选）或 text（自答）。
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record QuizQuestion(
+            String type,
+            String stem,
+            List<String> options,
+            Integer correctIndex,
+            String referenceAnswer,
+            String explanation
+    ) {
+        public QuizQuestion normalized() {
+            return new QuizQuestion(
+                    type == null || type.isBlank() ? "text" : type,
+                    stem,
+                    options == null ? List.of() : List.copyOf(options),
+                    correctIndex,
+                    referenceAnswer,
+                    explanation
+            );
+        }
+
+        @JsonIgnore
+        public boolean isChoice() {
+            return "choice".equals(type);
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

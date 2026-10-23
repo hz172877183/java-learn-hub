@@ -5,25 +5,77 @@
   "summary": "用实体和 Repository 接口访问关系库，适合常规 CRUD 与对象模型稳定的业务。",
   "difficulty": "intermediate",
   "estimatedHours": 10,
-  "tags": ["jpa", "hibernate", "orm"],
+  "tags": [
+    "jpa",
+    "hibernate",
+    "orm"
+  ],
   "status": "published",
   "integrationStatus": "snippet",
   "officialDocsUrl": "https://docs.spring.io/spring-data/jpa/reference/",
-  "prerequisites": ["mysql-basics", "spring-boot-fundamentals"],
-  "nextTopics": ["mybatis-plus", "flyway"],
-  "relatedTopics": ["mybatis-plus"],
+  "prerequisites": [
+    "mysql-basics",
+    "spring-boot-fundamentals"
+  ],
+  "nextTopics": [
+    "mybatis-plus",
+    "flyway"
+  ],
+  "relatedTopics": [
+    "mybatis-plus"
+  ],
   "overviewMd": "JPA 把表映射成 Java 对象。Spring Data 再把 `findByStatus` 这类方法名解析成查询。一期本项目还没有真正连库，但二期 Topic 落库会走这条路（或与 MyBatis 对照）。\n\n**该用时：** 领域对象清晰、关联不太变态、团队接受 ORM。\n\n**慎用：** 超复杂报表、大量动态 SQL、DBA 要逐条审 SQL 的环境——这时 MyBatis 更直观。",
   "concepts": [
-    { "term": "Entity", "explanation": "@Entity 类对应一张表，@Id 对应主键。slug 可以作为业务主键。" },
-    { "term": "Repository", "explanation": "继承 JpaRepository 后，save/findById/分页都自带；还能按方法名派生查询。" },
-    { "term": "懒加载", "explanation": "关联默认可能 LAZY，离开事务再访问会 LazyInitializationException。" },
-    { "term": "N+1", "explanation": "列表里循环点关联会打出 N 条 SQL。用 join fetch 或实体图解决。" }
+    {
+      "term": "Entity",
+      "explanation": "@Entity 类对应一张表，@Id 对应主键。slug 可以作为业务主键。"
+    },
+    {
+      "term": "Repository",
+      "explanation": "继承 JpaRepository 后，save/findById/分页都自带；还能按方法名派生查询。"
+    },
+    {
+      "term": "懒加载",
+      "explanation": "关联默认可能 LAZY，离开事务再访问会 LazyInitializationException。"
+    },
+    {
+      "term": "N+1",
+      "explanation": "列表里循环点关联会打出 N 条 SQL。用 join fetch 或实体图解决。"
+    }
   ],
   "pathSteps": [
-    { "title": "写实体", "goal": "按本页示例定义 TopicEntity（先不接入运行）。", "hours": 2, "resources": ["本页示例"] },
-    { "title": "派生查询", "goal": "写出 findByCategoryAndStatus 并想象生成的 SQL。", "hours": 2, "resources": ["Spring Data 文档"] },
-    { "title": "打开 SQL 日志", "goal": "配置 show-sql 或 p6spy，对照自己的预期。", "hours": 2, "resources": ["application.yml"] },
-    { "title": "和 MyBatis 对比", "goal": "同一列表查询用 XML/注解写一遍，体会差异。", "hours": 4, "resources": ["mybatis-plus"] }
+    {
+      "title": "写实体",
+      "goal": "按本页示例定义 TopicEntity（先不接入运行）。",
+      "hours": 2,
+      "resources": [
+        "本页示例"
+      ]
+    },
+    {
+      "title": "派生查询",
+      "goal": "写出 findByCategoryAndStatus 并想象生成的 SQL。",
+      "hours": 2,
+      "resources": [
+        "Spring Data 文档"
+      ]
+    },
+    {
+      "title": "打开 SQL 日志",
+      "goal": "配置 show-sql 或 p6spy，对照自己的预期。",
+      "hours": 2,
+      "resources": [
+        "application.yml"
+      ]
+    },
+    {
+      "title": "和 MyBatis 对比",
+      "goal": "同一列表查询用 XML/注解写一遍，体会差异。",
+      "hours": 4,
+      "resources": [
+        "mybatis-plus"
+      ]
+    }
   ],
   "samples": [
     {
@@ -34,9 +86,30 @@
     }
   ],
   "pitfalls": [
-    { "title": "equals/hashCode 用自增 id", "detail": "未持久化时 id 为 null，集合行为诡异。业务主键 slug 更稳，或只比较 id 且文档约定。" },
-    { "title": "open-in-view 默认为 true", "detail": "请求期间 Session 不关，懒加载被「藏」住，生产上可能拖连接。理解后再决定是否关闭。" },
-    { "title": "把实体直接返回给前端", "detail": "会把懒加载关联和内部字段暴露出去。API 用 DTO/record。" }
+    {
+      "title": "equals/hashCode 用自增 id",
+      "detail": "未持久化时 id 为 null，集合行为诡异。业务主键 slug 更稳，或只比较 id 且文档约定。"
+    },
+    {
+      "title": "open-in-view 默认为 true",
+      "detail": "请求期间 Session 不关，懒加载被「藏」住，生产上可能拖连接。理解后再决定是否关闭。"
+    },
+    {
+      "title": "把实体直接返回给前端",
+      "detail": "会把懒加载关联和内部字段暴露出去。API 用 DTO/record。"
+    }
   ],
-  "repoPointers": []
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "领域模型和数据库表结构要一起演进",
+      "signal": "实体关系多、CRUD 重复、希望用对象而不是拼 SQL",
+      "approach": "用 JPA 映射聚合和关联，Repository 提供常用查询；复杂报表另写查询，避免把 ORM 用成万能工具"
+    },
+    {
+      "title": "列表接口莫名执行了几十条 SQL",
+      "signal": "日志里同一请求出现大量 select，响应变慢",
+      "approach": "识别 N+1：用 fetch join / @EntityGraph / DTO 投影一次取回；分页时避免 join 集合"
+    }
+  ]
 }

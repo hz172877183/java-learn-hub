@@ -60,12 +60,21 @@ npm run dev
 
 浏览器打开 http://localhost:5173 。API：http://localhost:8080/api/v1/topics
 
+## 学习内容
+
+- 每个学习项除概述、概念、路线、示例、常见坑外，新增「典型使用场景」：说清什么信号出现时该想到用它、具体怎么做。
+- 每个学习项配 2–3 道面试真题，种子文件在 `content/quizzes/{slug}.json`：
+  - `choice` 单选：提交后立即判分，并展示知识点说明。
+  - `text` 自答：系统不判分，用户先写，再展开参考答案与知识点。
+- 场景和题目都可在管理端编辑；`content/` 只用于首次导入。
+
 ## 普通用户
 
 - 注册 / 登录：`/register`、`/login`，接口为 `POST /api/v1/auth/register|login`，成功后返回 JWT。
 - 权限：`/api/v1/me/**` 需要 `Authorization: Bearer <JWT>`；JWT 默认有效期 7 天（`LEARNHUB_JWT_TTL_HOURS`）。
 - 学习进度：`/track` 页每个学习项可选「未开始 / 学习中 / 已完成」，并显示阶段与整体进度；`/me` 汇总。
 - 私人笔记：每个学习项一条 Markdown 笔记，在详情页编辑保存，仅本人可见（按 user_id 隔离）。
+- 面试真题：`GET /api/v1/topics/{slug}/quizzes`，详情页内完成答题与查看解析。
 - 相关表：`app_user`、`learning_progress`、`topic_note`（V2 迁移）。
 - 注意：普通用户与 `/admin` 的 Bearer Token 是两套鉴权，互不影响。
 
@@ -73,6 +82,7 @@ npm run dev
 
 管理页：http://localhost:5173/admin
 - 写接口为 `/api/v1/admin/topics`（GET / POST / PUT / DELETE），需要 `Authorization: Bearer <token>`。
+- 题目维护：`GET/PUT /api/v1/admin/topics/{slug}/quizzes`，表格里整组替换。
 - 令牌默认 `dev-admin-token`，可用环境变量 `LEARNHUB_ADMIN_TOKEN` 覆盖；进入 `/admin` 时输入一次，保存在浏览器 localStorage。
 - 「已发布」的学习项必须满足：概述非空、至少 1 条路线、至少 1 个示例、至少 3 条常见坑；否则接口返回 400。
 - 删除是物理删除，不可恢复。

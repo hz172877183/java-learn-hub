@@ -5,24 +5,70 @@
   "summary": "用版本化 SQL 管理 schema，避免每台机器手工改表。",
   "difficulty": "beginner",
   "estimatedHours": 4,
-  "tags": ["flyway", "migration"],
+  "tags": [
+    "flyway",
+    "migration"
+  ],
   "status": "published",
   "integrationStatus": "docs_only",
   "officialDocsUrl": "https://documentation.red-gate.com/flyway",
-  "prerequisites": ["mysql-basics"],
-  "nextTopics": ["junit-mockito"],
-  "relatedTopics": ["spring-data-jpa"],
+  "prerequisites": [
+    "mysql-basics"
+  ],
+  "nextTopics": [
+    "junit-mockito"
+  ],
+  "relatedTopics": [
+    "spring-data-jpa"
+  ],
   "overviewMd": "Flyway 在启动时扫描 `db/migration` 下 V1__xxx.sql、V2__xxx.sql，按版本号顺序执行，并记录在 flyway_schema_history。团队协作时这是「表结构的 git」。\n\n一期无数据库，二期接入 MySQL 时再加依赖。",
   "concepts": [
-    { "term": "版本脚本", "explanation": "文件名 V{版本}__{描述}.sql，版本只能递增，已执行的脚本不要改。" },
-    { "term": "checksum", "explanation": "改已执行文件会导致校验失败。应该新增 V3 而不是改 V2。" },
-    { "term": "repeatable", "explanation": "R__ 脚本每次 checksum 变化会重跑，适合视图，不适合累积 DDL。" }
+    {
+      "term": "版本脚本",
+      "explanation": "文件名 V{版本}__{描述}.sql，版本只能递增，已执行的脚本不要改。"
+    },
+    {
+      "term": "checksum",
+      "explanation": "改已执行文件会导致校验失败。应该新增 V3 而不是改 V2。"
+    },
+    {
+      "term": "repeatable",
+      "explanation": "R__ 脚本每次 checksum 变化会重跑，适合视图，不适合累积 DDL。"
+    }
   ],
   "pathSteps": [
-    { "title": "写 V1", "goal": "把 mysql-basics 里的 DDL 放进 V1__create_topic.sql 练习。", "hours": 1, "resources": ["mysql-basics"] },
-    { "title": "理解 history 表", "goal": "执行后看 flyway_schema_history 的 success 与 checksum。", "hours": 1, "resources": ["官方文档"] },
-    { "title": "加一列", "goal": "用 V2 加列，而不是改 V1。", "hours": 1, "resources": ["本页示例"] },
-    { "title": "和 ORM 对齐", "goal": "实体字段必须能被当前 schema 支撑，禁止只改实体不改迁移。", "hours": 1, "resources": ["spring-data-jpa"] }
+    {
+      "title": "写 V1",
+      "goal": "把 mysql-basics 里的 DDL 放进 V1__create_topic.sql 练习。",
+      "hours": 1,
+      "resources": [
+        "mysql-basics"
+      ]
+    },
+    {
+      "title": "理解 history 表",
+      "goal": "执行后看 flyway_schema_history 的 success 与 checksum。",
+      "hours": 1,
+      "resources": [
+        "官方文档"
+      ]
+    },
+    {
+      "title": "加一列",
+      "goal": "用 V2 加列，而不是改 V1。",
+      "hours": 1,
+      "resources": [
+        "本页示例"
+      ]
+    },
+    {
+      "title": "和 ORM 对齐",
+      "goal": "实体字段必须能被当前 schema 支撑，禁止只改实体不改迁移。",
+      "hours": 1,
+      "resources": [
+        "spring-data-jpa"
+      ]
+    }
   ],
   "samples": [
     {
@@ -33,9 +79,30 @@
     }
   ],
   "pitfalls": [
-    { "title": "改历史脚本", "detail": "别人已经执行过的 V1 你再改，他们的 checksum 对不上。只追加。" },
-    { "title": "用 Hibernate ddl-auto=update 混着飞", "detail": "两套工具改表会漂移。选 Flyway 做唯一事实来源，ddl-auto=validate 或 none。" },
-    { "title": "大表无默认值的 ADD COLUMN", "detail": "生产锁表策略因版本而异。教学库无所谓，业务库要查官方与 DBA 规范。" }
+    {
+      "title": "改历史脚本",
+      "detail": "别人已经执行过的 V1 你再改，他们的 checksum 对不上。只追加。"
+    },
+    {
+      "title": "用 Hibernate ddl-auto=update 混着飞",
+      "detail": "两套工具改表会漂移。选 Flyway 做唯一事实来源，ddl-auto=validate 或 none。"
+    },
+    {
+      "title": "大表无默认值的 ADD COLUMN",
+      "detail": "生产锁表策略因版本而异。教学库无所谓，业务库要查官方与 DBA 规范。"
+    }
   ],
-  "repoPointers": []
+  "repoPointers": [],
+  "scenarios": [
+    {
+      "title": "多人同时改表结构，环境对不上",
+      "signal": "开发库、测试库、生产库字段不一致，靠人肉记 SQL",
+      "approach": "把每次 DDL 写成 V{n}__描述.sql，提交到仓库；启动时 Flyway 按版本执行，schema_history 记录执行结果"
+    },
+    {
+      "title": "上线需要可追溯的 schema 变更",
+      "signal": "审计要求说清楚每次发布改了哪些表，出问题要能回滚",
+      "approach": "迁移脚本随代码评审，禁止修改已执行的历史脚本；回滚用新增一个反向迁移，而不是删记录"
+    }
+  ]
 }
