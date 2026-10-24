@@ -55,6 +55,10 @@ async function submitQuizChoice(question: QuizQuestion, index: number) {
   if (choice === null || choice === undefined || quizSaving.value === index) {
     return
   }
+  if (!auth.isLoggedIn) {
+    reveal(index)
+    return
+  }
   quizSaving.value = index
   try {
     if (question.id) {
@@ -72,7 +76,7 @@ async function submitQuizChoice(question: QuizQuestion, index: number) {
 async function revealQuizText(question: QuizQuestion, index: number) {
   const text = quizText.value[index]?.trim()
   reveal(index)
-  if (!question.id || !text) {
+  if (!auth.isLoggedIn || !question.id || !text) {
     return
   }
   try {
@@ -84,6 +88,10 @@ async function revealQuizText(question: QuizQuestion, index: number) {
 
 /** 自答自评，用于错题本。 */
 async function assessQuiz(question: QuizQuestion, index: number, correct: boolean) {
+  if (!auth.isLoggedIn) {
+    ElMessage.warning('登录后才能记录错题')
+    return
+  }
   const text = quizText.value[index]?.trim()
   if (!question.id || !text) {
     ElMessage.warning('先写下你的答案，再自评')
@@ -364,7 +372,7 @@ watch(
               <p>{{ question.referenceAnswer }}</p>
               <p class="label">知识点说明</p>
               <p class="muted">{{ question.explanation }}</p>
-              <div class="assess">
+              <div v-if="auth.isLoggedIn" class="assess">
                 <span class="muted">自评：</span>
                 <el-button
                   size="small"

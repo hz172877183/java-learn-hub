@@ -2,9 +2,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { RouterLink } from 'vue-router'
 import { fetchInterviewMeta, fetchInterviewQuestions, submitAnswer } from '@/api/client'
 import type { InterviewMeta, InterviewQuestion } from '@/api/types'
 import { interviewCategoryLabel, interviewLevelLabel } from '@/labels'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
 
 const level = ref('')
 const category = ref('')
@@ -91,6 +95,10 @@ async function submitChoice(item: InterviewQuestion) {
   if (index === null || index === undefined || savingId.value === item.id) {
     return
   }
+  if (!auth.isLoggedIn) {
+    reveal(item.id)
+    return
+  }
   savingId.value = item.id
   try {
     await submitAnswer({ source: 'interview', questionId: item.id, choiceIndex: index })
@@ -106,7 +114,7 @@ async function submitChoice(item: InterviewQuestion) {
 async function revealText(item: InterviewQuestion) {
   const text = texts.value[item.id]?.trim()
   reveal(item.id)
-  if (!text) {
+  if (!auth.isLoggedIn || !text) {
     return
   }
   try {
@@ -118,6 +126,10 @@ async function revealText(item: InterviewQuestion) {
 
 /** 自答自评：已掌握 / 加入错题本。 */
 async function assess(item: InterviewQuestion, correct: boolean) {
+  if (!auth.isLoggedIn) {
+    ElMessage.warning('登录后才能记录错题')
+    return
+  }
   const text = texts.value[item.id]?.trim()
   if (!text) {
     ElMessage.warning('先写下你的答案，再自评')
@@ -262,7 +274,7 @@ onMounted(async () => {
             <p>{{ item.referenceAnswer }}</p>
             <p class="label">知识点说明</p>
             <p class="muted">{{ item.explanation }}</p>
-            <div class="assess">
+            <div v-if="auth.isLoggedIn" class="assess">
               <span class="muted">自评：</span>
               <el-button
                 size="small"
@@ -280,6 +292,10 @@ onMounted(async () => {
                 加入错题本
               </el-button>
             </div>
+            <p v-else class="muted login-hint">
+              <RouterLink :to="{ path: '/login', query: { redirect: '/interview' } }">登录</RouterLink>
+              后可记录答题与错题。
+            </p>
             <el-button text size="small" @click="redo(item.id)">重做</el-button>
           </div>
         </template>
