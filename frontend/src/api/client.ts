@@ -1,5 +1,9 @@
 /** HTTP 客户端：公开接口、管理端接口与当前用户接口的统一封装。 */
 import type {
+  AnswerList,
+  AnswerStats,
+  AnswerSubmit,
+  AnswerView,
   AuthResponse,
   InterviewMeta,
   InterviewQuestion,
@@ -299,4 +303,37 @@ export function adminUpdateInterviewQuestion(id: number, payload: InterviewQuest
 /** 删除面试题。 */
 export function adminDeleteInterviewQuestion(id: number) {
   return request<void>(`/api/v1/admin/interview/questions/${id}`, adminInit('DELETE'))
+}
+/* ---------------- 答题记录 ---------------- */
+
+/** 提交一次作答：选择题由服务端判分，自答题可带自评。 */
+export function submitAnswer(payload: AnswerSubmit) {
+  return request<AnswerView>('/api/v1/me/answers', userInit('POST', payload))
+}
+
+/** 答题记录；wrong=true 时返回错题本。 */
+export function fetchAnswers(params: {
+  source?: string
+  wrong?: boolean
+  level?: string
+  category?: string
+  page?: number
+  size?: number
+}) {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') search.set(key, String(value))
+  })
+  const suffix = search.toString() ? `?${search}` : ''
+  return request<AnswerList>(`/api/v1/me/answers${suffix}`, userInit('GET'))
+}
+
+/** 答题统计。 */
+export function fetchAnswerStats() {
+  return request<AnswerStats>('/api/v1/me/answers/stats', userInit('GET'))
+}
+
+/** 删除某题的答题记录（移出错题本）。 */
+export function deleteAnswer(source: string, questionId: number) {
+  return request<void>(`/api/v1/me/answers/${source}/${questionId}`, userInit('DELETE'))
 }

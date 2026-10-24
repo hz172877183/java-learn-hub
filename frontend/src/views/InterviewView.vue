@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { fetchInterviewMeta, fetchInterviewQuestions } from '@/api/client'
+import { fetchInterviewMeta, fetchInterviewQuestions, submitAnswer } from '@/api/client'
 import type { InterviewMeta, InterviewQuestion } from '@/api/types'
 import { interviewCategoryLabel, interviewLevelLabel } from '@/labels'
 
@@ -21,6 +21,8 @@ const error = ref('')
 const answers = ref<Record<number, number | null>>({})
 const texts = ref<Record<number, string>>({})
 const revealed = ref<Record<number, boolean>>({})
+const assessed = ref<Record<number, boolean | undefined>>({})
+const savingId = ref<number | null>(null)
 
 const levels = computed(() => meta.value?.levels ?? [])
 const categories = computed(() => meta.value?.categories ?? [])
@@ -29,14 +31,17 @@ function resetAnswers() {
   const a: Record<number, number | null> = {}
   const t: Record<number, string> = {}
   const r: Record<number, boolean> = {}
+  const s: Record<number, boolean | undefined> = {}
   items.value.forEach((item) => {
     a[item.id] = null
     t[item.id] = ''
     r[item.id] = false
+    s[item.id] = undefined
   })
   answers.value = a
   texts.value = t
   revealed.value = r
+  assessed.value = s
 }
 
 async function load() {
@@ -80,6 +85,58 @@ function reveal(id: number) {
   revealed.value = { ...revealed.value, [id]: true }
 }
 
+/** 选择题：先写答题记录，再展开解析；记录失败不阻塞学习。 */
+async function submitChoice(item: InterviewQuestion) {
+  const index = answers.value[item.id]
+  if (index === null || index === undefined || savingId.value === item.id) {
+    return
+  }
+  savingId.value = item.id
+  try {
+    await submitAnswer({ source: 'interview', questionId: item.id, choiceIndex: index })
+  } catch (e) {
+    ElMessage.warning('答题记录保存失败：' + (e as Error).message)
+  } finally {
+    savingId.value = null
+    reveal(item.id)
+  }
+}
+
+/** 自答题：展开参考答案时顺手保存作答（不判定对错）。 */
+async function revealText(item: InterviewQuestion) {
+  const text = texts.value[item.id]?.trim()
+  reveal(item.id)
+  if (!text) {
+    return
+  }
+  try {
+    await submitAnswer({ source: 'interview', questionId: item.id, textAnswer: text })
+  } catch {
+    /* 记录失败不影响看答案 */
+  }
+}
+
+/** 自答自评：已掌握 / 加入错题本。 */
+async function assess(item: InterviewQuestion, correct: boolean) {
+  const text = texts.value[item.id]?.trim()
+  if (!text) {
+    ElMessage.warning('先写下你的答案，再自评')
+    return
+  }
+  try {
+    await submitAnswer({
+      source: 'interview',
+      questionId: item.id,
+      textAnswer: text,
+      selfCorrect: correct,
+    })
+    assessed.value = { ...assessed.value, [item.id]: correct }
+    ElMessage.success(correct ? '已标记掌握' : '已加入错题本')
+  } catch (e) {
+    ElMessage.error((e as Error).message)
+  }
+}
+
 function isCorrect(item: InterviewQuestion) {
   return item.type === 'choice' && answers.value[item.id] === item.correctIndex
 }
@@ -92,6 +149,7 @@ function redo(id: number) {
   answers.value = { ...answers.value, [id]: null }
   texts.value = { ...texts.value, [id]: '' }
   revealed.value = { ...revealed.value, [id]: false }
+  assessed.value = { ...assessed.value, [id]: undefined }
 }
 
 watch([level, category], () => {
@@ -171,7 +229,8 @@ onMounted(async () => {
               type="primary"
               size="small"
               :disabled="answers[item.id] === null || answers[item.id] === undefined"
-              @click="reveal(item.id)"
+              :loading="savingId === item.id"
+              @click="submitChoice(item)"
             >
               提交答案
             </el-button>
@@ -196,13 +255,31 @@ onMounted(async () => {
             placeholder="先自己组织答案，再展开参考"
           />
           <div v-if="!revealed[item.id]" class="actions">
-            <el-button size="small" @click="reveal(item.id)">查看参考答案</el-button>
+            <el-button size="small" @click="revealText(item)">查看参考答案</el-button>
           </div>
           <div v-else class="answer">
             <p class="label">参考答案</p>
             <p>{{ item.referenceAnswer }}</p>
             <p class="label">知识点说明</p>
             <p class="muted">{{ item.explanation }}</p>
+            <div class="assess">
+              <span class="muted">自评：</span>
+              <el-button
+                size="small"
+                :type="assessed[item.id] === true ? 'success' : ''"
+                @click="assess(item, true)"
+              >
+                已掌握
+              </el-button>
+              <el-button
+                size="small"
+                :type="assessed[item.id] === false ? 'danger' : ''"
+                plain
+                @click="assess(item, false)"
+              >
+                加入错题本
+              </el-button>
+            </div>
             <el-button text size="small" @click="redo(item.id)">重做</el-button>
           </div>
         </template>
@@ -299,6 +376,13 @@ onMounted(async () => {
 .ok {
   color: #1e7a4f;
   font-weight: 600;
+}
+.assess {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  flex-wrap: wrap;
 }
 .bad {
   color: #c0392b;

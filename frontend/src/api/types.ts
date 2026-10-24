@@ -145,6 +145,7 @@ export interface Scenario {
 export type QuizType = 'choice' | 'text'
 
 export interface QuizQuestion {
+  id?: number
   type: QuizType
   stem: string
   options: string[]
@@ -193,4 +194,47 @@ export interface InterviewQuestionPayload {
   correctIndex?: number
   referenceAnswer?: string
   explanation: string
+}
+export type AnswerSource = 'interview' | 'topic_quiz'
+
+export interface AnswerSubmit {
+  source: AnswerSource
+  questionId: number
+  choiceIndex?: number
+  textAnswer?: string
+  selfCorrect?: boolean
+}
+
+export interface AnswerView {
+  source: AnswerSource
+  questionId: number
+  questionType: QuizType
+  stem: string
+  level?: string
+  category?: string
+  topicSlug?: string
+  topicTitle?: string
+  options: string[]
+  correctIndex?: number
+  choiceIndex?: number
+  textAnswer?: string
+  correct?: boolean
+  explanation: string
+  referenceAnswer?: string
+  attempts: number
+  answeredAt: string
+}
+
+export interface AnswerList {
+  items: AnswerView[]
+  page: number
+  size: number
+  total: number
+}
+
+export interface AnswerStats {
+  total: number
+  correct: number
+  wrong: number
+  ungraded: number
 }

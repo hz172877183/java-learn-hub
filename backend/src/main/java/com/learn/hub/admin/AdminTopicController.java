@@ -1,6 +1,7 @@
 package com.learn.hub.admin;
 
 import com.learn.hub.content.ContentModels;
+import com.learn.hub.quiz.QuizQuestionView;
 import com.learn.hub.quiz.QuizService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -81,7 +82,7 @@ public class AdminTopicController {
      * 读取某个学习项的题目（管理端）。
      */
     @GetMapping("/{slug}/quizzes")
-    public List<ContentModels.QuizQuestion> quizzes(@PathVariable String slug) {
+    public List<QuizQuestionView> quizzes(@PathVariable String slug) {
         return quizService.list(slug);
     }
 
@@ -89,7 +90,7 @@ public class AdminTopicController {
      * 题目的整组替换：请求体即该学习项的最新题目列表。
      */
     @PutMapping("/{slug}/quizzes")
-    public List<ContentModels.QuizQuestion> replaceQuizzes(
+    public List<QuizQuestionView> replaceQuizzes(
             @PathVariable String slug,
             @RequestBody List<ContentModels.QuizQuestion> questions
     ) {

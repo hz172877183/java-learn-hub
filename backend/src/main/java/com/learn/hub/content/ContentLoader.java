@@ -178,11 +178,22 @@ public class ContentLoader {
     /**
      * 解析数据库里的题目 JSON。
      */
-    public ContentModels.QuizQuestion parseQuiz(String json) {
-        try {
+    public ContentModels.QuizQuestion parseQuiz(String json) {        try {
             return objectMapper.readValue(json, ContentModels.QuizQuestion.class).normalized();
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("数据库中的题目 JSON 无法解析", e);
+        }
+    }
+
+    public List<String> parseOptions(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {
+            });
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("题目选项 JSON 无法解析", e);
         }
     }
 

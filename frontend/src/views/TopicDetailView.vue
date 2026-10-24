@@ -4,7 +4,7 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
-import { fetchProgress, fetchQuizzes, fetchTopic, setProgress } from '@/api/client'
+import { fetchProgress, fetchQuizzes, fetchTopic, setProgress, submitAnswer } from '@/api/client'
 import type { LearningState, QuizQuestion, TopicDetail } from '@/api/types'
 import { categoryLabel, difficultyLabel, integrationLabel } from '@/labels'
 import { useAuthStore } from '@/stores/auth'
@@ -23,25 +23,84 @@ const quizzes = ref<QuizQuestion[]>([])
 const quizAnswers = ref<Record<number, number | null>>({})
 const quizText = ref<Record<number, string>>({})
 const quizRevealed = ref<Record<number, boolean>>({})
+const quizAssessed = ref<Record<number, boolean | undefined>>({})
+const quizSaving = ref<number | null>(null)
 
 /** 清空所有题目的作答与解析状态，用于“全部重做”。 */
 function resetQuiz() {
   const answers: Record<number, number | null> = {}
   const texts: Record<number, string> = {}
   const revealed: Record<number, boolean> = {}
+  const assessed: Record<number, boolean | undefined> = {}
   quizzes.value.forEach((_, index) => {
     answers[index] = null
     texts[index] = ''
     revealed[index] = false
+    assessed[index] = undefined
   })
   quizAnswers.value = answers
   quizText.value = texts
   quizRevealed.value = revealed
+  quizAssessed.value = assessed
 }
 
 /** 展开本题的答案与知识点说明。 */
 function reveal(index: number) {
   quizRevealed.value = { ...quizRevealed.value, [index]: true }
+}
+
+/** 随堂选择题：先记录到答题历史，再展开解析。 */
+async function submitQuizChoice(question: QuizQuestion, index: number) {
+  const choice = quizAnswers.value[index]
+  if (choice === null || choice === undefined || quizSaving.value === index) {
+    return
+  }
+  quizSaving.value = index
+  try {
+    if (question.id) {
+      await submitAnswer({ source: 'topic_quiz', questionId: question.id, choiceIndex: choice })
+    }
+  } catch (e) {
+    ElMessage.warning('答题记录保存失败：' + (e as Error).message)
+  } finally {
+    quizSaving.value = null
+    reveal(index)
+  }
+}
+
+/** 随堂自答题：展开答案时保存作答。 */
+async function revealQuizText(question: QuizQuestion, index: number) {
+  const text = quizText.value[index]?.trim()
+  reveal(index)
+  if (!question.id || !text) {
+    return
+  }
+  try {
+    await submitAnswer({ source: 'topic_quiz', questionId: question.id, textAnswer: text })
+  } catch {
+    /* 记录失败不影响看答案 */
+  }
+}
+
+/** 自答自评，用于错题本。 */
+async function assessQuiz(question: QuizQuestion, index: number, correct: boolean) {
+  const text = quizText.value[index]?.trim()
+  if (!question.id || !text) {
+    ElMessage.warning('先写下你的答案，再自评')
+    return
+  }
+  try {
+    await submitAnswer({
+      source: 'topic_quiz',
+      questionId: question.id,
+      textAnswer: text,
+      selfCorrect: correct,
+    })
+    quizAssessed.value = { ...quizAssessed.value, [index]: correct }
+    ElMessage.success(correct ? '已标记掌握' : '已加入错题本')
+  } catch (e) {
+    ElMessage.error((e as Error).message)
+  }
 }
 
 /** 单选题判分：只比较选中下标，自答题不参与。 */
@@ -273,7 +332,8 @@ watch(
                 type="primary"
                 size="small"
                 :disabled="quizAnswers[index] === null || quizAnswers[index] === undefined"
-                @click="reveal(index)"
+                :loading="quizSaving === index"
+                @click="submitQuizChoice(question, index)"
               >
                 提交答案
               </el-button>
@@ -297,13 +357,31 @@ watch(
               placeholder="先自己写答案，再看参考答案（系统不判分）"
             />
             <div v-if="!quizRevealed[index]" class="quiz-actions">
-              <el-button size="small" @click="reveal(index)">查看参考答案</el-button>
+              <el-button size="small" @click="revealQuizText(question, index)">查看参考答案</el-button>
             </div>
             <div v-else class="answer">
               <p class="label">参考答案</p>
               <p>{{ question.referenceAnswer }}</p>
               <p class="label">知识点说明</p>
               <p class="muted">{{ question.explanation }}</p>
+              <div class="assess">
+                <span class="muted">自评：</span>
+                <el-button
+                  size="small"
+                  :type="quizAssessed[index] === true ? 'success' : ''"
+                  @click="assessQuiz(question, index, true)"
+                >
+                  已掌握
+                </el-button>
+                <el-button
+                  size="small"
+                  :type="quizAssessed[index] === false ? 'danger' : ''"
+                  plain
+                  @click="assessQuiz(question, index, false)"
+                >
+                  加入错题本
+                </el-button>
+              </div>
             </div>
           </template>
         </div>
@@ -420,6 +498,13 @@ dd {
 .ok {
   color: #1e7a4f;
   font-weight: 600;
+}
+.assess {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  flex-wrap: wrap;
 }
 .bad {
   color: #c0392b;

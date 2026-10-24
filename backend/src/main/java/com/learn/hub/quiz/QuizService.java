@@ -37,7 +37,7 @@ public class QuizService {
      * 公开读取：只允许已发布学习项的题目，草稿与未知 slug 返回 404。
      */
     @Transactional(readOnly = true)
-    public List<ContentModels.QuizQuestion> listPublished(String slug) {
+    public List<QuizQuestionView> listPublished(String slug) {
         ContentModels.TopicDocument topic = catalogStore.get().topic(slug)
                 .orElseThrow(() -> new NotFoundException("TOPIC_NOT_FOUND", "未找到学习项: " + slug));
         if (!topic.published()) {
@@ -50,9 +50,9 @@ public class QuizService {
      * 按排序号读取某个学习项的全部题目（管理端也复用）。
      */
     @Transactional(readOnly = true)
-    public List<ContentModels.QuizQuestion> list(String slug) {
+    public List<QuizQuestionView> list(String slug) {
         return quizQuestionRepository.findByTopicSlugOrderBySortOrderAscIdAsc(slug).stream()
-                .map(entity -> contentLoader.parseQuiz(entity.getPayload()))
+                .map(entity -> QuizQuestionView.of(entity, contentLoader.parseQuiz(entity.getPayload())))
                 .toList();
     }
 
@@ -63,7 +63,7 @@ public class QuizService {
      * 管理端整组替换：先校验全部题目，再删旧插新，避免部分写入。
      */
     @Transactional
-    public List<ContentModels.QuizQuestion> replace(String slug, List<ContentModels.QuizQuestion> questions) {
+    public List<QuizQuestionView> replace(String slug, List<ContentModels.QuizQuestion> questions) {
         if (catalogStore.get().topic(slug).isEmpty()) {
             throw new NotFoundException("TOPIC_NOT_FOUND", "未找到学习项: " + slug);
         }

@@ -1,6 +1,5 @@
 package com.learn.hub.quiz;
 
-import com.learn.hub.content.ContentModels;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,7 +24,7 @@ public class QuizController {
      * 返回某个学习项的面试题（含答案与知识点说明）。
      */
     @GetMapping
-    public List<ContentModels.QuizQuestion> list(@PathVariable String slug) {
+    public List<QuizQuestionView> list(@PathVariable String slug) {
         return quizService.listPublished(slug);
     }
 }

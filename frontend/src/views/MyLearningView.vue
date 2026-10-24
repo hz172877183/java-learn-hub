@@ -3,8 +3,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { fetchMeta, fetchNotes, fetchProgress, setProgress } from '@/api/client'
-import type { LearningState, NoteItem, ProgressItem } from '@/api/types'
+import { fetchAnswerStats, fetchMeta, fetchNotes, fetchProgress, setProgress } from '@/api/client'
+import type { AnswerStats, LearningState, NoteItem, ProgressItem } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -12,6 +12,7 @@ const route = useRoute()
 
 const progress = ref<ProgressItem[]>([])
 const notes = ref<NoteItem[]>([])
+const stats = ref<AnswerStats>({ total: 0, correct: 0, wrong: 0, ungraded: 0 })
 const total = ref(0)
 const loading = ref(false)
 const error = ref('')
@@ -26,10 +27,16 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [p, n, meta] = await Promise.all([fetchProgress(), fetchNotes(), fetchMeta()])
+    const [p, n, meta, answerStats] = await Promise.all([
+      fetchProgress(),
+      fetchNotes(),
+      fetchMeta(),
+      fetchAnswerStats(),
+    ])
     progress.value = p
     notes.value = n
     total.value = meta.publishedTotal
+    stats.value = answerStats
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -94,6 +101,18 @@ onMounted(() => {
         </div>
         <el-progress :percentage="percent" :stroke-width="10" />
         <p class="muted">全站共 {{ total }} 个已发布学习项</p>
+      </section>
+
+      <section class="card answer-entry">
+        <div>
+          <strong>答题记录</strong>
+          <p class="muted">
+            已答 {{ stats.total }} 题 · 答对 {{ stats.correct }} · 错题 {{ stats.wrong }}
+          </p>
+        </div>
+        <el-button type="primary" plain @click="$router.push('/me/answers')">
+          查看记录 / 错题本
+        </el-button>
       </section>
 
       <section>
@@ -173,6 +192,16 @@ section {
 .error {
   color: #c0392b;
 }
+.answer-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.answer-entry p {
+  margin: 4px 0 0;
+}
 @media (max-width: 800px) {
   .summary {
     grid-template-columns: 1fr 1fr 1fr;
@@ -187,6 +216,10 @@ section {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+  }
+  .answer-entry {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

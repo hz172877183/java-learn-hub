@@ -88,6 +88,14 @@ npm run dev
 - 手机端使用底部 Tab（目录 / 路线 / 面试 / 我的），笔记改为底部抽屉，输入框字号 ≥16px 避免 iOS 自动放大。
 - 正式部署建议 Nginx/Caddy 同域托管 `dist` 并反代 `/api`，配 HTTPS 后可作为 PWA 安装到桌面。
 
+## 答题记录与错题本
+
+- 选择题提交后由服务端判分并记录；自答题保存作答内容，可自评「已掌握 / 加入错题本」。
+- 同一道题重复作答只保留最近一次结果，并累计作答次数；答对后自动离开错题本。
+- `/me/answers`：全部记录 / 错题本两个视图，可按来源（面试题 / 随堂题）、等级、分类筛选。
+- 支持删除单条记录（移出错题本），以及已答、答对、答错、正确率统计。
+- 接口：`GET/POST /api/v1/me/answers`、`GET /api/v1/me/answers/stats`、`DELETE /api/v1/me/answers/{source}/{questionId}`。
+
 ## 普通用户
 
 - 注册 / 登录：`/register`、`/login`，接口为 `POST /api/v1/auth/register|login`，成功后返回 JWT。
@@ -123,4 +131,4 @@ cd frontend; npm run build
 
 - 集成测试使用独立的 `learnhub_test` 库（`spring.profiles.active=test`），首次运行自动创建并执行 Flyway，每个用例事务回滚，不影响开发库。
 - 运行集成测试需要本机 MySQL 容器已启动；连不上会直接失败。
-- 目前 35 个用例：公开 API 6、认证与用户隔离 12、管理端与题目 11、面试题库 6。
+- 目前 39 个用例：公开 API 6、认证与用户隔离 12、管理端与题目 11、面试题库 6、答题记录 4。
