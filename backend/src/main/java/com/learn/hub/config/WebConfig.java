@@ -20,12 +20,13 @@ public class WebConfig implements WebMvcConfigurer {
     }
 
     /**
-     * 按来源放行跨域；方法必须覆盖管理端实际使用的写操作，否则预检会直接失败。
+     * 按来源放行跨域；使用 pattern 以支持局域网 IP（192.168.x.x / 10.x / 172.16.x）。
+     * 方法必须覆盖管理端实际使用的写操作，否则预检会直接失败。
      */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOrigins(origins.toArray(String[]::new))
+                .allowedOriginPatterns(origins.toArray(String[]::new))
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*");
     }

@@ -32,8 +32,8 @@ management:
       show-details: never
 
 learn-hub:
-  # 逗号分隔；@Value 注入 List 时会按逗号拆分
-  cors-origins: http://localhost:5173,http://127.0.0.1:5173
+  # 逗号分隔；支持通配 pattern，覆盖手机通过局域网 IP 访问的场景
+  cors-origins: http://localhost:5173,http://127.0.0.1:5173,http://192.168.*.*:5173,http://10.*.*.*:5173,http://172.16.*.*:5173
   # 管理端写接口的 Bearer Token，生产环境请用环境变量覆盖
   admin-token: ${LEARNHUB_ADMIN_TOKEN:dev-admin-token}
   # 普通用户 JWT；密钥至少 32 字节，生产环境务必覆盖
