@@ -1,12 +1,13 @@
 <!-- 笔记悬浮窗：可关闭，关闭时自动保存，按学习项加载。 -->
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { fetchNote, saveNote } from '@/api/client'
 
 const props = defineProps<{ slug: string; title: string }>()
 
 const OPEN_KEY = 'learnhub-note-open'
+const POS_KEY = 'learnhub-note-pos'
 // 记住开合状态：用户在 A 学习项打开后，切到 B 仍然保持打开
 const open = ref(localStorage.getItem(OPEN_KEY) === '1')
 const content = ref('')
@@ -14,6 +15,109 @@ const status = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const dirty = ref(false)
+
+const panelRef = ref<HTMLElement | null>(null)
+const position = ref<{ x: number; y: number } | null>(readPosition())
+const size = ref<{ w: number; h: number } | null>(null)
+const dragging = ref(false)
+const dragOffset = ref({ x: 0, y: 0 })
+const viewportWidth = ref(window.innerWidth)
+
+const isMobile = computed(() => viewportWidth.value <= 768)
+const panelStyle = computed(() =>
+  !isMobile.value && position.value
+    ? {
+        left: `${position.value.x}px`,
+        top: `${position.value.y}px`,
+        right: 'auto',
+        bottom: 'auto',
+        width: `${size.value?.w ?? 360}px`,
+        height: `${size.value?.h ?? Math.min(620, window.innerHeight * 0.7)}px`,
+      }
+    : {},
+)
+
+function readPosition() {
+  try {
+    const raw = localStorage.getItem(POS_KEY)
+    if (!raw) return null
+    const value = JSON.parse(raw) as { x: number; y: number }
+    if (typeof value.x !== 'number' || typeof value.y !== 'number') return null
+    return value
+  } catch {
+    return null
+  }
+}
+
+/** 拖拽标题栏移动面板；移动端保持底部抽屉，不启用拖拽。 */
+function startDrag(event: PointerEvent) {
+  if (isMobile.value || !panelRef.value) return
+  if (event.pointerType === 'mouse' && event.button !== 0) return
+  const rect = panelRef.value.getBoundingClientRect()
+  size.value = { w: rect.width, h: rect.height }
+  dragOffset.value = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+  dragging.value = true
+  window.addEventListener('pointermove', onDrag)
+  window.addEventListener('pointerup', endDrag, { once: true })
+  event.preventDefault()
+}
+
+function onDrag(event: PointerEvent) {
+  if (!dragging.value || !panelRef.value) return
+  const width = panelRef.value.offsetWidth
+  const height = panelRef.value.offsetHeight
+  position.value = {
+    x: Math.min(Math.max(0, event.clientX - dragOffset.value.x), window.innerWidth - width),
+    y: Math.min(Math.max(0, event.clientY - dragOffset.value.y), window.innerHeight - height),
+  }
+}
+
+function endDrag() {
+  dragging.value = false
+  window.removeEventListener('pointermove', onDrag)
+  if (position.value) {
+    localStorage.setItem(POS_KEY, JSON.stringify(position.value))
+  }
+}
+
+/** 双击标题栏恢复默认位置。 */
+function resetPosition() {
+  position.value = null
+  size.value = null
+  localStorage.removeItem(POS_KEY)
+}
+
+function clampToViewport() {
+  if (!position.value || !panelRef.value) return
+  const width = panelRef.value.offsetWidth
+  const height = panelRef.value.offsetHeight
+  position.value = {
+    x: Math.max(0, Math.min(position.value.x, window.innerWidth - width)),
+    y: Math.max(0, Math.min(position.value.y, window.innerHeight - height)),
+  }
+}
+
+function onResize() {
+  viewportWidth.value = window.innerWidth
+  clampToViewport()
+}
+
+onMounted(() => {
+  window.addEventListener('resize', onResize)
+  clampToViewport()
+})
+
+watch(open, async (value) => {
+  if (value) {
+    await nextTick()
+    clampToViewport()
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize)
+  window.removeEventListener('pointermove', onDrag)
+})
 
 async function load() {
   loading.value = true
@@ -64,6 +168,16 @@ function toggle() {
   localStorage.setItem(OPEN_KEY, open.value ? '1' : '0')
 }
 
+/** 供父组件（学习状态卡片里的按钮）打开面板。 */
+async function openPanel() {
+  open.value = true
+  localStorage.setItem(OPEN_KEY, '1')
+  await nextTick()
+  clampToViewport()
+}
+
+defineExpose({ openPanel })
+
 // 切换学习项时重新加载对应笔记，不清空面板开合状态
 watch(() => props.slug, load, { immediate: true })
 </script>
@@ -75,13 +189,25 @@ watch(() => props.slug, load, { immediate: true })
       记笔记
     </button>
 
-    <aside v-else class="note-panel" aria-label="我的笔记">
-      <header class="note-head">
+    <aside
+      v-else
+      ref="panelRef"
+      class="note-panel"
+      :class="{ dragging }"
+      :style="panelStyle"
+      aria-label="我的笔记"
+    >
+      <header
+        class="note-head"
+        title="拖动移动，双击复位"
+        @pointerdown="startDrag"
+        @dblclick="resetPosition"
+      >
         <div class="titles">
           <strong>我的笔记</strong>
           <span class="sub">{{ title }}</span>
         </div>
-        <button class="close" title="收起（自动保存）" @click="close">✕</button>
+        <button class="close" title="收起（自动保存）" @pointerdown.stop @click="close">✕</button>
       </header>
 
       <textarea
@@ -146,6 +272,9 @@ watch(() => props.slug, load, { immediate: true })
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
 }
 .titles {
   display: flex;
@@ -207,9 +336,14 @@ watch(() => props.slug, load, { immediate: true })
 }
 @media (max-width: 700px) {
   .note-fab {
-    right: 14px;
-    bottom: calc(78px + env(safe-area-inset-bottom));
-    padding: 9px 15px;
+    right: 16px;
+    bottom: calc(110px + env(safe-area-inset-bottom));
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+  .note-head {
+    cursor: default;
+    touch-action: auto;
   }
   .note-panel {
     left: 0;

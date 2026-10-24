@@ -1,7 +1,7 @@
 <!-- 学习项详情：概述、使用场景、概念、路线、示例、常见坑、面试题与进度。 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import { fetchProgress, fetchQuizzes, fetchTopic, setProgress, submitAnswer } from '@/api/client'
@@ -11,7 +11,9 @@ import { useAuthStore } from '@/stores/auth'
 import NotePanel from '@/components/NotePanel.vue'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
+const noteRef = ref<InstanceType<typeof NotePanel> | null>(null)
 const topic = ref<TopicDetail | null>(null)
 const missing = ref(false)
 const error = ref('')
@@ -203,6 +205,9 @@ watch(
             <el-option label="学习中" value="learning" />
             <el-option label="已完成" value="completed" />
           </el-select>
+          <el-button size="small" type="primary" plain @click="noteRef?.openPanel()">
+            ✎ 记笔记
+          </el-button>
         </template>
         <template v-else>
           <span class="muted">
@@ -397,7 +402,22 @@ watch(
 
     </article>
 
-    <NotePanel v-if="topic && auth.isLoggedIn" :slug="topic.slug" :title="topic.title" />
+    <button
+      v-if="topic && !auth.isLoggedIn"
+      class="note-login-fab"
+      title="登录后可记录私人笔记"
+      @click="router.push({ path: '/login', query: { redirect: route.fullPath } })"
+    >
+      <span class="icon">✎</span>
+      记笔记
+    </button>
+
+    <NotePanel
+      v-if="topic && auth.isLoggedIn"
+      ref="noteRef"
+      :slug="topic.slug"
+      :title="topic.title"
+    />
   </main>
 </template>
 
@@ -513,6 +533,34 @@ dd {
   gap: 8px;
   margin: 10px 0;
   flex-wrap: wrap;
+}
+.note-login-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(15, 110, 110, 0.28);
+}
+.note-login-fab .icon {
+  font-size: 15px;
+}
+@media (max-width: 768px) {
+  .note-login-fab {
+    right: 16px;
+    bottom: calc(110px + env(safe-area-inset-bottom));
+    padding: 10px 16px;
+  }
 }
 .bad {
   color: #c0392b;
