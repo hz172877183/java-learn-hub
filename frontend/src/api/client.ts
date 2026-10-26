@@ -250,6 +250,8 @@ function interviewParams(params: {
   q?: string
   page?: number
   size?: number
+  includeAnswered?: boolean
+  wrongOnly?: boolean
 }) {
   const search = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
@@ -321,6 +323,7 @@ export function fetchAnswers(params: {
   category?: string
   page?: number
   size?: number
+  result?: string
 }) {
   const search = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
@@ -361,6 +364,33 @@ export function saveStudyPosition(scope: string, payload: StudyPositionPayload) 
 export function clearStudyPosition(scope: string) {
   return request<void>(
     `/api/v1/me/positions/${encodeURIComponent(scope)}`,
+    userInit('DELETE'),
+  )
+}
+/** 登录用户的面试题列表：默认排除已答，可只看错题。 */
+export function fetchMyInterviewQuestions(params: {
+  category?: string
+  level?: string
+  q?: string
+  page?: number
+  size?: number
+  includeAnswered?: boolean
+  wrongOnly?: boolean
+}) {
+  return request<InterviewQuestionList>(
+    `/api/v1/me/interview/questions${interviewParams(params)}`,
+    userInit('GET'),
+  )
+}
+
+/** 按等级/分类重置面试题答题记录。 */
+export function resetMyInterviewAnswers(params: { level?: string; category?: string }) {
+  const search = new URLSearchParams()
+  if (params.level) search.set('level', params.level)
+  if (params.category) search.set('category', params.category)
+  const suffix = search.toString() ? `?${search}` : ''
+  return request<{ deleted: number }>(
+    `/api/v1/me/interview/answers${suffix}`,
     userInit('DELETE'),
   )
 }

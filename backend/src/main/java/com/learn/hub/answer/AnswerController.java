@@ -35,9 +35,10 @@ public class AnswerController {
             @RequestParam(required = false) String level,
             @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String result
     ) {
-        return answerService.list(userId, source, wrong, level, category, page, size);
+        return answerService.list(userId, source, wrong, level, category, page, size, result);
     }
 
     /**

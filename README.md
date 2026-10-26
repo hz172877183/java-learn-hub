@@ -92,9 +92,16 @@ npm run dev
 
 - 选择题提交后由服务端判分并记录；自答题保存作答内容，可自评「已掌握 / 加入错题本」。
 - 同一道题重复作答只保留最近一次结果，并累计作答次数；答对后自动离开错题本。
-- `/me/answers`：全部记录 / 错题本两个视图，可按来源（面试题 / 随堂题）、等级、分类筛选。
-- 支持删除单条记录（移出错题本），以及已答、答对、答错、正确率统计。
-- 接口：`GET/POST /api/v1/me/answers`、`GET /api/v1/me/answers/stats`、`DELETE /api/v1/me/answers/{source}/{questionId}`。
+- `/me/answers`：全部 / 答对 / 错题本三个视图，可按来源（面试题 / 随堂题）、等级、分类筛选；顶部统计卡片可点击直接切换视图，并通过 URL 参数 `result` 记住状态。
+- 错题本展示完整选项：绿色标记正确答案，红色标记我的选择；支持删除单条记录（移出错题本），以及已答、答对、答错、正确率统计。
+- 接口：`GET/POST /api/v1/me/answers`（`result=all|correct|wrong|ungraded`）、`GET /api/v1/me/answers/stats`、`DELETE /api/v1/me/answers/{source}/{questionId}`。
+
+## 面试题作答状态
+
+- 登录用户在面试专区默认只看「未答」题，可切换「全部 / 错题」；已答题回显上次选项与自答文本，并标注答对 / 答错。
+- 题目列表内联本人最近一次作答（`myAnswer`），无需额外请求答案映射。
+- 可一键重置答题记录，范围包括：全部面试题、当前等级、当前分类、当前筛选；重置后题目重新回到「未答」。
+- 接口：`GET /api/v1/me/interview/questions?includeAnswered=false&wrongOnly=false`、`DELETE /api/v1/me/interview/answers?level=&category=`。
 
 ## 学习位置
 
@@ -137,4 +144,4 @@ cd frontend; npm run build
 
 - 集成测试使用独立的 `learnhub_test` 库（`spring.profiles.active=test`），首次运行自动创建并执行 Flyway，每个用例事务回滚，不影响开发库。
 - 运行集成测试需要本机 MySQL 容器已启动；连不上会直接失败。
-- 目前 43 个用例：公开 API 6、认证与用户隔离 12、管理端与题目 11、面试题库 6、答题记录 4、学习位置 4。
+- 目前 47 个用例：公开 API 6、认证与用户隔离 12、管理端与题目 11、面试题库 6、我的面试题 3、答题记录 5、学习位置 4。

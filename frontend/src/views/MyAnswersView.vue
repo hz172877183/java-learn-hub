@@ -12,7 +12,13 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
-const wrongOnly = ref(false)
+type ResultFilter = 'all' | 'correct' | 'wrong' | 'ungraded'
+
+function parseResult(value: unknown): ResultFilter {
+  return value === 'correct' || value === 'wrong' || value === 'ungraded' ? value : 'all'
+}
+
+const result = ref<ResultFilter>(parseResult(route.query.result))
 const source = ref('')
 const level = ref('')
 const category = ref('')
@@ -36,7 +42,7 @@ async function load() {
   try {
     const data = await fetchAnswers({
       source: source.value,
-      wrong: wrongOnly.value || undefined,
+      result: result.value === 'all' ? undefined : result.value,
       level: level.value,
       category: category.value,
       page: page.value - 1,
@@ -64,6 +70,21 @@ function resetPage() {
   void load()
 }
 
+/** 切换筛选时同步到 URL，支持刷新与浏览器后退。 */
+function applyResult(next: ResultFilter) {
+  if (result.value === next) {
+    return
+  }
+  result.value = next
+  const query = { ...route.query }
+  if (next === 'all') {
+    delete query.result
+  } else {
+    query.result = next
+  }
+  void router.replace({ query })
+}
+
 function changePage(next: number) {
   page.value = next
   void load()
@@ -89,7 +110,17 @@ function resultLabel(item: AnswerView) {
   return '未判定'
 }
 
-watch([wrongOnly, source, level, category], resetPage)
+watch([result, source, level, category], resetPage)
+
+watch(
+  () => route.query.result,
+  (value) => {
+    const next = parseResult(value)
+    if (next !== result.value) {
+      result.value = next
+    }
+  },
+)
 
 onMounted(async () => {
   if (!auth.isLoggedIn) {
@@ -112,18 +143,33 @@ onMounted(async () => {
     </div>
 
     <section class="stats">
-      <div class="stat card">
+      <button
+        type="button"
+        class="stat card"
+        :class="{ active: result === 'all' }"
+        @click="applyResult('all')"
+      >
         <strong>{{ stats.total }}</strong>
         <span class="muted">已答</span>
-      </div>
-      <div class="stat card">
+      </button>
+      <button
+        type="button"
+        class="stat card"
+        :class="{ active: result === 'correct' }"
+        @click="applyResult('correct')"
+      >
         <strong>{{ stats.correct }}</strong>
         <span class="muted">答对</span>
-      </div>
-      <div class="stat card">
+      </button>
+      <button
+        type="button"
+        class="stat card"
+        :class="{ active: result === 'wrong' }"
+        @click="applyResult('wrong')"
+      >
         <strong>{{ stats.wrong }}</strong>
         <span class="muted">答错</span>
-      </div>
+      </button>
       <div class="stat card">
         <strong>{{ accuracy }}%</strong>
         <span class="muted">正确率</span>
@@ -131,9 +177,14 @@ onMounted(async () => {
     </section>
 
     <div class="toolbar card">
-      <el-radio-group v-model="wrongOnly" size="small">
-        <el-radio-button :value="false">全部记录</el-radio-button>
-        <el-radio-button :value="true">错题本</el-radio-button>
+      <el-radio-group
+        :model-value="result"
+        size="small"
+        @change="(value: string | number | boolean) => applyResult(parseResult(value))"
+      >
+        <el-radio-button value="all">全部</el-radio-button>
+        <el-radio-button value="correct">答对</el-radio-button>
+        <el-radio-button value="wrong">错题本</el-radio-button>
       </el-radio-group>
       <el-select v-model="source" placeholder="全部来源" clearable>
         <el-option label="面试题库" value="interview" />
@@ -160,7 +211,13 @@ onMounted(async () => {
     <p v-if="error" class="error">{{ error }}</p>
     <p v-else-if="loading" class="muted">加载中…</p>
     <p v-else-if="!items.length" class="muted">
-      {{ wrongOnly ? '错题本是空的，继续保持。' : '还没有答题记录，去面试专区或学习项里做几题吧。' }}
+      {{
+        result === 'wrong'
+          ? '错题本是空的，继续保持。'
+          : result === 'correct'
+            ? '还没有答对的记录。'
+            : '还没有答题记录，去面试专区或学习项里做几题吧。'
+      }}
     </p>
 
     <div v-else class="list">
@@ -179,16 +236,31 @@ onMounted(async () => {
 
         <p class="stem">{{ item.stem }}</p>
 
-        <div class="answer-row">
-          <span class="label">我的答案</span>
-          <span v-if="item.questionType === 'choice'">
-            {{ optionLabel(item.choiceIndex) }}. {{ item.options[item.choiceIndex ?? 0] }}
-          </span>
-          <span v-else class="answer-text">{{ item.textAnswer }}</span>
+        <div v-if="item.questionType === 'choice'" class="option-list">
+          <div
+            v-for="(option, index) in item.options"
+            :key="index"
+            class="option-line"
+            :class="{
+              correct: index === item.correctIndex,
+              chosen: index === item.choiceIndex && index !== item.correctIndex,
+            }"
+          >
+            <span class="letter">{{ optionLabel(index) }}</span>
+            <span class="option-text">{{ option }}</span>
+            <span v-if="index === item.correctIndex" class="mark good">正确答案</span>
+            <span
+              v-else-if="index === item.choiceIndex"
+              class="mark bad"
+            >
+              我的选择
+            </span>
+          </div>
         </div>
-        <div v-if="item.questionType === 'choice'" class="answer-row">
-          <span class="label">正确答案</span>
-          <span>{{ optionLabel(item.correctIndex) }}. {{ item.options[item.correctIndex ?? 0] }}</span>
+
+        <div v-else class="answer-row">
+          <span class="label">我的答案</span>
+          <span class="answer-text">{{ item.textAnswer }}</span>
         </div>
 
         <details class="explain">
@@ -204,7 +276,7 @@ onMounted(async () => {
           <span class="links">
             <RouterLink v-if="item.topicSlug" :to="`/topics/${item.topicSlug}`">去复习</RouterLink>
             <el-button text type="danger" size="small" @click="remove(item)">
-              {{ wrongOnly ? '移出错题本' : '删除记录' }}
+              {{ result === 'wrong' ? '移出错题本' : '删除记录' }}
             </el-button>
           </span>
         </div>
@@ -241,9 +313,64 @@ onMounted(async () => {
   flex-direction: column;
   gap: 4px;
   padding: 12px 14px;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.stat:not(button) {
+  cursor: default;
+}
+.stat.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 .stat strong {
   font-size: 22px;
+}
+.option-list {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+.option-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.option-line.correct {
+  border-color: #2f8f5b;
+  background: #f0faf4;
+}
+.option-line.chosen {
+  border-color: #c0392b;
+  background: #fdf1ef;
+}
+.letter {
+  font-weight: 600;
+  width: 16px;
+  flex: none;
+}
+.option-text {
+  flex: 1;
+  line-height: 1.6;
+}
+.mark {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.mark.good {
+  background: #d9f0e3;
+  color: #1e7a4f;
+}
+.mark.bad {
+  background: #f7dedb;
+  color: #a5342a;
 }
 .toolbar {
   display: grid;

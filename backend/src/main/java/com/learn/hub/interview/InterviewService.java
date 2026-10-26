@@ -2,6 +2,8 @@ package com.learn.hub.interview;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learn.hub.answer.AnswerRecordEntity;
+import com.learn.hub.answer.AnswerRecordRepository;
 import com.learn.hub.topic.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,12 +31,19 @@ public class InterviewService {
     /** 固定等级及其展示顺序。 */
     private static final List<String> LEVELS = List.of("junior", "mid", "senior", "architect");
     private static final List<String> TYPES = List.of("choice", "text");
+    private static final String SOURCE_INTERVIEW = "interview";
 
     private final InterviewQuestionRepository repository;
+    private final AnswerRecordRepository answerRepository;
     private final ObjectMapper objectMapper;
 
-    public InterviewService(InterviewQuestionRepository repository, ObjectMapper objectMapper) {
+    public InterviewService(
+            InterviewQuestionRepository repository,
+            AnswerRecordRepository answerRepository,
+            ObjectMapper objectMapper
+    ) {
         this.repository = repository;
+        this.answerRepository = answerRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -46,9 +55,87 @@ public class InterviewService {
         if (page < 0 || size < 1 || size > 100) {
             throw new IllegalArgumentException("page 从 0 起，size 范围 1-100");
         }
-        String needle = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
 
-        List<InterviewQuestionEntity> filtered = repository.findAll().stream()
+        List<InterviewQuestionEntity> filtered = filtered(category, level, q);
+        int from = Math.min(page * size, filtered.size());
+        int to = Math.min(from + size, filtered.size());
+        List<InterviewDtos.QuestionView> items = filtered.subList(from, to).stream()
+                .map(this::toView)
+                .toList();
+        return new InterviewDtos.QuestionList(items, page, size, filtered.size());
+    }
+
+    /**
+     * 登录用户的题目列表：内联本人作答，支持排除已答与只看错题。
+     */
+    @Transactional(readOnly = true)
+    public InterviewDtos.QuestionList listForUser(
+            Long userId,
+            String category,
+            String level,
+            String q,
+            int page,
+            int size,
+            boolean includeAnswered,
+            boolean wrongOnly
+    ) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw new IllegalArgumentException("page 从 0 起，size 范围 1-100");
+        }
+        Map<Long, AnswerRecordEntity> answers = answerRepository
+                .findByUserIdOrderByUpdatedAtDesc(userId).stream()
+                .filter(item -> SOURCE_INTERVIEW.equals(item.getSource()))
+                .collect(Collectors.toMap(
+                        AnswerRecordEntity::getQuestionId,
+                        item -> item,
+                        (first, second) -> first
+                ));
+
+        List<InterviewQuestionEntity> filtered = filtered(category, level, q).stream()
+                .filter(item -> {
+                    AnswerRecordEntity answer = answers.get(item.getId());
+                    if (wrongOnly) {
+                        return answer != null && Boolean.FALSE.equals(answer.getCorrect());
+                    }
+                    return includeAnswered || answer == null;
+                })
+                .toList();
+
+        int from = Math.min(page * size, filtered.size());
+        int to = Math.min(from + size, filtered.size());
+        List<InterviewDtos.QuestionView> items = filtered.subList(from, to).stream()
+                .map(item -> toView(item, answers.get(item.getId())))
+                .toList();
+        return new InterviewDtos.QuestionList(items, page, size, filtered.size());
+    }
+
+    /**
+     * 按等级/分类重置面试题答题记录；两者都为空时清空全部面试题记录。
+     */
+    @Transactional
+    public long resetAnswers(Long userId, String level, String category) {
+        Set<Long> questionIds = repository.findAll().stream()
+                .filter(item -> isBlank(level) || level.equals(item.getLevel()))
+                .filter(item -> isBlank(category) || category.equals(item.getCategory()))
+                .map(InterviewQuestionEntity::getId)
+                .collect(Collectors.toSet());
+        if (questionIds.isEmpty()) {
+            return 0;
+        }
+        List<AnswerRecordEntity> records = answerRepository.findByUserIdOrderByUpdatedAtDesc(userId).stream()
+                .filter(item -> SOURCE_INTERVIEW.equals(item.getSource()))
+                .filter(item -> questionIds.contains(item.getQuestionId()))
+                .toList();
+        if (records.isEmpty()) {
+            return 0;
+        }
+        answerRepository.deleteAllInBatch(records);
+        return records.size();
+    }
+
+    private List<InterviewQuestionEntity> filtered(String category, String level, String q) {
+        String needle = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
+        return repository.findAll().stream()
                 .filter(item -> isBlank(category) || category.equals(item.getCategory()))
                 .filter(item -> isBlank(level) || level.equals(item.getLevel()))
                 .filter(item -> needle.isEmpty() || matches(item, needle))
@@ -57,13 +144,6 @@ public class InterviewService {
                         .thenComparingInt(InterviewQuestionEntity::getSortOrder)
                         .thenComparingLong(InterviewQuestionEntity::getId))
                 .toList();
-
-        int from = Math.min(page * size, filtered.size());
-        int to = Math.min(from + size, filtered.size());
-        List<InterviewDtos.QuestionView> items = filtered.subList(from, to).stream()
-                .map(this::toView)
-                .toList();
-        return new InterviewDtos.QuestionList(items, page, size, filtered.size());
     }
 
     /**
@@ -255,6 +335,16 @@ public class InterviewService {
     }
 
     private InterviewDtos.QuestionView toView(InterviewQuestionEntity entity) {
+        return toView(entity, null);
+    }
+
+    private InterviewDtos.QuestionView toView(InterviewQuestionEntity entity, AnswerRecordEntity answer) {
+        InterviewDtos.MyAnswer myAnswer = answer == null ? null : new InterviewDtos.MyAnswer(
+                answer.getChoiceIndex(),
+                answer.getTextAnswer(),
+                answer.getCorrect(),
+                answer.getAttempts()
+        );
         return new InterviewDtos.QuestionView(
                 entity.getId(),
                 entity.getCategory(),
@@ -264,7 +354,8 @@ public class InterviewService {
                 fromOptionsJson(entity.getOptions()),
                 entity.getCorrectIndex(),
                 entity.getReferenceAnswer(),
-                entity.getExplanation()
+                entity.getExplanation(),
+                myAnswer
         );
     }
 

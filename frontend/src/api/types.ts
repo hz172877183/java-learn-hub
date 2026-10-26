@@ -165,6 +165,12 @@ export interface InterviewQuestion {
   correctIndex?: number
   referenceAnswer?: string
   explanation: string
+  myAnswer?: {
+    choiceIndex?: number
+    textAnswer?: string
+    correct?: boolean
+    attempts: number
+  }
 }
 
 export interface InterviewQuestionList {

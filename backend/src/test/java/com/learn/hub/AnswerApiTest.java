@@ -132,6 +132,48 @@ class AnswerApiTest {
     }
 
     @Test
+    void resultFilterSplitsCorrectAndWrong() throws Exception {
+        String bearer = register("answer_result");
+        JsonNode choice = null;
+        for (JsonNode item : questions()) {
+            if ("choice".equals(item.path("type").asText())) {
+                choice = item;
+                break;
+            }
+        }
+        if (choice == null) {
+            throw new IllegalStateException("题库中没有选择题");
+        }
+        long id = choice.path("id").asLong();
+        int correct = choice.path("correctIndex").asInt();
+        int wrong = (correct + 1) % choice.path("options").size();
+
+        mvc.perform(post("/api/v1/me/answers")
+                        .header(AUTH, bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"source\":\"interview\",\"questionId\":" + id
+                                + ",\"choiceIndex\":" + correct + "}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/me/answers").param("result", "correct").header(AUTH, bearer))
+                .andExpect(jsonPath("$.total").value(1));
+        mvc.perform(get("/api/v1/me/answers").param("result", "wrong").header(AUTH, bearer))
+                .andExpect(jsonPath("$.total").value(0));
+
+        mvc.perform(post("/api/v1/me/answers")
+                        .header(AUTH, bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"source\":\"interview\",\"questionId\":" + id
+                                + ",\"choiceIndex\":" + wrong + "}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/me/answers").param("result", "correct").header(AUTH, bearer))
+                .andExpect(jsonPath("$.total").value(0));
+        mvc.perform(get("/api/v1/me/answers").param("result", "wrong").header(AUTH, bearer))
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
     void answerRequiresLogin() throws Exception {
         mvc.perform(get("/api/v1/me/answers"))
                 .andExpect(status().isUnauthorized());

@@ -7,7 +7,9 @@ import {
   clearStudyPosition,
   fetchInterviewMeta,
   fetchInterviewQuestions,
+  fetchMyInterviewQuestions,
   fetchStudyPosition,
+  resetMyInterviewAnswers,
   saveStudyPosition,
   submitAnswer,
 } from '@/api/client'
@@ -35,6 +37,14 @@ const revealed = ref<Record<number, boolean>>({})
 const assessed = ref<Record<number, boolean | undefined>>({})
 const savingId = ref<number | null>(null)
 
+type Mode = 'unanswered' | 'all' | 'wrong'
+const mode = ref<Mode>(auth.isLoggedIn ? 'unanswered' : 'all')
+const myAnswered = ref<Record<number, boolean>>({})
+const myResult = ref<Record<number, boolean | undefined>>({})
+const resetDialog = ref(false)
+const resetting = ref(false)
+const resetScope = ref<'all' | 'level' | 'category' | 'current'>('all')
+
 const resume = ref<StudyPosition | null>(null)
 const restoring = ref(false)
 const lastQuestionId = ref<number | null>(null)
@@ -60,22 +70,61 @@ function resetAnswers() {
   texts.value = t
   revealed.value = r
   assessed.value = s
+  myAnswered.value = {}
+  myResult.value = {}
+}
+
+/** 已答题回显：选中上次选项、回填自答文本、记录对错状态。 */
+function applyEcho() {
+  const a = { ...answers.value }
+  const t = { ...texts.value }
+  const s = { ...assessed.value }
+  const answered: Record<number, boolean> = {}
+  const result: Record<number, boolean | undefined> = {}
+  for (const item of items.value) {
+    const saved = item.myAnswer
+    if (!saved) continue
+    answered[item.id] = true
+    if (item.type === 'choice' && saved.choiceIndex !== undefined && saved.choiceIndex !== null) {
+      a[item.id] = saved.choiceIndex
+    }
+    if (saved.textAnswer) {
+      t[item.id] = saved.textAnswer
+    }
+    if (saved.correct !== undefined && saved.correct !== null) {
+      s[item.id] = saved.correct
+      result[item.id] = saved.correct
+    }
+  }
+  answers.value = a
+  texts.value = t
+  assessed.value = s
+  myAnswered.value = answered
+  myResult.value = result
 }
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = await fetchInterviewQuestions({
+    const params = {
       level: level.value,
       category: category.value,
       q: keyword.value.trim(),
       page: page.value - 1,
       size: size.value,
-    })
+    }
+    const data = auth.isLoggedIn
+      ? await fetchMyInterviewQuestions({
+          ...params,
+          includeAnswered: mode.value !== 'unanswered',
+          wrongOnly: mode.value === 'wrong',
+        })
+      : await fetchInterviewQuestions(params)
     items.value = data.items
     total.value = data.total
     resetAnswers()
+    if (auth.isLoggedIn) applyEcho()
   } catch (e) {
     error.value = (e as Error).message
   } finally {
@@ -167,6 +216,9 @@ async function applyPosition() {
   const value = resume.value
   if (!value) return
   restoring.value = true
+  if (auth.isLoggedIn) {
+    mode.value = 'all'
+  }
   level.value = value.level ?? ''
   category.value = value.category ?? ''
   keyword.value = value.q ?? ''
@@ -200,6 +252,41 @@ async function clearResume() {
   resume.value = null
 }
 
+function openReset() {
+  resetScope.value =
+    level.value && category.value
+      ? 'current'
+      : level.value
+        ? 'level'
+        : category.value
+          ? 'category'
+          : 'all'
+  resetDialog.value = true
+}
+
+/** 按选定范围删除面试题答题记录，题目会重新回到「未答」。 */
+async function confirmReset() {
+  resetting.value = true
+  try {
+    const params =
+      resetScope.value === 'all'
+        ? {}
+        : resetScope.value === 'level'
+          ? { level: level.value }
+          : resetScope.value === 'category'
+            ? { category: category.value }
+            : { level: level.value || undefined, category: category.value || undefined }
+    const result = await resetMyInterviewAnswers(params)
+    ElMessage.success(`已重置 ${result.deleted} 条记录`)
+    resetDialog.value = false
+    await load()
+  } catch (e) {
+    ElMessage.error((e as Error).message)
+  } finally {
+    resetting.value = false
+  }
+}
+
 function reveal(id: number) {
   revealed.value = { ...revealed.value, [id]: true }
 }
@@ -216,7 +303,9 @@ async function submitChoice(item: InterviewQuestion) {
   }
   savingId.value = item.id
   try {
-    await submitAnswer({ source: 'interview', questionId: item.id, choiceIndex: index })
+    const saved = await submitAnswer({ source: 'interview', questionId: item.id, choiceIndex: index })
+    myAnswered.value = { ...myAnswered.value, [item.id]: true }
+    myResult.value = { ...myResult.value, [item.id]: saved.correct }
   } catch (e) {
     ElMessage.warning('答题记录保存失败：' + (e as Error).message)
   } finally {
@@ -238,6 +327,7 @@ async function revealText(item: InterviewQuestion) {
   }
   try {
     await submitAnswer({ source: 'interview', questionId: item.id, textAnswer: text })
+    myAnswered.value = { ...myAnswered.value, [item.id]: true }
   } catch {
     /* 记录失败不影响看答案 */
   }
@@ -262,6 +352,8 @@ async function assess(item: InterviewQuestion, correct: boolean) {
       selfCorrect: correct,
     })
     assessed.value = { ...assessed.value, [item.id]: correct }
+    myAnswered.value = { ...myAnswered.value, [item.id]: true }
+    myResult.value = { ...myResult.value, [item.id]: correct }
     lastQuestionId.value = item.id
     scheduleSave(300)
     ElMessage.success(correct ? '已标记掌握' : '已加入错题本')
@@ -286,6 +378,17 @@ function redo(id: number) {
 }
 
 watch([level, category], () => {
+  if (restoring.value) {
+    return
+  }
+  resume.value = null
+  lastQuestionId.value = null
+  page.value = 1
+  void load()
+  scheduleSave()
+})
+
+watch(mode, () => {
   if (restoring.value) {
     return
   }
@@ -335,6 +438,15 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <div v-if="auth.isLoggedIn" class="mode-row">
+      <el-radio-group v-model="mode" size="small">
+        <el-radio-button value="unanswered">未答</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+        <el-radio-button value="wrong">错题</el-radio-button>
+      </el-radio-group>
+      <el-button text size="small" @click="openReset">重置已答</el-button>
+    </div>
+
     <div class="filters card">
       <div class="level-row">
         <el-radio-group v-model="level" size="small">
@@ -360,7 +472,22 @@ onBeforeUnmount(() => {
 
     <p v-if="error" class="error">{{ error }}</p>
     <p v-else-if="loading" class="muted">加载中…</p>
-    <p v-else-if="!items.length" class="muted">没有符合条件的题目。</p>
+    <div v-else-if="!items.length" class="empty">
+      <p class="muted">
+        {{
+          mode === 'unanswered' && auth.isLoggedIn
+            ? '当前筛选下已经全部答过，可以切到「全部」复习，或重置已答。'
+            : '没有符合条件的题目。'
+        }}
+      </p>
+      <el-button
+        v-if="mode === 'unanswered' && auth.isLoggedIn"
+        size="small"
+        @click="openReset"
+      >
+        重置已答
+      </el-button>
+    </div>
 
     <div v-else class="list">
       <article
@@ -374,6 +501,13 @@ onBeforeUnmount(() => {
           <span class="badge level">{{ interviewLevelLabel[item.level] ?? item.level }}</span>
           <span class="badge">{{ interviewCategoryLabel[item.category] ?? item.category }}</span>
           <span class="badge type">{{ item.type === 'choice' ? '单选题' : '自答题' }}</span>
+          <span
+            v-if="auth.isLoggedIn && myAnswered[item.id]"
+            class="badge answered"
+            :class="{ good: myResult[item.id] === true, bad: myResult[item.id] === false }"
+          >
+            已答{{ myResult[item.id] === true ? ' · 答对' : myResult[item.id] === false ? ' · 答错' : '' }}
+          </span>
           <span class="badge id">#{{ item.id }}</span>
         </div>
 
@@ -468,6 +602,24 @@ onBeforeUnmount(() => {
         @size-change="changeSize"
       />
     </div>
+
+    <el-dialog v-model="resetDialog" title="重置答题记录" width="440px">
+      <p class="muted">将删除对应面试题的答题记录，题目会重新出现在「未答」中。</p>
+      <el-radio-group v-model="resetScope" class="reset-scope">
+        <el-radio value="all">全部面试题</el-radio>
+        <el-radio value="level" :disabled="!level">
+          当前等级：{{ level ? interviewLevelLabel[level] ?? level : '未选择' }}
+        </el-radio>
+        <el-radio value="category" :disabled="!category">
+          当前分类：{{ category ? interviewCategoryLabel[category] ?? category : '未选择' }}
+        </el-radio>
+        <el-radio value="current" :disabled="!level && !category">当前筛选</el-radio>
+      </el-radio-group>
+      <template #footer>
+        <el-button @click="resetDialog = false">取消</el-button>
+        <el-button type="danger" :loading="resetting" @click="confirmReset">确认重置</el-button>
+      </template>
+    </el-dialog>
   </main>
 </template>
 
@@ -476,6 +628,28 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 12px;
   margin: 16px 0 20px;
+}
+.mode-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 36px 0;
+}
+.reset-scope {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 8px;
 }
 .resume {
   display: flex;
@@ -537,6 +711,18 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--muted);
   padding-right: 0;
+}
+.badge.answered {
+  background: #eef1f4;
+  color: var(--muted);
+}
+.badge.answered.good {
+  background: #d9f0e3;
+  color: #1e7a4f;
+}
+.badge.answered.bad {
+  background: #f7dedb;
+  color: #a5342a;
 }
 .stem {
   font-weight: 600;

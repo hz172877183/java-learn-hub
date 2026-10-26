@@ -106,7 +106,8 @@ public class AnswerService {
             String level,
             String category,
             int page,
-            int size
+            int size,
+            String result
     ) {
         if (page < 0 || size < 1 || size > 100) {
             throw new IllegalArgumentException("page 从 0 起，size 范围 1-100");
@@ -114,6 +115,11 @@ public class AnswerService {
         String sourceFilter = isBlank(source) ? null : normalizeSource(source);
         String levelFilter = isBlank(level) ? null : level.trim();
         String categoryFilter = isBlank(category) ? null : category.trim();
+        String resultFilter = isBlank(result) ? null : result.trim().toLowerCase(Locale.ROOT);
+        if (resultFilter != null
+                && !List.of("all", "correct", "wrong", "ungraded").contains(resultFilter)) {
+            throw new IllegalArgumentException("result 只能是 all / correct / wrong / ungraded");
+        }
 
         List<AnswerDtos.AnswerView> views = new ArrayList<>();
         for (AnswerRecordEntity entity : answerRepository.findByUserIdOrderByUpdatedAtDesc(userId)) {
@@ -121,6 +127,15 @@ public class AnswerService {
                 continue;
             }
             if (Boolean.TRUE.equals(wrong) && !Boolean.FALSE.equals(entity.getCorrect())) {
+                continue;
+            }
+            if ("correct".equals(resultFilter) && !Boolean.TRUE.equals(entity.getCorrect())) {
+                continue;
+            }
+            if ("wrong".equals(resultFilter) && !Boolean.FALSE.equals(entity.getCorrect())) {
+                continue;
+            }
+            if ("ungraded".equals(resultFilter) && entity.getCorrect() != null) {
                 continue;
             }
             Question question = tryLoad(entity.getSource(), entity.getQuestionId());

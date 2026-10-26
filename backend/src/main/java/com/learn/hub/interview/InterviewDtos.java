@@ -7,6 +7,17 @@ public final class InterviewDtos {
     private InterviewDtos() {
     }
 
+    /**
+     * 当前用户对这道题的最近一次作答；公开接口为 null。
+     */
+    public record MyAnswer(
+            Integer choiceIndex,
+            String textAnswer,
+            Boolean correct,
+            int attempts
+    ) {
+    }
+
     public record QuestionView(
             Long id,
             String category,
@@ -16,7 +27,8 @@ public final class InterviewDtos {
             List<String> options,
             Integer correctIndex,
             String referenceAnswer,
-            String explanation
+            String explanation,
+            MyAnswer myAnswer
     ) {
     }
 
@@ -44,5 +56,8 @@ public final class InterviewDtos {
     }
 
     public record Meta(List<Stat> levels, List<Stat> categories, long total) {
+    }
+
+    public record ResetResult(long deleted) {
     }
 }
