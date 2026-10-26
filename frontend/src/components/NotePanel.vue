@@ -23,7 +23,7 @@ const dragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 const viewportWidth = ref(window.innerWidth)
 
-const isMobile = computed(() => viewportWidth.value <= 768)
+const isMobile = computed(() => viewportWidth.value <= 700)
 const panelStyle = computed(() =>
   !isMobile.value && position.value
     ? {
@@ -49,7 +49,16 @@ function readPosition() {
   }
 }
 
-/** 拖拽标题栏移动面板；移动端保持底部抽屉，不启用拖拽。 */
+/** 拖拽面板：按住空白区域即可拖动，输入框、按钮、链接不触发。 */
+function startDragFromPanel(event: PointerEvent) {
+  const target = event.target as HTMLElement
+  if (target.closest('textarea, input, button, a, select, [contenteditable="true"]')) {
+    return
+  }
+  startDrag(event)
+}
+
+/** 拖拽移动面板；移动端保持底部抽屉，不启用拖拽。 */
 function startDrag(event: PointerEvent) {
   if (isMobile.value || !panelRef.value) return
   if (event.pointerType === 'mouse' && event.button !== 0) return
@@ -196,15 +205,11 @@ watch(() => props.slug, load, { immediate: true })
       :class="{ dragging }"
       :style="panelStyle"
       aria-label="我的笔记"
+      @pointerdown="startDragFromPanel"
     >
-      <header
-        class="note-head"
-        title="拖动移动，双击复位"
-        @pointerdown="startDrag"
-        @dblclick="resetPosition"
-      >
+      <header class="note-head" title="按住空白处拖动，双击复位" @dblclick="resetPosition">
         <div class="titles">
-          <strong>我的笔记</strong>
+          <strong><span class="grip" aria-hidden="true">⠿</span> 我的笔记</strong>
           <span class="sub">{{ title }}</span>
         </div>
         <button class="close" title="收起（自动保存）" @pointerdown.stop @click="close">✕</button>
@@ -234,19 +239,21 @@ watch(() => props.slug, load, { immediate: true })
   z-index: 1200;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
+  gap: 7px;
+  padding: 12px 18px;
   border: none;
   border-radius: 999px;
   background: var(--accent);
   color: #fff;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(15, 110, 110, 0.28);
+  box-shadow: 0 8px 24px rgba(15, 110, 110, 0.38);
 }
 .note-fab:hover {
   filter: brightness(1.08);
+  transform: translateY(-1px);
 }
 .note-fab .icon {
   font-size: 15px;
@@ -264,8 +271,17 @@ watch(() => props.slug, load, { immediate: true })
   padding: 14px;
   background: var(--card);
   border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
   border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(28, 36, 48, 0.14);
+  box-shadow: 0 14px 40px rgba(28, 36, 48, 0.22);
+  cursor: move;
+}
+.note-panel.dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+.note-panel.dragging * {
+  cursor: grabbing;
 }
 .note-head {
   display: flex;
@@ -275,6 +291,14 @@ watch(() => props.slug, load, { immediate: true })
   cursor: move;
   user-select: none;
   touch-action: none;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.grip {
+  color: var(--accent);
+  letter-spacing: -2px;
+  margin-right: 6px;
+  font-size: 13px;
 }
 .titles {
   display: flex;
@@ -355,6 +379,7 @@ watch(() => props.slug, load, { immediate: true })
     border-radius: 18px 18px 0 0;
     padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
     box-shadow: 0 -8px 30px rgba(28, 36, 48, 0.18);
+    cursor: default;
   }
   .note-input {
     min-height: 26vh;
