@@ -96,6 +96,12 @@ npm run dev
 - 支持删除单条记录（移出错题本），以及已答、答对、答错、正确率统计。
 - 接口：`GET/POST /api/v1/me/answers`、`GET /api/v1/me/answers/stats`、`DELETE /api/v1/me/answers/{source}/{questionId}`。
 
+## 学习位置
+
+- 面试专区按用户记录上次浏览位置：等级、分类、搜索词、页码、最后作答的题号与滚动位置。
+- 再次进入时顶部显示「上次学习位置」横幅，可一键继续或清除；继续后恢复筛选与页码，并高亮上次那道题。
+- 接口：`GET/PUT/DELETE /api/v1/me/positions/{scope}`；当前 scope 为 `interview`，预留 `topic_quiz:<slug>`。
+
 ## 普通用户
 
 - 注册 / 登录：`/register`、`/login`，接口为 `POST /api/v1/auth/register|login`，成功后返回 JWT。
@@ -131,4 +137,4 @@ cd frontend; npm run build
 
 - 集成测试使用独立的 `learnhub_test` 库（`spring.profiles.active=test`），首次运行自动创建并执行 Flyway，每个用例事务回滚，不影响开发库。
 - 运行集成测试需要本机 MySQL 容器已启动；连不上会直接失败。
-- 目前 39 个用例：公开 API 6、认证与用户隔离 12、管理端与题目 11、面试题库 6、答题记录 4。
+- 目前 43 个用例：公开 API 6、认证与用户隔离 12、管理端与题目 11、面试题库 6、答题记录 4、学习位置 4。

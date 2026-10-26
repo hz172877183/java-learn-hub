@@ -1,10 +1,17 @@
 <!-- 面试真题专区：按等级与分类筛选，支持单选判分和自答对照。 -->
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { RouterLink } from 'vue-router'
-import { fetchInterviewMeta, fetchInterviewQuestions, submitAnswer } from '@/api/client'
-import type { InterviewMeta, InterviewQuestion } from '@/api/types'
+import {
+  clearStudyPosition,
+  fetchInterviewMeta,
+  fetchInterviewQuestions,
+  fetchStudyPosition,
+  saveStudyPosition,
+  submitAnswer,
+} from '@/api/client'
+import type { InterviewMeta, InterviewQuestion, StudyPosition, StudyPositionPayload } from '@/api/types'
 import { interviewCategoryLabel, interviewLevelLabel } from '@/labels'
 import { useAuthStore } from '@/stores/auth'
 
@@ -27,6 +34,13 @@ const texts = ref<Record<number, string>>({})
 const revealed = ref<Record<number, boolean>>({})
 const assessed = ref<Record<number, boolean | undefined>>({})
 const savingId = ref<number | null>(null)
+
+const resume = ref<StudyPosition | null>(null)
+const restoring = ref(false)
+const lastQuestionId = ref<number | null>(null)
+const highlightId = ref<number | null>(null)
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+let scrollTimer: ReturnType<typeof setTimeout> | undefined
 
 const levels = computed(() => meta.value?.levels ?? [])
 const categories = computed(() => meta.value?.categories ?? [])
@@ -70,19 +84,120 @@ async function load() {
 }
 
 function search() {
+  resume.value = null
+  lastQuestionId.value = null
   page.value = 1
   void load()
+  scheduleSave()
 }
 
 function changePage(next: number) {
+  resume.value = null
+  lastQuestionId.value = null
   page.value = next
   void load()
+  scheduleSave()
 }
 
 function changeSize(next: number) {
+  resume.value = null
+  lastQuestionId.value = null
   size.value = next
   page.value = 1
   void load()
+  scheduleSave()
+}
+
+const resumeSummary = computed(() => {
+  const value = resume.value
+  if (!value) return ''
+  const parts: string[] = []
+  if (value.level) parts.push(interviewLevelLabel[value.level] ?? value.level)
+  if (value.category) parts.push(interviewCategoryLabel[value.category] ?? value.category)
+  parts.push(`第 ${value.page} 页`)
+  if (value.questionId) parts.push(`题 #${value.questionId}`)
+  parts.push(`更新于 ${value.updatedAt.replace('T', ' ').slice(0, 16)}`)
+  return parts.join(' · ')
+})
+
+/** 读取上次位置；没有记录时静默跳过。 */
+async function loadPosition() {
+  try {
+    const value = await fetchStudyPosition('interview')
+    if (value && (value.page > 1 || value.level || value.category || value.q || value.questionId)) {
+      resume.value = value
+    }
+  } catch {
+    /* 位置加载失败不影响答题 */
+  }
+}
+
+function buildPosition(): StudyPositionPayload | null {
+  if (!auth.isLoggedIn) return null
+  return {
+    level: level.value || undefined,
+    category: category.value || undefined,
+    q: keyword.value.trim() || undefined,
+    page: page.value,
+    size: size.value,
+    questionId: lastQuestionId.value ?? undefined,
+    scrollTop: Math.max(0, Math.round(window.scrollY)),
+  }
+}
+
+/** 防抖保存位置，避免滚动/筛选时频繁写库。 */
+function scheduleSave(delay = 800) {
+  if (!auth.isLoggedIn) return
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    const payload = buildPosition()
+    if (!payload) return
+    void saveStudyPosition('interview', payload).catch(() => {})
+  }, delay)
+}
+
+function onScroll() {
+  if (restoring.value) return
+  if (scrollTimer) clearTimeout(scrollTimer)
+  scrollTimer = setTimeout(() => scheduleSave(300), 700)
+}
+
+/** 继续上次位置：恢复筛选与页码，滚动到题号并短暂高亮。 */
+async function applyPosition() {
+  const value = resume.value
+  if (!value) return
+  restoring.value = true
+  level.value = value.level ?? ''
+  category.value = value.category ?? ''
+  keyword.value = value.q ?? ''
+  page.value = Math.max(1, value.page)
+  size.value = value.size || 20
+  await nextTick()
+  await load()
+  restoring.value = false
+  resume.value = null
+  lastQuestionId.value = value.questionId ?? null
+  await nextTick()
+
+  const target = value.questionId ? document.getElementById(`q-${value.questionId}`) : null
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    highlightId.value = value.questionId ?? null
+    setTimeout(() => {
+      highlightId.value = null
+    }, 2200)
+  } else {
+    window.scrollTo({ top: value.scrollTop, behavior: 'smooth' })
+  }
+}
+
+async function clearResume() {
+  try {
+    await clearStudyPosition('interview')
+  } catch {
+    /* 清除失败也让横幅消失 */
+  }
+  resume.value = null
 }
 
 function reveal(id: number) {
@@ -107,6 +222,8 @@ async function submitChoice(item: InterviewQuestion) {
   } finally {
     savingId.value = null
     reveal(item.id)
+    lastQuestionId.value = item.id
+    scheduleSave(300)
   }
 }
 
@@ -114,6 +231,8 @@ async function submitChoice(item: InterviewQuestion) {
 async function revealText(item: InterviewQuestion) {
   const text = texts.value[item.id]?.trim()
   reveal(item.id)
+  lastQuestionId.value = item.id
+  scheduleSave(300)
   if (!auth.isLoggedIn || !text) {
     return
   }
@@ -143,6 +262,8 @@ async function assess(item: InterviewQuestion, correct: boolean) {
       selfCorrect: correct,
     })
     assessed.value = { ...assessed.value, [item.id]: correct }
+    lastQuestionId.value = item.id
+    scheduleSave(300)
     ElMessage.success(correct ? '已标记掌握' : '已加入错题本')
   } catch (e) {
     ElMessage.error((e as Error).message)
@@ -165,17 +286,33 @@ function redo(id: number) {
 }
 
 watch([level, category], () => {
+  if (restoring.value) {
+    return
+  }
+  resume.value = null
+  lastQuestionId.value = null
   page.value = 1
   void load()
+  scheduleSave()
 })
 
 onMounted(async () => {
-  void load()
+  window.addEventListener('scroll', onScroll, { passive: true })
   try {
     meta.value = await fetchInterviewMeta()
   } catch {
     ElMessage.warning('分类统计加载失败，筛选仍可使用')
   }
+  if (auth.isLoggedIn) {
+    await loadPosition()
+  }
+  await load()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', onScroll)
+  if (saveTimer) clearTimeout(saveTimer)
+  if (scrollTimer) clearTimeout(scrollTimer)
 })
 </script>
 
@@ -186,6 +323,17 @@ onMounted(async () => {
       按等级和方向刷题：选择题提交即判分，自答题先自己说，再对照参考答案与知识点。
       共 {{ meta?.total ?? total }} 道。
     </p>
+
+    <div v-if="resume" class="resume card">
+      <div class="resume-text">
+        <strong>上次学习位置</strong>
+        <span class="muted">{{ resumeSummary }}</span>
+      </div>
+      <div class="resume-actions">
+        <el-button type="primary" size="small" @click="applyPosition">继续</el-button>
+        <el-button text size="small" @click="clearResume">清除记录</el-button>
+      </div>
+    </div>
 
     <div class="filters card">
       <div class="level-row">
@@ -215,7 +363,13 @@ onMounted(async () => {
     <p v-else-if="!items.length" class="muted">没有符合条件的题目。</p>
 
     <div v-else class="list">
-      <article v-for="item in items" :key="item.id" class="card question">
+      <article
+        v-for="item in items"
+        :id="`q-${item.id}`"
+        :key="item.id"
+        class="card question"
+        :class="{ highlight: highlightId === item.id }"
+      >
         <div class="badges">
           <span class="badge level">{{ interviewLevelLabel[item.level] ?? item.level }}</span>
           <span class="badge">{{ interviewCategoryLabel[item.category] ?? item.category }}</span>
@@ -323,6 +477,29 @@ onMounted(async () => {
   gap: 12px;
   margin: 16px 0 20px;
 }
+.resume {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  border-color: var(--accent);
+}
+.resume-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.resume-actions {
+  display: flex;
+  gap: 8px;
+}
+.question.highlight {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 .level-row {
   overflow-x: auto;
 }
@@ -418,6 +595,9 @@ onMounted(async () => {
   }
 }
 @media (max-width: 768px) {
+  .resume {
+    align-items: flex-start;
+  }
   .pager :deep(.el-pagination__sizes),
   .pager :deep(.el-pagination__jump) {
     display: none;

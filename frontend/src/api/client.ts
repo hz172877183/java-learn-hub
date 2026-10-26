@@ -14,6 +14,8 @@ import type {
   NoteItem,
   ProgressItem,
   QuizQuestion,
+  StudyPosition,
+  StudyPositionPayload,
   TopicDetail,
   TopicDocument,
   TopicListResponse,
@@ -336,4 +338,29 @@ export function fetchAnswerStats() {
 /** 删除某题的答题记录（移出错题本）。 */
 export function deleteAnswer(source: string, questionId: number) {
   return request<void>(`/api/v1/me/answers/${source}/${questionId}`, userInit('DELETE'))
+}
+/* ---------------- 学习位置 ---------------- */
+
+/** 读取上次学习位置；没有记录时返回 undefined。 */
+export function fetchStudyPosition(scope: string) {
+  return request<StudyPosition | undefined>(
+    `/api/v1/me/positions/${encodeURIComponent(scope)}`,
+    userInit('GET'),
+  )
+}
+
+/** 保存学习位置。 */
+export function saveStudyPosition(scope: string, payload: StudyPositionPayload) {
+  return request<StudyPosition>(
+    `/api/v1/me/positions/${encodeURIComponent(scope)}`,
+    userInit('PUT', payload),
+  )
+}
+
+/** 清除学习位置。 */
+export function clearStudyPosition(scope: string) {
+  return request<void>(
+    `/api/v1/me/positions/${encodeURIComponent(scope)}`,
+    userInit('DELETE'),
+  )
 }

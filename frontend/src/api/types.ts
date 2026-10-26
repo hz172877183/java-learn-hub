@@ -238,3 +238,24 @@ export interface AnswerStats {
   wrong: number
   ungraded: number
 }
+export interface StudyPosition {
+  scope: string
+  level?: string
+  category?: string
+  q?: string
+  page: number
+  size: number
+  questionId?: number
+  scrollTop: number
+  updatedAt: string
+}
+
+export interface StudyPositionPayload {
+  level?: string
+  category?: string
+  q?: string
+  page: number
+  size: number
+  questionId?: number
+  scrollTop: number
+}
